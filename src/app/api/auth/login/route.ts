@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth";
 import {
   createSessionToken,
+  isAuthConfigured,
   roleHome,
   SESSION_COOKIE,
   SESSION_COOKIE_OPTIONS,
@@ -32,6 +33,20 @@ import { loginSchema } from "@/lib/validation";
  *    digits is a million guesses and a script walks straight in.
  */
 export async function POST(request: Request) {
+  // Fail loudly and specifically. Without this the login would "work", set no
+  // usable cookie, and bounce the user back to the login page forever — the
+  // single most confusing failure this app could have.
+  if (!isAuthConfigured()) {
+    console.error("AUTH_SECRET is missing or under 32 characters.");
+    return NextResponse.json(
+      {
+        error:
+          "Sign-in is not configured on this server. AUTH_SECRET is missing. Ask an administrator to set it and redeploy.",
+      },
+      { status: 503 },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();

@@ -1,16 +1,13 @@
-import { SignJWT, jwtVerify } from "jose";
 import type { Role } from "@/generated/prisma/enums";
+import { signJwt, verifyJwt } from "./jwt";
 
 /**
  * Sessions.
  *
- * A signed JWT in an httpOnly cookie. Deliberately small and boring — you must
- * be able to explain this file to a KPLC security reviewer without opening a
- * browser tab.
- *
- * Everything here runs in the Edge runtime too, so middleware.ts can verify a
- * session without touching the database. That is the whole point: checking a
- * signature is microseconds; a database round trip on every request is not.
+ * A signed JWT in an httpOnly cookie, verified with WebCrypto — no library.
+ * Everything here runs in the Edge runtime, so middleware.ts can check a
+ * session without touching the database. That is the point: verifying a
+ * signature takes microseconds; a database round trip on every request does not.
  */
 
 export const SESSION_COOKIE = "tp_session";
@@ -25,54 +22,66 @@ export type SessionUser = {
   storeId: string | null;
 };
 
-function secretKey(): Uint8Array {
+/**
+ * Returns the signing secret, or null if it is unusable.
+ *
+ * Deliberately does NOT throw. This is read on every request in Edge
+ * middleware, and a throw there takes down the entire site — including the
+ * public landing page, which needs no session at all. A missing secret must
+ * mean "nobody is signed in", not "nothing works".
+ */
+function getSecret(): string | null {
   const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error(
-      "AUTH_SECRET is missing or too short. Generate one with:\n" +
-        '  node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"',
-    );
-  }
-  return new TextEncoder().encode(secret);
+  if (!secret || secret.length < 32) return null;
+  return secret;
+}
+
+/** True when the server is configured well enough for anyone to sign in. */
+export function isAuthConfigured(): boolean {
+  return getSecret() !== null;
 }
 
 export async function createSessionToken(user: SessionUser): Promise<string> {
-  return new SignJWT({
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    region: user.region,
-    storeId: user.storeId,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(user.id)
-    .setIssuedAt()
-    .setExpirationTime(`${SESSION_SECONDS}s`)
-    .sign(secretKey());
+  const secret = getSecret();
+  if (!secret) {
+    // Only reachable from the login route, in the Node runtime, where throwing
+    // gives an operator a real message instead of a silent failed login.
+    throw new Error(
+      "AUTH_SECRET is missing or shorter than 32 characters. Generate one with:\n" +
+        "  node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"\n" +
+        "then add it in Vercel → Settings → Environment Variables and redeploy.",
+    );
+  }
+
+  return signJwt(
+    {
+      sub: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      region: user.region,
+      storeId: user.storeId,
+    },
+    secret,
+    SESSION_SECONDS,
+  );
 }
 
-/** Returns the session, or null if absent, expired, or tampered with. */
+/** Returns the session, or null if absent, expired, forged — or misconfigured. */
 export async function verifySessionToken(
   token: string | undefined,
 ): Promise<SessionUser | null> {
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, secretKey(), {
-      algorithms: ["HS256"],
-    });
-    if (!payload.sub) return null;
-    return {
-      id: payload.sub,
-      name: String(payload.name ?? ""),
-      email: String(payload.email ?? ""),
-      role: payload.role as Role,
-      region: (payload.region as string | null) ?? null,
-      storeId: (payload.storeId as string | null) ?? null,
-    };
-  } catch {
-    // Any failure — bad signature, expired, malformed — is just "not signed in".
-    return null;
-  }
+  const payload = await verifyJwt(token, getSecret() ?? undefined);
+  if (!payload?.sub) return null;
+
+  return {
+    id: String(payload.sub),
+    name: String(payload.name ?? ""),
+    email: String(payload.email ?? ""),
+    role: payload.role as Role,
+    region: (payload.region as string | null) ?? null,
+    storeId: (payload.storeId as string | null) ?? null,
+  };
 }
 
 export const SESSION_COOKIE_OPTIONS = {
