@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { KplcMark } from "@/components/brand/KplcLogo";
 import { LogoutButton } from "@/components/app/LogoutButton";
+import { FieldBottomNav } from "@/components/field/FieldBottomNav";
+import { ToastProvider } from "@/components/ui/Toast";
 import { ROLE_LABELS } from "@/lib/format";
 import type { Role } from "@/generated/prisma/enums";
 
@@ -39,6 +41,7 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
   const links = NAV[user.role] ?? [];
+  const isField = user.role === "FIELD_ENGINEER";
 
   // Two initials for the avatar — "Grace Wanjiru" becomes GW.
   const initials = user.name
@@ -94,25 +97,35 @@ export default async function AppLayout({
         </div>
 
         {/* Mobile nav — the desktop links have nowhere to go on a phone. */}
-        <nav
-          className="flex gap-1 overflow-x-auto border-t border-line px-4 py-2 md:hidden"
-          aria-label="Main"
-        >
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-2 hover:text-navy"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        {/* Field engineers get a fixed BOTTOM nav instead of this top strip —
+            it is where a thumb rests. Every other role keeps the top strip. */}
+        {!isField && (
+          <nav
+            className="flex gap-1 overflow-x-auto border-t border-line px-4 py-2 md:hidden"
+            aria-label="Main"
+          >
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-2 hover:text-navy"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        )}
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-        {children}
+      <main
+        className={`mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 ${
+          isField ? "pb-24 md:pb-8" : ""
+        }`}
+      >
+        <ToastProvider>{children}</ToastProvider>
       </main>
+
+      {isField && <FieldBottomNav />}
     </div>
   );
 }

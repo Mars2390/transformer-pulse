@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, EmptyState } from "@/components/ui";
 import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
+import { AutoRefresh } from "@/components/app/AutoRefresh";
 import { formatRating, formatRelative } from "@/lib/format";
 import {
   IconCamera,
@@ -23,8 +24,9 @@ export default async function FieldDashboard() {
   const user = await requireRole("FIELD_ENGINEER", "ADMIN");
   const scope = user.region ? { region: user.region } : {};
 
-  const [awaitingReceipt, inField, nearby] = await Promise.all([
-    // Dispatched to my region and not yet confirmed on site.
+  const [inTransit, inField, nearby] = await Promise.all([
+    // Everything on the way to my region — split below by whether it has been
+    // received on site yet.
     prisma.transformer.findMany({
       where: { ...scope, status: "IN_TRANSIT" },
       include: {
@@ -56,6 +58,15 @@ export default async function FieldDashboard() {
     }),
   ]);
 
+  // In transit splits two ways by its latest event: not yet received (confirm
+  // arrival) versus received but not yet installed (install now).
+  const awaitingReceipt = inTransit.filter(
+    (tx) => tx.events[0]?.type !== "RECEIVED_BY_FIELD",
+  );
+  const pendingInstall = inTransit.filter(
+    (tx) => tx.events[0]?.type === "RECEIVED_BY_FIELD",
+  );
+
   const cutoff = Date.now() - INSPECTION_INTERVAL_DAYS * DAY;
   const inspectionsDue = inField
     .filter((tx) => {
@@ -80,10 +91,12 @@ export default async function FieldDashboard() {
     feeder: tx.feeder,
   }));
 
-  const taskCount = awaitingReceipt.length + inspectionsDue.length;
+  const taskCount =
+    awaitingReceipt.length + pendingInstall.length + inspectionsDue.length;
 
   return (
     <div className="space-y-5">
+      <AutoRefresh seconds={30} />
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight text-navy">
           My work
@@ -156,6 +169,37 @@ export default async function FieldDashboard() {
                 </li>
               );
             })}
+          </ul>
+        </Card>
+      )}
+
+      {/* --- Pending installations ------------------------------------------ */}
+      {pendingInstall.length > 0 && (
+        <Card>
+          <CardHeader title={`Received — install now (${pendingInstall.length})`} />
+          <ul className="divide-y divide-line">
+            {pendingInstall.map((tx) => (
+              <li key={tx.id} className="px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-navy">{tx.gNumber ?? tx.serialNumber}</p>
+                    <p className="mt-0.5 text-xs text-ink-soft">
+                      {formatRating(tx.ratingKva)} · {tx.manufacturer.name}
+                      {tx.events[0]?.destination ? ` · ${tx.events[0].destination}` : ""}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[11px] text-ink-soft">
+                    {tx.events[0] ? formatRelative(tx.events[0].occurredAt) : ""}
+                  </span>
+                </div>
+                <Link
+                  href={`/field/${tx.id}/install`}
+                  className="mt-3 block rounded-xl bg-kplc py-3 text-center text-sm font-bold text-white active:scale-[0.98]"
+                >
+                  Install now
+                </Link>
+              </li>
+            ))}
           </ul>
         </Card>
       )}

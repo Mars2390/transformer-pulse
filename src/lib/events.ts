@@ -5,6 +5,7 @@ import { prisma } from "./prisma";
 import { computeEventHash } from "./chain";
 import { checkTransition, LIFECYCLE_RULES } from "./lifecycle";
 import { computeWarranty, estimateReplacementValueKes } from "./warranty";
+import { distanceKm, GPS_MISMATCH_THRESHOLD_KM } from "./geo";
 import type { SessionUser } from "./session";
 import type { TestValuesInput } from "./validation";
 
@@ -52,6 +53,9 @@ export type RecordEventInput = {
 
   /** Set on return-to-store — which store took it back. */
   storeId?: string | null;
+
+  /** Links this event to its counterpart in a replacement (see replace flow). */
+  linkedEventId?: string | null;
 };
 
 export type RecordEventResult = {
@@ -173,6 +177,7 @@ export async function recordEvent(
         prevHash,
         hash,
         clientEventId: input.clientEventId ?? null,
+        linkedEventId: input.linkedEventId ?? null,
       },
     });
 
@@ -227,6 +232,46 @@ export async function recordEvent(
 
     // --- Alerts: the part that makes the system speak first ----------------
     const alerts: string[] = [];
+
+    // An install is good news, and the manager should see it land on the map.
+    if (input.type === "INSTALLED") {
+      await tx.alert.create({
+        data: {
+          transformerId,
+          type: "INSTALLED",
+          severity: "INFO",
+          region: input.region ?? transformer.region,
+          message: `${transformer.gNumber ?? transformer.serialNumber} (${transformer.ratingKva} kVA) installed at ${input.siteName ?? input.locationName ?? "site"}.`,
+        },
+      });
+    }
+
+    // Theft / data-error detection: inspected far from where we think it lives.
+    if (
+      input.type === "INSPECTED" &&
+      input.lat != null &&
+      input.lng != null &&
+      transformer.currentLat != null &&
+      transformer.currentLng != null
+    ) {
+      const drift = distanceKm(
+        { lat: transformer.currentLat, lng: transformer.currentLng },
+        { lat: input.lat, lng: input.lng },
+      );
+      if (drift > GPS_MISMATCH_THRESHOLD_KM) {
+        const message = `${transformer.gNumber ?? transformer.serialNumber} was inspected ${drift.toFixed(1)} km from its recorded site (${transformer.currentSiteName ?? "unknown"}). Possible unrecorded move, or theft.`;
+        alerts.push(message);
+        await tx.alert.create({
+          data: {
+            transformerId,
+            type: "GPS_MISMATCH",
+            severity: "CRITICAL",
+            region: transformer.region,
+            message,
+          },
+        });
+      }
+    }
 
     if (input.type === "TESTED" && input.test && !input.test.passed) {
       const message = `${transformer.gNumber ?? transformer.serialNumber} (${transformer.ratingKva} kVA, ${transformer.manufacturer.name}) failed its test. It cannot be dispatched.`;

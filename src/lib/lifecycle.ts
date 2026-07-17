@@ -62,7 +62,9 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     toStatus: "IN_TRANSIT",
     label: "Received on site",
     description: "Field engineer confirmed it arrived.",
-    requires: { gps: true },
+    // GPS is captured when available but not required — a receipt should never
+    // be blocked because a phone could not get a fix at the roadside.
+    requires: {},
   },
   INSTALLED: {
     allowedFrom: ["IN_TRANSIT", "IN_STORE"],
@@ -76,7 +78,9 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     toStatus: "IN_FIELD",
     label: "Inspected",
     description: "Routine field inspection.",
-    requires: { gps: true },
+    // GPS is strongly wanted (it is how we detect a moved or stolen unit) but
+    // not required — an inspection in a signal shadow must still be recordable.
+    requires: {},
   },
   FAULT_REPORTED: {
     allowedFrom: ["IN_FIELD"],

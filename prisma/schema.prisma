@@ -80,6 +80,8 @@ enum AlertType {
   GPS_MISMATCH
   // Failed its intake test — it should go back before it ever reaches a pole.
   INTAKE_TEST_FAILED
+  // A transformer was energised in the field — good news, shown to the manager.
+  INSTALLED
 }
 
 enum AlertSeverity {
