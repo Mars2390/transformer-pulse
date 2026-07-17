@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { HeroCarousel } from "@/components/marketing/HeroCarousel";
+import { Hero } from "@/components/marketing/Hero";
 import { PhotoStrip } from "@/components/marketing/PhotoStrip";
 import { Reveal } from "@/components/marketing/Reveal";
 import { SiteNav } from "@/components/marketing/SiteNav";
@@ -83,7 +83,7 @@ export default function LandingPage() {
 
       <main>
         {/* ---------------- 1. Hero ---------------------------------------- */}
-        <HeroCarousel />
+        <Hero />
 
         {/* ---------------- 2. Capabilities -------------------------------- */}
         <section id="capabilities" className="bg-surface py-20 sm:py-28">
@@ -106,17 +106,21 @@ export default function LandingPage() {
                 const Icon = item.icon;
                 return (
                   <Reveal key={item.title} delay={i * 80} className="h-full">
-                    <article className="group h-full overflow-hidden rounded-2xl border border-line bg-white transition-all duration-300 hover:-translate-y-1.5 hover:border-kplc/40 hover:shadow-xl hover:shadow-navy/8">
-                      <div className="relative aspect-[16/10] overflow-hidden bg-surface-2">
-                        <Image
-                          src={item.image}
-                          alt=""
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                          className="object-cover transition-transform duration-700 ease-out group-hover:scale-108"
-                        />
-                        {/* Icon badge floating over the image */}
-                        <span className="absolute bottom-0 left-4 grid h-11 w-11 translate-y-1/2 place-items-center rounded-xl bg-kplc text-white shadow-lg shadow-navy/25 transition-colors duration-300 group-hover:bg-gold group-hover:text-navy-dark">
+                    <article className="group h-full rounded-2xl border border-line bg-white transition-all duration-300 hover:-translate-y-1.5 hover:border-kplc/40 hover:shadow-xl hover:shadow-navy/8">
+                      {/* The badge hangs over the bottom edge of the photo, so
+                          the clipping container is the inner div only — putting
+                          overflow-hidden any higher cuts the badge in half. */}
+                      <div className="relative">
+                        <div className="relative aspect-[16/10] overflow-hidden rounded-t-2xl bg-surface-2">
+                          <Image
+                            src={item.image}
+                            alt=""
+                            fill
+                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                            className="object-cover transition-transform duration-700 ease-out group-hover:scale-108"
+                          />
+                        </div>
+                        <span className="absolute -bottom-5 left-4 z-10 grid h-11 w-11 place-items-center rounded-xl bg-kplc text-white shadow-lg shadow-navy/25 ring-4 ring-white transition-colors duration-300 group-hover:bg-gold group-hover:text-navy-dark">
                           <span className="h-5 w-5">
                             <Icon />
                           </span>

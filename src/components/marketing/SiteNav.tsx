@@ -11,12 +11,15 @@ const LINKS = [
   { href: "#how", label: "How it works" },
 ];
 
+/**
+ * Fixed navigation over a light hero: navy text throughout, with the glass
+ * surface fading in on scroll so the bar separates from the page once content
+ * starts passing underneath it.
+ */
 export function SiteNav() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
-  // Transparent over the hero, solid once scrolled — so the brand never sits
-  // on a busy photograph.
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     onScroll();
@@ -44,8 +47,8 @@ export function SiteNav() {
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
         scrolled || open
-          ? "border-b border-white/10 bg-navy-dark/85 shadow-lg shadow-navy-dark/20 backdrop-blur-xl"
-          : "border-b border-transparent bg-gradient-to-b from-navy-dark/50 to-transparent"
+          ? "border-b border-line bg-white/85 shadow-sm shadow-navy/5 backdrop-blur-xl"
+          : "border-b border-transparent bg-transparent"
       }`}
     >
       <nav
@@ -53,7 +56,7 @@ export function SiteNav() {
         aria-label="Main"
       >
         <Link href="/" onClick={() => setOpen(false)} className="rounded-lg">
-          <BrandLockup tone="light" />
+          <BrandLockup tone="dark" />
         </Link>
 
         {/* --- Desktop ------------------------------------------------------ */}
@@ -62,23 +65,23 @@ export function SiteNav() {
             <a
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-white/70 transition-colors hover:text-white"
+              className="text-sm font-medium text-ink-soft transition-colors hover:text-kplc"
             >
               {link.label}
             </a>
           ))}
 
-          <span className="h-5 w-px bg-white/15" aria-hidden="true" />
+          <span className="h-5 w-px bg-line" aria-hidden="true" />
 
           <Link
             href="/login"
-            className="text-sm font-semibold text-white/85 transition-colors hover:text-white"
+            className="text-sm font-semibold text-navy transition-colors hover:text-kplc"
           >
             Sign in
           </Link>
           <Link
             href="/dashboard"
-            className="rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-navy-dark shadow-lg shadow-gold/20 transition-all hover:-translate-y-0.5 hover:bg-gold-dark hover:shadow-gold/30"
+            className="rounded-full bg-kplc px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-kplc/20 transition-all hover:-translate-y-0.5 hover:bg-kplc-light hover:shadow-kplc/30"
           >
             Open dashboard
           </Link>
@@ -88,7 +91,7 @@ export function SiteNav() {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="grid h-11 w-11 place-items-center rounded-lg border border-white/15 bg-white/5 text-white lg:hidden"
+          className="grid h-11 w-11 place-items-center rounded-lg border border-line bg-white/70 text-navy backdrop-blur-md lg:hidden"
           aria-expanded={open}
           aria-controls="mobile-drawer"
           aria-label={open ? "Close menu" : "Open menu"}
@@ -116,8 +119,8 @@ export function SiteNav() {
       {/* --- Mobile drawer -------------------------------------------------- */}
       <div
         id="mobile-drawer"
-        className={`overflow-hidden border-t border-white/10 bg-navy-dark transition-[max-height] duration-400 ease-out lg:hidden ${
-          open ? "max-h-[420px]" : "max-h-0 border-t-transparent"
+        className={`overflow-hidden border-t bg-white transition-[max-height] duration-400 ease-out lg:hidden ${
+          open ? "max-h-[420px] border-line" : "max-h-0 border-transparent"
         }`}
       >
         <div className="px-5 pb-7 pt-3">
@@ -127,7 +130,7 @@ export function SiteNav() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setOpen(false)}
-                className="rounded-lg px-3 py-3.5 text-base font-medium text-white/75 transition-colors hover:bg-white/5 hover:text-white"
+                className="rounded-lg px-3 py-3.5 text-base font-medium text-ink-soft transition-colors hover:bg-surface hover:text-navy"
               >
                 {link.label}
               </a>
@@ -138,14 +141,14 @@ export function SiteNav() {
             <Link
               href="/login"
               onClick={() => setOpen(false)}
-              className="rounded-xl border border-white/20 px-4 py-3.5 text-center text-sm font-semibold text-white"
+              className="rounded-xl border border-line px-4 py-3.5 text-center text-sm font-semibold text-navy"
             >
               Sign in
             </Link>
             <Link
               href="/dashboard"
               onClick={() => setOpen(false)}
-              className="rounded-xl bg-gold px-4 py-3.5 text-center text-sm font-bold text-navy-dark"
+              className="rounded-xl bg-kplc px-4 py-3.5 text-center text-sm font-bold text-white"
             >
               Open dashboard
             </Link>

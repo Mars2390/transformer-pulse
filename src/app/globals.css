@@ -44,7 +44,7 @@
 
   /* --- Motion ------------------------------------------------------------ */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-ken-burns: ken-burns 9s ease-out both;
+  --animate-pulse-ring: pulse-ring 4.8s cubic-bezier(0.4, 0, 0.4, 1) infinite;
   --animate-blink: blink 2.4s ease-in-out infinite;
 }
 
@@ -101,14 +101,20 @@ p {
    Keyframes
    --------------------------------------------------------------------------- */
 
-/* Ken Burns: a slow push-in on the active hero slide. The scale is small on
-   purpose — a big zoom reads as a screensaver, not a utility. */
-@keyframes ken-burns {
-  from {
-    transform: scale(1.04) translate3d(0, 0, 0);
+/* Expanding rings behind the transformer — a pulse, drawn.
+   They fade out well before full scale so the edge never collides with the
+   headline, and the cycle is long: a fast pulse reads as an alarm. */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.82);
+    opacity: 0;
   }
-  to {
-    transform: scale(1.14) translate3d(0, -1.2%, 0);
+  12% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
   }
 }
 
