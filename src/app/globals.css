@@ -1,0 +1,164 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Transformer Pulse — design tokens
+
+   Colours are taken from the Kenya Power identity: blue and navy carry the
+   structure, gold carries the actions. Every colour lives here as a custom
+   property, so changing the brand is one edit in one file — never a search
+   across components.
+   --------------------------------------------------------------------------- */
+
+@theme {
+  /* --- Brand ------------------------------------------------------------- */
+  --color-kplc: #1e40af; /* KPLC Blue — primary brand, links, buttons */
+  --color-kplc-light: #2f56cc;
+  --color-kplc-dark: #17318a;
+
+  --color-navy: #0a1a4f; /* dark sections, hero, footer */
+  --color-navy-dark: #050e2e; /* darkest backgrounds */
+  --color-navy-soft: #16265e; /* borders inside dark sections */
+
+  --color-gold: #f5b700; /* CTAs, accents, highlights */
+  --color-gold-dark: #d99e00; /* hover state */
+
+  /* The green in the Kenya Power lamp mark. Used only in hairline accents. */
+  --color-kplc-green: #00963f;
+
+  /* --- Neutrals ---------------------------------------------------------- */
+  --color-surface: #f5f6f8; /* page background */
+  --color-surface-2: #eceef2; /* alternating section background */
+  --color-line: #e2e5eb; /* card borders */
+  --color-ink: #0a1a4f; /* body text — navy, never pure black */
+  --color-ink-soft: #5b6480; /* secondary text */
+
+  /* --- Status (used later by the map pins and badges) --------------------- */
+  --color-status-field: #0e8a4f;
+  --color-status-store: #1e40af;
+  --color-status-transit: #d99e00;
+  --color-status-faulty: #c02626;
+
+  /* --- Typography -------------------------------------------------------- */
+  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+
+  /* --- Motion ------------------------------------------------------------ */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-ken-burns: ken-burns 9s ease-out both;
+  --animate-blink: blink 2.4s ease-in-out infinite;
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------- */
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%; /* iOS must not inflate text in landscape */
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+p {
+  line-height: 1.6;
+}
+
+/* Everything below is decoration. Nothing in this app conveys meaning through
+   motion alone, so switching it all off costs the user nothing. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Visible keyboard focus everywhere. Government accessibility reviews check
+   for exactly this. */
+:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ---------------------------------------------------------------------------
+   Keyframes
+   --------------------------------------------------------------------------- */
+
+/* Ken Burns: a slow push-in on the active hero slide. The scale is small on
+   purpose — a big zoom reads as a screensaver, not a utility. */
+@keyframes ken-burns {
+  from {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.14) translate3d(0, -1.2%, 0);
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Shared utilities
+   --------------------------------------------------------------------------- */
+
+/* Scroll reveal — the JS adds .is-visible when the element enters the viewport. */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s var(--ease-out-expo),
+    transform 0.7s var(--ease-out-expo);
+  will-change: opacity, transform;
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Hide scrollbars on the horizontal photo strip without killing the scroll. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Leaflet's default surface is white; match ours. Used from Phase 3 onwards. */
+.leaflet-container {
+  background: var(--color-surface-2);
+  font-family: var(--font-sans);
+}

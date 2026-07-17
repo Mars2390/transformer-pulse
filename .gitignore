@@ -1,0 +1,29 @@
+# Dependencies — never commit these. They are rebuilt from package.json.
+node_modules/
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# Secrets. .env.example is committed; .env is NOT.
+.env
+.env.local
+.env*.local
+
+# Logs
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel
