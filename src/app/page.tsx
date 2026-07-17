@@ -148,6 +148,21 @@ export default function LandingPage() {
           id="lifecycle"
           className="relative overflow-hidden bg-navy py-20 sm:py-28"
         >
+          {/* The transmission line, dropped almost to texture. This is the one
+              high-resolution photograph we have, which is why it can survive
+              being stretched full-bleed across a wide band. */}
+          <Image
+            src="/images/grid-transmission-line.jpg"
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover object-center opacity-20"
+          />
+          <div
+            className="absolute inset-0 bg-gradient-to-r from-navy via-navy/95 to-navy/75"
+            aria-hidden="true"
+          />
+
           {/* Faint engineering grid, faded out at the edges */}
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -256,7 +271,23 @@ export default function LandingPage() {
         {/* ---------------- 6. Closing CTA --------------------------------- */}
         <section className="bg-surface-2 px-5 pb-24 sm:px-8">
           <Reveal>
-            <div className="relative mx-auto max-w-7xl overflow-hidden rounded-[28px] bg-gradient-to-br from-navy-dark via-navy to-kplc px-6 py-16 text-center sm:px-16 sm:py-20">
+            <div className="relative mx-auto max-w-7xl overflow-hidden rounded-[28px] px-6 py-20 text-center sm:px-16 sm:py-24">
+              {/* Photograph, then a heavy navy wash over it. The image is here
+                  to give the panel depth — it must never compete with the text,
+                  so the overlay stays dark enough to keep contrast well clear
+                  of the accessibility floor. */}
+              <Image
+                src="/images/transformer-installation.jpg"
+                alt=""
+                fill
+                sizes="100vw"
+                className="object-cover object-center"
+              />
+              <div
+                className="absolute inset-0 bg-gradient-to-br from-navy-dark/97 via-navy/92 to-kplc/80"
+                aria-hidden="true"
+              />
+
               <span
                 className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-gold/10 blur-3xl"
                 aria-hidden="true"

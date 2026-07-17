@@ -45,28 +45,25 @@ export function Hero() {
             Distribution transformer portal
           </span>
 
-          <h1 className="mt-7 text-[clamp(2.2rem,5.4vw,3.9rem)] font-extrabold text-balance text-navy">
-            Every transformer tracked,
-            <br className="hidden sm:block" /> from the factory to the{" "}
-            <span className="relative whitespace-nowrap">
-              <span className="relative z-10">feeder</span>
-              {/* Gold underline sits behind the word, like a highlighter. */}
+          {/* The product name is the headline. Nothing else competes with it. */}
+          <h1 className="mt-7 text-[clamp(2.6rem,7vw,4.8rem)] font-extrabold tracking-[-0.03em] text-navy">
+            Transformer
+            <span className="relative ml-3 whitespace-nowrap">
+              <span className="relative z-10">Pulse</span>
+              {/* Gold highlighter behind the second word — one accent, once. */}
               <span
-                className="absolute inset-x-0 bottom-[0.1em] z-0 h-[0.32em] rounded-sm bg-gold/45"
+                className="absolute inset-x-0 bottom-[0.09em] z-0 h-[0.3em] rounded-sm bg-gold/45"
                 aria-hidden="true"
               />
             </span>
           </h1>
 
-          <p className="mt-6 text-[clamp(1.05rem,2vw,1.4rem)] font-bold tracking-tight text-kplc">
-            Locate. Track. Test. Recover.
+          <p className="mt-6 max-w-md text-[clamp(1.15rem,2.2vw,1.5rem)] font-semibold leading-snug text-ink-soft">
+            Track every transformer in real time.
           </p>
 
-          <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-ink-soft sm:text-base">
-            Serial number, G-Number, GPS point, the lorry that carried it, the
-            engineer who installed it, every test reading, and the warranty
-            position — held on one record, for every distribution transformer on
-            the network.
+          <p className="mt-7 text-sm font-bold tracking-[0.12em] text-kplc">
+            LOCATE. TRACK. TEST. RECOVER.
           </p>
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
