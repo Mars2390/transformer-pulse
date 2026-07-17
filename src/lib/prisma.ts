@@ -4,17 +4,26 @@ import { PrismaPg } from "@prisma/adapter-pg";
 /**
  * The database client.
  *
- * Two Prisma 7 details worth understanding:
+ * ---------------------------------------------------------------------------
+ * Why this is lazy
+ * ---------------------------------------------------------------------------
+ * `next build` imports every route module to collect page data. If we created
+ * the client at module scope, that import would try to read DATABASE_URL and
+ * throw — failing the BUILD, not just the request. A build should never need a
+ * database: it compiles code, it does not query anything.
  *
- * 1. The client is imported from `src/generated/prisma`, NOT from
- *    "@prisma/client". Prisma 7 no longer writes the client into node_modules.
+ * So `prisma` is a Proxy. Importing it costs nothing. The real client is
+ * constructed on the first property access — i.e. the first actual query, at
+ * runtime, when the environment variable genuinely must exist.
  *
- * 2. A driver adapter is now mandatory. `PrismaPg` is the PostgreSQL adapter;
- *    `new PrismaClient()` with no adapter throws.
- *
- * The global cache exists because Next.js hot-reloads modules on every save in
- * development. Without it we would open a new connection pool per save and
- * exhaust Neon's connection limit within minutes.
+ * ---------------------------------------------------------------------------
+ * Prisma 7 details
+ * ---------------------------------------------------------------------------
+ * - The client comes from `src/generated/prisma`, never "@prisma/client".
+ * - A driver adapter is mandatory; `new PrismaClient()` alone throws.
+ * - We use the POOLED url (DATABASE_URL). Serverless functions open and close
+ *   connections constantly, and without PgBouncer we exhaust Neon's limit.
+ *   DIRECT_URL is for migrations only — see prisma.config.ts.
  */
 
 const globalForPrisma = globalThis as unknown as {
@@ -26,18 +35,34 @@ function createClient(): PrismaClient {
 
   if (!connectionString) {
     throw new Error(
-      "DATABASE_URL is not set. Add the Neon integration in your Vercel project (Storage → Create → Neon), then run `vercel env pull .env` to get it locally.",
+      "DATABASE_URL is not set.\n" +
+        "  Local:      run `npx vercel env pull .env`\n" +
+        "  Production: Vercel → Project → Settings → Environment Variables →\n" +
+        "              add DATABASE_URL (the Neon POOLED url), then redeploy.",
     );
   }
 
-  const adapter = new PrismaPg({ connectionString });
-
   return new PrismaClient({
-    adapter,
+    adapter: new PrismaPg({ connectionString }),
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 }
 
-export const prisma = globalForPrisma.prisma ?? createClient();
+function getClient(): PrismaClient {
+  // The global cache exists because Next.js hot-reloads modules on every save.
+  // Without it we would open a new pool per save and exhaust Neon in minutes.
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createClient();
+  }
+  return globalForPrisma.prisma;
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, property, receiver) {
+    const client = getClient();
+    const value = Reflect.get(client, property, client);
+    // Methods like $transaction need `this` bound to the real client, or they
+    // lose their internals the moment they are pulled off the Proxy.
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
