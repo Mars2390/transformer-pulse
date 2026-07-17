@@ -1,0 +1,375 @@
+// ---------------------------------------------------------------------------
+// Transformer Pulse — data model
+//
+// The governing rule: a transformer's CURRENT STATE is derived from an
+// APPEND-ONLY chain of lifecycle events. We never edit history. If a
+// transformer moves, that is a new event — not an UPDATE to an old one.
+//
+// This is what lets every transformer tell its story, and what makes the
+// record hold up when a manufacturer disputes a warranty claim.
+// ---------------------------------------------------------------------------
+
+generator client {
+  // Prisma 7: the generator is "prisma-client" (not "prisma-client-js") and
+  // `output` is required. The client is no longer written into node_modules,
+  // so we import it from this path — never from "@prisma/client".
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  // Prisma 7 removed `url` from this block. The connection string now lives in
+  // prisma.config.ts for the CLI (migrate), and reaches the client at runtime
+  // through the driver adapter in src/lib/prisma.ts.
+  provider = "postgresql"
+}
+
+// ============================== Enums ======================================
+
+enum Role {
+  ADMIN // creates users, manages manufacturers
+  MANAGER // the one-way mirror — reads everything, writes nothing
+  STORE_KEEPER // receives, tests, dispatches
+  FIELD_ENGINEER // installs, inspects, reports faults
+}
+
+enum TransformerStatus {
+  IN_STORE // received at a KPLC store, G-Number assigned
+  IN_TRANSIT // on a vehicle, between two places
+  IN_FIELD // energised at a site
+  FAULTY // failed in service
+  RETURNED // sent back to the manufacturer
+  SCRAPPED // written off
+}
+
+enum EventType {
+  RECEIVED_AT_STORE // the first event in every chain
+  TESTED
+  DISPATCHED // leaves the store on a vehicle
+  RECEIVED_BY_FIELD // field engineer confirms it arrived
+  INSTALLED // energised — this is where the GPS pin is born
+  INSPECTED
+  FAULT_REPORTED
+  RECOVERED // removed from site
+  RETURNED_TO_MANUFACTURER
+  SCRAPPED
+}
+
+enum TestStage {
+  STORE_INTAKE
+  PRE_DISPATCH
+  SITE_COMMISSIONING
+  ROUTINE
+  POST_FAULT
+}
+
+enum ClaimStatus {
+  OPEN // fault recorded, claim not yet sent
+  SUBMITTED // sent to the manufacturer
+  APPROVED // manufacturer accepted liability
+  REJECTED
+  CLOSED // replacement or credit received
+}
+
+enum AlertType {
+  FAULT_REPORTED
+  WARRANTY_EXPIRING
+  INSPECTION_OVERDUE
+  REPEAT_FAILURE
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+// ============================== People =====================================
+
+model User {
+  id     String @id @default(cuid())
+  name   String
+  email  String @unique
+  phone  String?
+  staffNumber String? @unique
+
+  // A 6-digit PIN, bcrypt-hashed. We never store the PIN itself, so a database
+  // leak does not hand over anyone's login.
+  pinHash String
+  role    Role   @default(FIELD_ENGINEER)
+
+  // Scopes what a manager sees and where a field engineer works.
+  region String?
+
+  // Which warehouse a store keeper belongs to.
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id])
+
+  // --- Brute-force protection ---------------------------------------------
+  // Six digits is a million combinations — trivial for a script without these.
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events            LifecycleEvent[]
+  tests             TestRecord[]
+  claimsRaised      WarrantyClaim[]  @relation("ClaimRaisedBy")
+  alertsAcknowledged Alert[]         @relation("AlertAcknowledgedBy")
+
+  @@index([role])
+  @@index([region])
+}
+
+model Store {
+  id      String  @id @default(cuid())
+  name    String
+  code    String  @unique
+  region  String
+  county  String
+  lat     Float?
+  lng     Float?
+  createdAt DateTime @default(now())
+
+  users        User[]
+  transformers Transformer[]
+}
+
+model Manufacturer {
+  id           String  @id @default(cuid())
+  name         String  @unique
+  country      String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+
+  // Default warranty length for units from this supplier. Copied onto each
+  // transformer at registration, so renegotiating a contract later cannot
+  // silently rewrite the warranty of units already in the field.
+  warrantyMonths Int @default(24)
+
+  createdAt DateTime @default(now())
+
+  transformers Transformer[]
+  claims       WarrantyClaim[]
+}
+
+// ============================ The asset ====================================
+
+model Transformer {
+  id String @id @default(cuid())
+
+  // --- Identity -----------------------------------------------------------
+  // From the manufacturer. Never changes.
+  serialNumber String @unique
+
+  // Assigned by the KPLC store. Nullable on purpose: that null is exactly the
+  // gap where paper loses transformers today — arrived, not yet booked in.
+  gNumber String? @unique
+
+  manufacturerId String
+  manufacturer   Manufacturer @relation(fields: [manufacturerId], references: [id])
+
+  // --- Nameplate ----------------------------------------------------------
+  ratingKva         Int // 50, 100, 200, 315, 500 ...
+  primaryKv         Float  @default(11)
+  secondaryKv       Float  @default(0.415)
+  phases            Int    @default(3)
+  coolingType       String @default("ONAN")
+  impedancePct      Float?
+  vectorGroup       String? // e.g. Dyn11
+  oilVolumeLitres   Int?
+  yearOfManufacture Int
+
+  // --- Warranty -----------------------------------------------------------
+  warrantyMonths Int @default(24)
+
+  // The clock starts when KPLC takes delivery, NOT at manufacture. A unit that
+  // sat in a container for eight months has not burned eight months of cover.
+  // Paper gets this wrong, always in the manufacturer's favour.
+  warrantyStart DateTime?
+
+  // --- Current state (a cache of the event chain, for fast queries) --------
+  status TransformerStatus @default(IN_STORE)
+
+  currentStoreId String?
+  currentStore   Store?  @relation(fields: [currentStoreId], references: [id])
+
+  currentLat      Float?
+  currentLng      Float?
+  currentSiteName String?
+  sdb             String? // sub-distribution board / substation reference
+  feeder          String? // e.g. KBT-11kV-04
+  region          String?
+  county          String?
+
+  commissionDate DateTime? // first energised
+
+  // Hash of the most recent event. The chain's head — see lib/chain.ts.
+  lastEventHash String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events LifecycleEvent[]
+  tests  TestRecord[]
+  claims WarrantyClaim[]
+  alerts Alert[]
+
+  @@index([status])
+  @@index([region])
+  @@index([manufacturerId])
+  @@index([currentLat, currentLng])
+}
+
+// ========================= The story itself ================================
+
+model LifecycleEvent {
+  id            String      @id @default(cuid())
+  transformerId String
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+
+  type       EventType
+  fromStatus TransformerStatus?
+  toStatus   TransformerStatus
+
+  // --- Who ----------------------------------------------------------------
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // --- When ---------------------------------------------------------------
+  // These are two different facts and must not be collapsed into one column.
+  // An engineer records an install at 14:00 with no signal; it reaches us at
+  // 19:00. Both are true.
+  occurredAt DateTime
+  createdAt  DateTime @default(now())
+
+  // --- Where --------------------------------------------------------------
+  lat          Float?
+  lng          Float?
+  accuracyM    Float? // GPS accuracy the phone reported
+  locationName String?
+
+  // --- How it moved -------------------------------------------------------
+  vehiclePlate String?
+  driverName   String?
+  driverPhone  String?
+  destination  String?
+
+  // --- Evidence -----------------------------------------------------------
+  photoUrls String[] // Vercel Blob URLs
+  notes     String?
+
+  // --- Tamper-evident chain ------------------------------------------------
+  // hash = sha256(prevHash + canonical contents). Editing an old row breaks
+  // every hash after it, and /api/transformers/[id]/verify says so.
+  prevHash String?
+  hash     String  @unique
+
+  // --- Replacement linking -------------------------------------------------
+  // When a faulty unit is swapped, the old unit's RECOVERED event and the new
+  // unit's INSTALLED event point at each other. That is how the manager sees
+  // "this replaced that" without a separate table.
+  linkedEventId String?          @unique
+  linkedEvent   LifecycleEvent?  @relation("EventLink", fields: [linkedEventId], references: [id])
+  linkedBy      LifecycleEvent?  @relation("EventLink")
+
+  tests TestRecord[]
+
+  @@index([transformerId, occurredAt])
+  @@index([type])
+}
+
+// ============================= Testing =====================================
+
+model TestRecord {
+  id            String      @id @default(cuid())
+  transformerId String
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+
+  // A test almost always happens as part of an event (intake, dispatch,
+  // commissioning), but may be recorded standalone.
+  eventId String?
+  event   LifecycleEvent? @relation(fields: [eventId], references: [id])
+
+  stage TestStage
+
+  testedById String
+  testedBy   User   @relation(fields: [testedById], references: [id])
+
+  // --- Measurements. All nullable: not every stage runs every test. --------
+  insulationResistanceHvMohm Float? // HV to earth, megaohms
+  insulationResistanceLvMohm Float? // LV to earth, megaohms
+  turnsRatio                 Float?
+  turnsRatioDeviationPct     Float? // vs nameplate; over 0.5% is a fail
+  windingResistanceHvOhm     Float?
+  windingResistanceLvOhm     Float?
+  oilBdvKv                   Float? // oil breakdown voltage; under 30 kV is a fail
+  oilTempC                   Float?
+  ambientTempC               Float?
+  polarityOk                 Boolean?
+
+  passed   Boolean
+  remarks  String?
+  testedAt DateTime @default(now())
+
+  @@index([transformerId, testedAt])
+}
+
+// ============================ Warranty =====================================
+
+model WarrantyClaim {
+  id            String      @id @default(cuid())
+  transformerId String
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+
+  manufacturerId String
+  manufacturer   Manufacturer @relation(fields: [manufacturerId], references: [id])
+
+  raisedById String
+  raisedBy   User   @relation("ClaimRaisedBy", fields: [raisedById], references: [id])
+
+  status      ClaimStatus @default(OPEN)
+  faultReason String
+
+  // What KPLC recovers if the manufacturer honours the claim. This is the
+  // number that turns a dashboard into a budget line.
+  claimValueKes Decimal? @db.Decimal(14, 2)
+
+  referenceNo     String? // the manufacturer's RMA reference
+  submittedAt     DateTime?
+  resolvedAt      DateTime?
+  resolutionNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+// ============================= Alerts ======================================
+
+model Alert {
+  id            String      @id @default(cuid())
+  transformerId String
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+
+  type     AlertType
+  severity AlertSeverity @default(WARNING)
+  message  String
+
+  // Denormalised so a manager's alert list is one indexed query.
+  region String?
+
+  acknowledged     Boolean   @default(false)
+  acknowledgedById String?
+  acknowledgedBy   User?     @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  acknowledgedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([acknowledged, severity])
+  @@index([region])
+}
