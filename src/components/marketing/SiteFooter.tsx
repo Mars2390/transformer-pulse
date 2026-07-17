@@ -32,8 +32,7 @@ export function SiteFooter() {
             <BrandLockup tone="light" />
             <p className="mt-5 max-w-sm text-sm leading-relaxed text-white/55">
               Lifecycle tracking for distribution transformers — from the
-              manufacturer, through the store, to the pole. Built to replace the
-              paper file.
+              manufacturer, through the store, to the pole.
             </p>
           </div>
 
@@ -66,8 +65,7 @@ export function SiteFooter() {
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p className="text-xs text-white/45">
-            © {new Date().getFullYear()} Transformer Pulse — a prototype asset
-            tracking system. Not an official Kenya Power product.
+            © {new Date().getFullYear()} Transformer Pulse
           </p>
 
           <div className="flex h-[3px] w-24 overflow-hidden rounded-full" aria-hidden="true">

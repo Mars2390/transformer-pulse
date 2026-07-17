@@ -17,7 +17,7 @@ import { IconArrowRight } from "@/components/marketing/icons";
  */
 export function Hero() {
   return (
-    <section className="relative isolate overflow-hidden bg-gradient-to-b from-white via-white to-surface pb-20 pt-32 sm:pb-28 sm:pt-40">
+    <section className="relative isolate overflow-hidden bg-gradient-to-b from-white via-white to-surface pb-14 pt-26 sm:pb-28 sm:pt-40">
       {/* Engineering grid, faded out toward the edges. */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.35]"
@@ -37,7 +37,7 @@ export function Hero() {
         aria-hidden="true"
       />
 
-      <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-8">
+      <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 sm:gap-12 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-8">
         {/* ---------------- Words ------------------------------------------ */}
         <div>
           <span className="inline-flex items-center gap-2 rounded-full border border-kplc/15 bg-kplc/6 px-3.5 py-1.5 text-[11px] font-semibold tracking-wide text-kplc sm:text-xs">
@@ -85,8 +85,11 @@ export function Hero() {
           </div>
         </div>
 
-        {/* ---------------- The transformer -------------------------------- */}
-        <div className="relative mx-auto w-full max-w-md lg:max-w-none">
+        {/* ---------------- The transformer --------------------------------
+            Deliberately small on a phone. Stacked under the text it is a
+            supporting image, not the subject — at full width it pushes the
+            buttons off the fold and makes the page feel twice as long. */}
+        <div className="relative mx-auto w-full max-w-[15rem] sm:max-w-xs lg:max-w-none">
           {/* Pulse rings — the name of the product, drawn. They sit behind the
               unit and expand outward on a long, slow cycle. */}
           <div

@@ -31,25 +31,25 @@ const CAPABILITIES = [
     icon: IconClipboard,
     image: "/images/transformer-unit.jpg",
     title: "Register at intake",
-    body: "Serial number, make, rating, year and G-Number are recorded once, when the store receives the unit. The warranty clock starts on that date.",
+    body: "Serial number, make, rating, year and G-Number recorded when the store receives the unit. The warranty period starts on that date.",
   },
   {
     icon: IconTruck,
     image: "/images/transformer-in-transit.jpg",
     title: "Custody on every move",
-    body: "Each movement records the vehicle, the number plate, the driver and the time. Nothing leaves a store without a name attached to it.",
+    body: "Each movement records the vehicle, the number plate, the driver and the time.",
   },
   {
     icon: IconPin,
     image: "/images/pole-mounted-transformer.jpg",
     title: "Located in the field",
-    body: "Installation captures a GPS point and a photograph taken at the pole. The map stops being a guess.",
+    body: "Installation captures a GPS point and a photograph taken at the pole.",
   },
   {
     icon: IconShield,
     image: "/images/substation-switchyard.jpg",
     title: "Warranty and returns",
-    body: "When a fault is reported, the record is checked against the warranty window immediately, and the claim is raised against the manufacturer.",
+    body: "A reported fault is checked against the warranty period, and a claim is raised against the manufacturer.",
   },
 ];
 
@@ -89,16 +89,9 @@ export default function LandingPage() {
         <section id="capabilities" className="bg-surface py-20 sm:py-28">
           <div className="mx-auto max-w-7xl px-5 sm:px-8">
             <Reveal>
-              <p className="text-xs font-bold tracking-[0.14em] text-kplc">
-                WHAT THE SYSTEM DOES
-              </p>
-              <h2 className="mt-3 max-w-2xl text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold text-navy">
-                Four things paper cannot do
+              <h2 className="max-w-2xl text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold text-navy">
+                What the system does
               </h2>
-              <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-ink-soft">
-                Each of these is recorded once, by the person doing the work, at
-                the moment the work happens.
-              </p>
             </Reveal>
 
             <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -179,13 +172,12 @@ export default function LandingPage() {
           <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-2 lg:gap-16">
             <Reveal>
               <h2 className="max-w-md text-[clamp(1.7rem,3.6vw,2.6rem)] font-extrabold text-white">
-                From the store to the pole, on one record
+                One record, from the store to the pole
               </h2>
               <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-white/65 sm:text-base">
-                Open the dashboard and every transformer in the region appears on
-                the map. Tap a pin and the record opens: who received it, which
-                lorry carried it, who installed it, what the tests said, and
-                whether it is still under warranty.
+                Every transformer in the region appears on the map. Open a pin to
+                see who received it, which lorry carried it, who installed it,
+                what the tests said, and whether it is still under warranty.
               </p>
               <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-white/65 sm:text-base">
                 The history is append-only. A transformer that moves creates a
@@ -229,11 +221,8 @@ export default function LandingPage() {
         <section id="how" className="bg-surface-2 py-20 sm:py-28">
           <div className="mx-auto max-w-7xl px-5 sm:px-8">
             <Reveal className="text-center">
-              <p className="text-xs font-bold tracking-[0.14em] text-kplc">
-                THE WORKFLOW
-              </p>
-              <h2 className="mx-auto mt-3 max-w-2xl text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold text-navy">
-                From delivery note to field record in four steps
+              <h2 className="mx-auto max-w-2xl text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold text-navy">
+                How it works
               </h2>
             </Reveal>
 
@@ -305,11 +294,11 @@ export default function LandingPage() {
                 </span>
 
                 <h2 className="mx-auto mt-6 max-w-2xl text-[clamp(1.7rem,3.6vw,2.5rem)] font-extrabold text-white">
-                  Every transformer has a story. See one.
+                  Open the dashboard
                 </h2>
                 <p className="mx-auto mt-4 max-w-lg text-[15px] leading-relaxed text-white/65 sm:text-base">
-                  Open the dashboard for the map, the transformer list, and a
-                  full lifecycle record from registration to the field.
+                  The map, the transformer list, and the full record for every
+                  unit.
                 </p>
 
                 <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">

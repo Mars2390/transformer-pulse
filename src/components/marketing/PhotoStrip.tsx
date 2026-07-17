@@ -85,11 +85,8 @@ export function PhotoStrip() {
     <div>
       <div className="mx-auto flex max-w-7xl items-end justify-between gap-6 px-5 sm:px-8">
         <div>
-          <p className="text-xs font-bold tracking-[0.14em] text-kplc">
-            ACROSS THE NETWORK
-          </p>
-          <h2 className="mt-3 text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold text-navy">
-            One record, from factory to feeder
+          <h2 className="text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold text-navy">
+            Across the network
           </h2>
         </div>
 
