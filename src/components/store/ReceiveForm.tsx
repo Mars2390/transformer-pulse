@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Field, FormError, FormSection, inputClass } from "@/components/ui/Field";
+import { PhotoUpload } from "@/components/ui/PhotoUpload";
 
 type Manufacturer = {
   id: string;
@@ -27,6 +28,7 @@ export function ReceiveForm({
   const [fields, setFields] = useState<Record<string, string>>({});
   const [manufacturerId, setManufacturerId] = useState(manufacturers[0]?.id ?? "");
   const [gNumber, setGNumber] = useState("");
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
 
   const chosen = manufacturers.find((m) => m.id === manufacturerId);
 
@@ -54,7 +56,7 @@ export function ReceiveForm({
     setFields({});
 
     const form = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(form.entries());
+    const payload = { ...Object.fromEntries(form.entries()), photoUrls };
 
     const response = await fetch("/api/transformers", {
       method: "POST",
@@ -237,6 +239,16 @@ export function ReceiveForm({
           <Field label="Driver name" htmlFor="driverName" error={fields.driverName}>
             <input id="driverName" name="driverName" placeholder="Peter Mwangi" className={inputClass} />
           </Field>
+        </div>
+
+        <div className="mt-5 border-t border-line pt-5">
+          <PhotoUpload
+            value={photoUrls}
+            onChange={setPhotoUrls}
+            max={4}
+            label="Nameplate photo"
+            hint="Photograph the rating plate. It settles any later dispute about what this unit actually is."
+          />
         </div>
       </FormSection>
 

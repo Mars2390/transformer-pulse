@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Badge, EmptyState } from "@/components/ui";
 import { inputClass } from "@/components/ui/Field";
+import { TransformerPanel } from "./TransformerPanel";
 import type { TransformerStatus } from "@/generated/prisma/enums";
 import { formatDate, formatRating, STATUS_META, type Tone } from "@/lib/format";
 
@@ -42,6 +43,7 @@ export function InventoryTable({ rows }: { rows: InventoryRow[] }) {
   const [rating, setRating] = useState<string>("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("receivedAt");
   const [ascending, setAscending] = useState(false);
+  const [panelId, setPanelId] = useState<string | null>(null);
 
   const ratings = useMemo(
     () => [...new Set(rows.map((r) => r.ratingKva))].sort((a, b) => a - b),
@@ -175,7 +177,11 @@ export function InventoryTable({ rows }: { rows: InventoryRow[] }) {
             </thead>
             <tbody className="divide-y divide-line">
               {visible.map((row) => (
-                <tr key={row.id} className="transition-colors hover:bg-surface">
+                <tr
+                  key={row.id}
+                  onClick={() => setPanelId(row.id)}
+                  className="cursor-pointer transition-colors hover:bg-surface"
+                >
                   <td className="px-4 py-3">
                     {row.gNumber ? (
                       <span className="font-mono font-bold text-navy">{row.gNumber}</span>
@@ -209,16 +215,18 @@ export function InventoryTable({ rows }: { rows: InventoryRow[] }) {
                   <td className="px-4 py-3 text-xs text-ink-soft">
                     {formatDate(row.receivedAt)}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-1.5">
                       {row.status === "IN_STORE" && (
                         <>
-                          <Link
-                            href={`/store/test/${row.id}`}
-                            className="rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-bold text-navy transition-colors hover:border-kplc hover:text-kplc"
-                          >
-                            Test
-                          </Link>
+                          {row.testState !== "PASSED" && (
+                            <Link
+                              href={`/store/test/${row.id}`}
+                              className="rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-bold text-navy transition-colors hover:border-kplc hover:text-kplc"
+                            >
+                              Test
+                            </Link>
+                          )}
                           {row.testState === "PASSED" && (
                             <Link
                               href={`/store/dispatch/${row.id}`}
@@ -237,6 +245,8 @@ export function InventoryTable({ rows }: { rows: InventoryRow[] }) {
           </table>
         </div>
       )}
+
+      <TransformerPanel transformerId={panelId} onClose={() => setPanelId(null)} />
     </div>
   );
 }

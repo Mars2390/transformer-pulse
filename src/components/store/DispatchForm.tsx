@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Field, FormError, FormSection, inputClass } from "@/components/ui/Field";
+import { PhotoUpload } from "@/components/ui/PhotoUpload";
 
 export function DispatchForm({
   transformerId,
@@ -24,6 +25,7 @@ export function DispatchForm({
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [plate, setPlate] = useState("");
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,7 +34,7 @@ export function DispatchForm({
     setFields({});
 
     const form = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(form.entries());
+    const payload = { ...Object.fromEntries(form.entries()), photoUrls };
 
     const response = await fetch(`/api/transformers/${transformerId}/dispatch`, {
       method: "POST",
@@ -156,6 +158,16 @@ export function DispatchForm({
               className={inputClass}
             />
           </Field>
+        </div>
+
+        <div className="mt-5 border-t border-line pt-5">
+          <PhotoUpload
+            value={photoUrls}
+            onChange={setPhotoUrls}
+            max={3}
+            label="Loaded vehicle (optional)"
+            hint="A photo of the unit on the lorry, before it leaves the yard."
+          />
         </div>
       </FormSection>
 
