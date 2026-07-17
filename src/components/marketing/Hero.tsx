@@ -5,15 +5,24 @@ import { IconArrowRight } from "@/components/marketing/icons";
 /**
  * The hero.
  *
- * One transformer, on a bright ground, stated plainly. No carousel: a slideshow
- * asks the viewer to wait to find out what the product is. A single clear
- * subject says it immediately, and it is the honest image — this is the asset
- * the whole system exists to track.
+ * One grid, placed explicitly, so the same markup composes two different
+ * layouts and the transformer image exists exactly once in the DOM:
  *
- * The photograph is a product shot on a white background. Rather than sit it in
- * a white box on a grey page, `mix-blend-multiply` drops its white away so the
- * unit stands directly on the page. This works because every colour behind it
- * is light — do not put this image on a dark panel.
+ *   phone                          laptop
+ *   ┌──────────────────┐           ┌─────────────┬────────┐
+ *   │ badge + name     │           │ badge+name  │        │
+ *   ├───────────┬──────┤           ├─────────────┤  unit  │
+ *   │ strapline │ unit │           │ strapline   │        │
+ *   ├───────────┴──────┤           ├─────────────┤        │
+ *   │ buttons          │           │ buttons     │        │
+ *   └──────────────────┘           └─────────────┴────────┘
+ *
+ * On a phone the unit sits beside the strapline, which keeps the name, the
+ * transformer and the dashboard button on one screen with no scrolling.
+ *
+ * The photograph is a product shot on white. `mix-blend-multiply` drops the
+ * white away so the unit stands on the page instead of in a box — which means
+ * this image can never sit on a dark panel.
  */
 export function Hero() {
   return (
@@ -37,18 +46,17 @@ export function Hero() {
         aria-hidden="true"
       />
 
-      <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 sm:gap-12 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-8">
-        {/* ---------------- Words ------------------------------------------ */}
-        <div>
+      <div className="relative mx-auto grid max-w-7xl grid-cols-[1fr_40%] items-center gap-x-5 gap-y-6 px-5 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-x-8 lg:gap-y-0">
+        {/* ---------------- Name ------------------------------------------- */}
+        <div className="col-span-2 lg:col-span-1 lg:col-start-1 lg:row-start-1">
           <span className="inline-flex items-center gap-2 rounded-full border border-kplc/15 bg-kplc/6 px-3.5 py-1.5 text-[11px] font-semibold tracking-wide text-kplc sm:text-xs">
             <span className="h-1.5 w-1.5 rounded-full bg-gold animate-blink" />
             Distribution transformer portal
           </span>
 
-          {/* The product name is the headline. Nothing else competes with it. */}
-          <h1 className="mt-7 text-[clamp(2.6rem,7vw,4.8rem)] font-extrabold tracking-[-0.03em] text-navy">
+          <h1 className="mt-6 text-[clamp(2.4rem,7vw,4.8rem)] font-extrabold tracking-[-0.03em] text-navy">
             Transformer
-            <span className="relative ml-3 whitespace-nowrap">
+            <span className="relative ml-2.5 whitespace-nowrap sm:ml-3">
               <span className="relative z-10">Pulse</span>
               {/* Gold highlighter behind the second word — one accent, once. */}
               <span
@@ -57,41 +65,22 @@ export function Hero() {
               />
             </span>
           </h1>
+        </div>
 
-          <p className="mt-6 max-w-md text-[clamp(1.15rem,2.2vw,1.5rem)] font-semibold leading-snug text-ink-soft">
+        {/* ---------------- Strapline -------------------------------------- */}
+        <div className="col-start-1 row-start-2 lg:row-start-2">
+          <p className="max-w-md text-[clamp(1rem,2.2vw,1.5rem)] font-semibold leading-snug text-ink-soft">
             Track every transformer in real time.
           </p>
 
-          <p className="mt-7 text-sm font-bold tracking-[0.12em] text-kplc">
+          <p className="mt-4 text-[11px] font-bold tracking-[0.1em] text-kplc sm:mt-6 sm:text-sm sm:tracking-[0.12em]">
             LOCATE. TRACK. TEST. RECOVER.
           </p>
-
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link
-              href="/dashboard"
-              className="group inline-flex items-center justify-center gap-2 rounded-xl bg-kplc px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-kplc/25 transition-all hover:-translate-y-0.5 hover:bg-kplc-light hover:shadow-xl hover:shadow-kplc/30"
-            >
-              Open dashboard
-              <span className="h-4 w-4 transition-transform group-hover:translate-x-0.5">
-                <IconArrowRight />
-              </span>
-            </Link>
-            <a
-              href="#how"
-              className="inline-flex items-center justify-center rounded-xl border border-navy/15 bg-white px-6 py-3.5 text-sm font-semibold text-navy transition-all hover:-translate-y-0.5 hover:border-navy/35 hover:shadow-md"
-            >
-              See how it works
-            </a>
-          </div>
         </div>
 
-        {/* ---------------- The transformer --------------------------------
-            Deliberately small on a phone. Stacked under the text it is a
-            supporting image, not the subject — at full width it pushes the
-            buttons off the fold and makes the page feel twice as long. */}
-        <div className="relative mx-auto w-full max-w-[15rem] sm:max-w-xs lg:max-w-none">
-          {/* Pulse rings — the name of the product, drawn. They sit behind the
-              unit and expand outward on a long, slow cycle. */}
+        {/* ---------------- The transformer -------------------------------- */}
+        <div className="relative col-start-2 row-start-2 self-center lg:row-span-3 lg:row-start-1 lg:mx-auto lg:w-full">
+          {/* Pulse rings — the name of the product, drawn. */}
           <div
             className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[85%] w-[85%] -translate-x-1/2 -translate-y-1/2"
             aria-hidden="true"
@@ -109,7 +98,7 @@ export function Hero() {
 
           {/* Soft ground shadow so the unit does not float in a vacuum. */}
           <div
-            className="pointer-events-none absolute bottom-[8%] left-1/2 -z-10 h-10 w-[62%] -translate-x-1/2 rounded-[50%] bg-navy/15 blur-2xl"
+            className="pointer-events-none absolute bottom-[6%] left-1/2 -z-10 h-6 w-[62%] -translate-x-1/2 rounded-[50%] bg-navy/15 blur-xl sm:h-10 sm:blur-2xl"
             aria-hidden="true"
           />
 
@@ -119,9 +108,28 @@ export function Hero() {
             width={554}
             height={554}
             priority
-            sizes="(max-width: 1024px) 90vw, 45vw"
+            sizes="(max-width: 1024px) 40vw, 45vw"
             className="relative h-auto w-full mix-blend-multiply"
           />
+        </div>
+
+        {/* ---------------- Buttons ---------------------------------------- */}
+        <div className="col-span-2 row-start-3 flex flex-col gap-3 sm:flex-row sm:items-center lg:col-span-1 lg:col-start-1 lg:row-start-3 lg:mt-9">
+          <Link
+            href="/dashboard"
+            className="group inline-flex items-center justify-center gap-2 rounded-xl bg-kplc px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-kplc/25 transition-all hover:-translate-y-0.5 hover:bg-kplc-light hover:shadow-xl hover:shadow-kplc/30"
+          >
+            Open dashboard
+            <span className="h-4 w-4 transition-transform group-hover:translate-x-0.5">
+              <IconArrowRight />
+            </span>
+          </Link>
+          <a
+            href="#how"
+            className="inline-flex items-center justify-center rounded-xl border border-navy/15 bg-white px-6 py-3.5 text-sm font-semibold text-navy transition-all hover:-translate-y-0.5 hover:border-navy/35 hover:shadow-md"
+          >
+            See how it works
+          </a>
         </div>
       </div>
     </section>
