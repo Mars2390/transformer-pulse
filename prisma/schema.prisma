@@ -76,6 +76,10 @@ enum AlertType {
   WARRANTY_EXPIRING
   INSPECTION_OVERDUE
   REPEAT_FAILURE
+  // Scanned far from its registered site: a move nobody recorded, or a theft.
+  GPS_MISMATCH
+  // Failed its intake test — it should go back before it ever reaches a pole.
+  INTAKE_TEST_FAILED
 }
 
 enum AlertSeverity {
@@ -267,6 +271,13 @@ model LifecycleEvent {
   // every hash after it, and /api/transformers/[id]/verify says so.
   prevHash String?
   hash     String  @unique
+
+  // --- Offline idempotency --------------------------------------------------
+  // The phone generates this UUID before the event is queued offline. If it
+  // syncs, loses signal before hearing the 200, and retries, this unique index
+  // is what stops a duplicate event being written — and a duplicate event
+  // corrupts the hash chain, which is the one thing we cannot allow.
+  clientEventId String? @unique
 
   // --- Replacement linking -------------------------------------------------
   // When a faulty unit is swapped, the old unit's RECOVERED event and the new

@@ -51,6 +51,149 @@ export const createUserSchema = z.object({
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 
+// --- Shared field types -----------------------------------------------------
+
+/**
+ * Kenyan number plates: three letters, three digits, optional trailing letter
+ * (KDG 456T, KAA 123A). Normalised to uppercase with no spaces, so "kdg 456t"
+ * and "KDG456T" are stored identically and a search finds both.
+ */
+export const vehiclePlateField = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .transform((v) => v.replace(/[\s-]/g, ""))
+  .pipe(
+    z
+      .string()
+      .regex(/^K[A-Z]{2}\d{3}[A-Z]?$/, "Enter a valid Kenyan plate, e.g. KDG 456T."),
+  );
+
+export const kenyanPhoneField = z
+  .string()
+  .trim()
+  .regex(/^(\+254|0)[17]\d{8}$/, "Enter a valid Kenyan number, e.g. 0722123456.");
+
+/** G-Number: G-YYYY-NNNNN. Accepts sloppy input, stores one canonical form. */
+export const gNumberField = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^G-?\d{4}-?\d{1,6}$/, "G-Number should look like G-2026-01234.")
+  .transform((v) => {
+    const digits = v.replace(/\D/g, "");
+    return `G-${digits.slice(0, 4)}-${digits.slice(4).padStart(5, "0")}`;
+  });
+
+// --- Receiving a transformer ------------------------------------------------
+
+export const receiveTransformerSchema = z.object({
+  serialNumber: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .min(4, "Serial number looks too short.")
+    .max(40, "Serial number looks too long."),
+  gNumber: gNumberField.optional().or(z.literal("")),
+  manufacturerId: z.string().min(1, "Choose the manufacturer."),
+
+  ratingKva: z.coerce
+    .number()
+    .int("Rating must be a whole number.")
+    .positive("Rating must be greater than zero.")
+    .max(5000, "That is too large for a distribution transformer."),
+  primaryKv: z.coerce.number().positive().max(500),
+  secondaryKv: z.coerce.number().positive().max(500),
+  phases: z.coerce.number().int().refine((v) => v === 1 || v === 3, "Phases must be 1 or 3."),
+  coolingType: z.string().trim().max(20),
+  impedancePct: z.coerce.number().min(0).max(30).optional().nullable(),
+  vectorGroup: z.string().trim().max(20).optional().or(z.literal("")),
+  oilVolumeLitres: z.coerce.number().int().min(0).max(20_000).optional().nullable(),
+  yearOfManufacture: z.coerce
+    .number()
+    .int()
+    .min(1950, "That year looks too old to be real.")
+    .max(new Date().getFullYear(), "Year cannot be in the future."),
+
+  deliveryNoteRef: z.string().trim().max(60).optional().or(z.literal("")),
+  vehiclePlate: vehiclePlateField.optional().or(z.literal("")),
+  driverName: z.string().trim().max(80).optional().or(z.literal("")),
+  photoUrls: z.array(z.string().url()).max(6).optional(),
+});
+
+export type ReceiveTransformerInput = z.infer<typeof receiveTransformerSchema>;
+
+// --- Test values ------------------------------------------------------------
+
+const measurement = (max: number) =>
+  z.coerce.number().min(0, "Cannot be negative.").max(max).optional().nullable();
+
+export const testValuesSchema = z.object({
+  stage: z.enum([
+    "STORE_INTAKE",
+    "PRE_DISPATCH",
+    "SITE_COMMISSIONING",
+    "ROUTINE",
+    "POST_FAULT",
+  ]),
+  insulationResistanceHvMohm: measurement(100_000),
+  insulationResistanceLvMohm: measurement(100_000),
+  turnsRatio: measurement(1000),
+  turnsRatioDeviationPct: z.coerce.number().min(-100).max(100).optional().nullable(),
+  windingResistanceHvOhm: measurement(10_000),
+  windingResistanceLvOhm: measurement(10_000),
+  oilBdvKv: measurement(200),
+  oilTempC: z.coerce.number().min(-20).max(200).optional().nullable(),
+  ambientTempC: z.coerce.number().min(-20).max(70).optional().nullable(),
+  polarityOk: z.boolean().optional().nullable(),
+  passed: z.boolean(),
+  remarks: z.string().trim().max(1000).optional().nullable(),
+});
+
+export type TestValuesInput = z.infer<typeof testValuesSchema>;
+
+/**
+ * The visual checklist is folded into `remarks` rather than given its own
+ * columns. It is qualitative, it changes as KPLC's checklist changes, and six
+ * more boolean columns would be six more migrations for no query we ever run.
+ */
+export const visualChecklistSchema = z.object({
+  tankCondition: z.enum(["GOOD", "DAMAGED"]),
+  bushings: z.enum(["GOOD", "DAMAGED"]),
+  silicaGel: z.enum(["BLUE", "PINK", "WHITE"]),
+  oilLevel: z.enum(["NORMAL", "LOW"]),
+  nameplateLegible: z.enum(["YES", "NO"]),
+});
+
+export type VisualChecklistInput = z.infer<typeof visualChecklistSchema>;
+
+export const intakeTestSchema = z.object({
+  values: testValuesSchema,
+  visual: visualChecklistSchema,
+});
+
+// --- Dispatch ---------------------------------------------------------------
+
+export const dispatchSchema = z.object({
+  destination: z.string().trim().min(3, "Where is it going?").max(120),
+  region: z.string().trim().min(2, "Choose the region.").max(60),
+  county: z.string().trim().max(60).optional().or(z.literal("")),
+  vehiclePlate: vehiclePlateField,
+  driverName: z.string().trim().min(3, "Enter the driver's name.").max(80),
+  driverPhone: kenyanPhoneField.optional().or(z.literal("")),
+  expectedArrival: z.coerce.date().optional().nullable(),
+  photoUrls: z.array(z.string().url()).max(6).optional(),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+
+export type DispatchInput = z.infer<typeof dispatchSchema>;
+
+// --- Assigning a G-Number later ---------------------------------------------
+
+export const assignGNumberSchema = z.object({
+  gNumber: gNumberField,
+});
+
 /** Turns a Zod error into { field: "message" } for form display. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {};

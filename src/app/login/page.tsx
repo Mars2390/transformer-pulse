@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { KplcMark } from "@/components/brand/KplcLogo";
@@ -11,9 +12,26 @@ export const metadata: Metadata = {
 export default function LoginPage() {
   return (
     <main className="relative isolate flex min-h-svh flex-col items-center justify-center overflow-hidden bg-navy-dark px-5 py-12">
+      {/* --- Background photograph ------------------------------------------
+          A crew putting a transformer on a pole: the work this system records.
+          It sits under a heavy navy wash — the image gives the page depth, and
+          the moment you can read the image you cannot read the form. */}
+      <Image
+        src="/images/transformer-installation.jpg"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover object-center"
+      />
+      <div
+        className="absolute inset-0 bg-gradient-to-br from-navy-dark/96 via-navy/92 to-navy-dark/97"
+        aria-hidden="true"
+      />
+
       {/* Engineering grid, faded toward the edges. */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.09]"
+        className="pointer-events-none absolute inset-0 opacity-[0.07]"
         style={{
           backgroundImage:
             "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
@@ -24,7 +42,7 @@ export default function LoginPage() {
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute -top-32 left-1/2 h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-kplc/25 blur-3xl"
+        className="pointer-events-none absolute -top-32 left-1/2 h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-kplc/20 blur-3xl"
         aria-hidden="true"
       />
 

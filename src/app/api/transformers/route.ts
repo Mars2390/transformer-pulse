@@ -1,0 +1,130 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireApiRole } from "@/lib/auth";
+import { apiError } from "@/lib/api";
+import { computeEventHash } from "@/lib/chain";
+import { receiveTransformerSchema } from "@/lib/validation";
+
+/**
+ * POST /api/transformers — receive a transformer from a manufacturer.
+ *
+ * This is where a transformer's story begins. It creates the asset AND its
+ * genesis event in one transaction: a transformer without a first event would
+ * have no chain to hang the rest of its life on.
+ */
+export async function POST(request: Request) {
+  try {
+    const actor = await requireApiRole("STORE_KEEPER", "ADMIN");
+
+    const body = await request.json().catch(() => null);
+    const input = receiveTransformerSchema.parse(body);
+
+    const manufacturer = await prisma.manufacturer.findUnique({
+      where: { id: input.manufacturerId },
+    });
+    if (!manufacturer) {
+      return NextResponse.json(
+        { error: "That manufacturer no longer exists." },
+        { status: 422 },
+      );
+    }
+
+    const store = actor.storeId
+      ? await prisma.store.findUnique({ where: { id: actor.storeId } })
+      : null;
+    if (!store) {
+      return NextResponse.json(
+        {
+          error:
+            "Your account is not assigned to a store, so there is nowhere to receive this into. Ask an administrator to assign you one.",
+        },
+        { status: 422 },
+      );
+    }
+
+    const receivedAt = new Date();
+
+    const transformer = await prisma.$transaction(async (tx) => {
+      const created = await tx.transformer.create({
+        data: {
+          serialNumber: input.serialNumber,
+          gNumber: input.gNumber || null,
+          manufacturerId: manufacturer.id,
+          ratingKva: input.ratingKva,
+          primaryKv: input.primaryKv,
+          secondaryKv: input.secondaryKv,
+          phases: input.phases,
+          coolingType: input.coolingType,
+          impedancePct: input.impedancePct ?? null,
+          vectorGroup: input.vectorGroup || null,
+          oilVolumeLitres: input.oilVolumeLitres ?? null,
+          yearOfManufacture: input.yearOfManufacture,
+
+          // Copied from the manufacturer, not referenced. Renegotiating a
+          // contract next year must not silently rewrite the warranty of units
+          // already sitting in the field.
+          warrantyMonths: manufacturer.warrantyMonths,
+          // The clock starts the day KPLC takes delivery. Never at manufacture.
+          warrantyStart: receivedAt,
+
+          status: "IN_STORE",
+          currentStoreId: store.id,
+          region: store.region,
+          county: store.county,
+        },
+      });
+
+      // The genesis link: prevHash is null, and only ever here.
+      const notes = [
+        `Received from ${manufacturer.name}.`,
+        input.deliveryNoteRef ? `Delivery note ${input.deliveryNoteRef}.` : null,
+        `Warranty runs ${manufacturer.warrantyMonths} months from today.`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      const hash = computeEventHash(null, {
+        transformerId: created.id,
+        type: "RECEIVED_AT_STORE",
+        toStatus: "IN_STORE",
+        userId: actor.id,
+        occurredAt: receivedAt,
+        lat: store.lat,
+        lng: store.lng,
+        vehiclePlate: input.vehiclePlate || null,
+        driverName: input.driverName || null,
+        notes,
+      });
+
+      await tx.lifecycleEvent.create({
+        data: {
+          transformerId: created.id,
+          type: "RECEIVED_AT_STORE",
+          fromStatus: null, // it did not exist before this moment
+          toStatus: "IN_STORE",
+          userId: actor.id,
+          occurredAt: receivedAt,
+          lat: store.lat,
+          lng: store.lng,
+          locationName: store.name,
+          vehiclePlate: input.vehiclePlate || null,
+          driverName: input.driverName || null,
+          photoUrls: input.photoUrls ?? [],
+          notes,
+          prevHash: null,
+          hash,
+        },
+      });
+
+      return tx.transformer.update({
+        where: { id: created.id },
+        data: { lastEventHash: hash },
+        select: { id: true, serialNumber: true, gNumber: true },
+      });
+    });
+
+    return NextResponse.json({ transformer }, { status: 201 });
+  } catch (error) {
+    return apiError(error);
+  }
+}

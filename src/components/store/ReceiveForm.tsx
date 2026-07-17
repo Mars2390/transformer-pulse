@@ -1,0 +1,261 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Field, FormError, FormSection, inputClass } from "@/components/ui/Field";
+
+type Manufacturer = {
+  id: string;
+  name: string;
+  warrantyMonths: number;
+};
+
+/** Common distribution ratings in KPLC's network. */
+const RATINGS = [25, 50, 100, 200, 315, 500, 1000];
+const COOLING = ["ONAN", "ONAF", "AN", "AF"];
+
+export function ReceiveForm({
+  manufacturers,
+  storeName,
+}: {
+  manufacturers: Manufacturer[];
+  storeName: string;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [manufacturerId, setManufacturerId] = useState(manufacturers[0]?.id ?? "");
+  const [gNumber, setGNumber] = useState("");
+
+  const chosen = manufacturers.find((m) => m.id === manufacturerId);
+
+  // Offer the next free G-Number, so the keeper types six digits fewer and the
+  // sequence has no accidental holes.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/transformers/suggest-gnumber")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.suggestion) setGNumber(data.suggestion);
+      })
+      .catch(() => {
+        /* Suggestion is a convenience. Typing it by hand still works. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setFields({});
+
+    const form = new FormData(event.currentTarget);
+    const payload = Object.fromEntries(form.entries());
+
+    const response = await fetch("/api/transformers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setError(data.error ?? "Could not register this transformer.");
+      setFields(data.fields ?? {});
+      setBusy(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    router.push(`/store/test/${data.transformer.id}?received=1`);
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-5">
+      {error && <FormError message={error} />}
+
+      <FormSection
+        title="Identity"
+        description="The serial number comes from the manufacturer's nameplate and never changes."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Serial number" htmlFor="serialNumber" required error={fields.serialNumber}>
+            <input
+              id="serialNumber"
+              name="serialNumber"
+              required
+              autoFocus
+              autoCapitalize="characters"
+              placeholder="HE-2025-04412"
+              className={`${inputClass} font-mono uppercase`}
+            />
+          </Field>
+
+          <Field
+            label="G-Number"
+            htmlFor="gNumber"
+            error={fields.gNumber}
+            hint="Leave blank if it has not been issued yet."
+          >
+            <input
+              id="gNumber"
+              name="gNumber"
+              value={gNumber}
+              onChange={(e) => setGNumber(e.target.value)}
+              placeholder="G-2026-00001"
+              className={`${inputClass} font-mono uppercase`}
+            />
+          </Field>
+
+          <Field label="Manufacturer" htmlFor="manufacturerId" required error={fields.manufacturerId}>
+            <select
+              id="manufacturerId"
+              name="manufacturerId"
+              value={manufacturerId}
+              onChange={(e) => setManufacturerId(e.target.value)}
+              required
+              className={inputClass}
+            >
+              {manufacturers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Year of manufacture" htmlFor="yearOfManufacture" required error={fields.yearOfManufacture}>
+            <input
+              id="yearOfManufacture"
+              name="yearOfManufacture"
+              type="number"
+              inputMode="numeric"
+              required
+              defaultValue={new Date().getFullYear()}
+              min={1950}
+              max={new Date().getFullYear()}
+              className={inputClass}
+            />
+          </Field>
+        </div>
+
+        {chosen && (
+          <p className="mt-4 rounded-xl border border-kplc/15 bg-kplc/5 px-4 py-3 text-xs text-navy">
+            <strong>{chosen.name}</strong> gives {chosen.warrantyMonths} months of
+            warranty. The clock starts <strong>today</strong>, the day KPLC takes
+            delivery — not the date of manufacture.
+          </p>
+        )}
+      </FormSection>
+
+      <FormSection title="Nameplate specification">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Rating" htmlFor="ratingKva" required error={fields.ratingKva}>
+            <div className="relative">
+              <input
+                id="ratingKva"
+                name="ratingKva"
+                type="number"
+                inputMode="numeric"
+                required
+                list="ratings"
+                placeholder="100"
+                className={`${inputClass} pr-14`}
+              />
+              <datalist id="ratings">
+                {RATINGS.map((r) => <option key={r} value={r} />)}
+              </datalist>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-ink-soft">
+                kVA
+              </span>
+            </div>
+          </Field>
+
+          <Field label="Primary voltage" htmlFor="primaryKv" required error={fields.primaryKv}>
+            <div className="relative">
+              <input id="primaryKv" name="primaryKv" type="number" step="0.001" required defaultValue={11} className={`${inputClass} pr-12`} />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-ink-soft">kV</span>
+            </div>
+          </Field>
+
+          <Field label="Secondary voltage" htmlFor="secondaryKv" required error={fields.secondaryKv}>
+            <div className="relative">
+              <input id="secondaryKv" name="secondaryKv" type="number" step="0.001" required defaultValue={0.415} className={`${inputClass} pr-12`} />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-ink-soft">kV</span>
+            </div>
+          </Field>
+
+          <Field label="Phases" htmlFor="phases" required error={fields.phases}>
+            <select id="phases" name="phases" defaultValue={3} className={inputClass}>
+              <option value={3}>3 phase</option>
+              <option value={1}>1 phase</option>
+            </select>
+          </Field>
+
+          <Field label="Cooling" htmlFor="coolingType" required error={fields.coolingType}>
+            <select id="coolingType" name="coolingType" defaultValue="ONAN" className={inputClass}>
+              {COOLING.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Field>
+
+          <Field label="Vector group" htmlFor="vectorGroup" error={fields.vectorGroup}>
+            <input id="vectorGroup" name="vectorGroup" placeholder="Dyn11" className={inputClass} />
+          </Field>
+
+          <Field label="Impedance" htmlFor="impedancePct" error={fields.impedancePct}>
+            <div className="relative">
+              <input id="impedancePct" name="impedancePct" type="number" step="0.1" placeholder="4.5" className={`${inputClass} pr-10`} />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-ink-soft">%</span>
+            </div>
+          </Field>
+
+          <Field label="Oil volume" htmlFor="oilVolumeLitres" error={fields.oilVolumeLitres}>
+            <div className="relative">
+              <input id="oilVolumeLitres" name="oilVolumeLitres" type="number" inputMode="numeric" placeholder="65" className={`${inputClass} pr-14`} />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-ink-soft">litres</span>
+            </div>
+          </Field>
+        </div>
+      </FormSection>
+
+      <FormSection
+        title="Delivery"
+        description={`Who brought it into ${storeName}, and on what.`}
+      >
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Delivery note reference" htmlFor="deliveryNoteRef" error={fields.deliveryNoteRef}>
+            <input id="deliveryNoteRef" name="deliveryNoteRef" placeholder="DN-88214" className={inputClass} />
+          </Field>
+
+          <Field label="Vehicle plate" htmlFor="vehiclePlate" error={fields.vehiclePlate}>
+            <input id="vehiclePlate" name="vehiclePlate" placeholder="KDG 456T" className={`${inputClass} uppercase`} />
+          </Field>
+
+          <Field label="Driver name" htmlFor="driverName" error={fields.driverName}>
+            <input id="driverName" name="driverName" placeholder="Peter Mwangi" className={inputClass} />
+          </Field>
+        </div>
+      </FormSection>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="rounded-xl border border-line bg-white px-6 py-3 text-sm font-semibold text-navy transition-colors hover:border-navy/30"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-xl bg-kplc px-6 py-3 text-sm font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light disabled:opacity-50"
+        >
+          {busy ? "Registering…" : "Register and test"}
+        </button>
+      </div>
+    </form>
+  );
+}
