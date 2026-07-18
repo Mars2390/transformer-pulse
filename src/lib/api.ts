@@ -61,8 +61,18 @@ export function apiError(error: unknown): NextResponse {
   }
 
   console.error("Unhandled API error:", error);
+
+  // In development the real message and stack come back in the response, so a
+  // failure is debuggable from the browser's network tab. Never in production:
+  // stack traces name file paths and query shapes an attacker can use.
+  const detail =
+    process.env.NODE_ENV === "production"
+      ? undefined
+      : { detail: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack?.split("\n").slice(0, 6) : undefined };
+
   return NextResponse.json(
-    { error: "Something went wrong on our side." },
+    { error: "Something went wrong on our side.", ...detail },
     { status: 500 },
   );
 }

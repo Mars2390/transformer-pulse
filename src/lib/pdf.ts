@@ -90,13 +90,31 @@ export async function embedPhotos(
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (!res.ok) continue;
-      const buf = Buffer.from(await res.arrayBuffer());
+      let buf = Buffer.from(await res.arrayBuffer());
       if (buf.length > 3 * 1024 * 1024) continue; // keep the file emailable
-      const type = res.headers.get("content-type") ?? "image/jpeg";
-      if (!type.startsWith("image/")) continue;
-      out.push({ url, data: `data:${type};base64,${buf.toString("base64")}` });
+
+      // Trust the bytes, not the Content-Type header. PDF embeds only JPEG and
+      // PNG; a phone that uploaded WebP or HEIC still says "image/…", and
+      // handing that to the PDF engine throws "Unknown image format" and takes
+      // the whole document down with it.
+      const magic = buf.subarray(0, 4).toString("hex");
+      const isJpeg = magic.startsWith("ffd8ff");
+      const isPng = magic === "89504e47";
+
+      let mime = isJpeg ? "image/jpeg" : "image/png";
+      if (!isJpeg && !isPng) {
+        // Anything else — WebP, HEIC, AVIF, TIFF — gets converted. These are
+        // site photographs attached to warranty claims; dropping them silently
+        // would remove the evidence the report exists to carry.
+        const sharp = (await import("sharp")).default;
+        buf = await sharp(buf).png().toBuffer();
+        mime = "image/png";
+      }
+
+      out.push({ url, data: `data:${mime};base64,${buf.toString("base64")}` });
     } catch {
-      // Unreachable photo — omit it rather than fail the document.
+      // Unreachable or undecodable photo — omit it rather than fail the
+      // document. A report missing one picture still beats no report.
     }
   }
   return out;
@@ -270,7 +288,7 @@ export async function buildPdf({
       margin: [40, 10, 40, 0],
       columns: [
         {
-          text: "Transformer Pulse  |  Kenya Power  |  Grid and Innovation Conference 2026",
+          text: "Transformer Pulse  |  Kenya Power",
           fontSize: 7, color: INK_SOFT, width: "*",
         },
         { text: `Generated ${generated}`, fontSize: 7, color: INK_SOFT, width: "auto", margin: [0, 0, 12, 0] },
