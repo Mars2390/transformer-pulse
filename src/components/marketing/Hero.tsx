@@ -26,7 +26,7 @@ import { IconArrowRight } from "@/components/marketing/icons";
  */
 export function Hero() {
   return (
-    <section className="relative isolate overflow-hidden bg-gradient-to-b from-white via-white to-surface pb-14 pt-26 sm:pb-28 sm:pt-40">
+    <section className="relative isolate flex min-h-svh flex-col justify-center overflow-hidden bg-gradient-to-b from-white via-white to-surface pb-16 pt-24 sm:block sm:min-h-0 sm:pb-28 sm:pt-40">
       {/* Engineering grid, faded out toward the edges. */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.35]"
@@ -46,7 +46,7 @@ export function Hero() {
         aria-hidden="true"
       />
 
-      <div className="relative mx-auto grid max-w-7xl grid-cols-[1fr_40%] items-center gap-x-5 gap-y-6 px-5 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-x-8 lg:gap-y-0">
+      <div className="relative mx-auto grid w-full max-w-7xl grid-cols-[1fr_44%] items-center gap-x-5 gap-y-8 px-5 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-x-8 lg:gap-y-0">
         {/* ---------------- Name ------------------------------------------- */}
         <div className="col-span-2 lg:col-span-1 lg:col-start-1 lg:row-start-1">
           <span className="inline-flex items-center gap-2 rounded-full border border-kplc/15 bg-kplc/6 px-3.5 py-1.5 text-[11px] font-semibold tracking-wide text-kplc sm:text-xs">
@@ -108,13 +108,13 @@ export function Hero() {
             width={554}
             height={554}
             priority
-            sizes="(max-width: 1024px) 40vw, 45vw"
+            sizes="(max-width: 1024px) 44vw, 45vw"
             className="relative h-auto w-full mix-blend-multiply"
           />
         </div>
 
         {/* ---------------- Buttons ---------------------------------------- */}
-        <div className="col-span-2 row-start-3 flex flex-col gap-3 sm:flex-row sm:items-center lg:col-span-1 lg:col-start-1 lg:row-start-3 lg:mt-9">
+        <div className="col-span-2 row-start-3 mt-3 flex flex-col gap-3 sm:mt-0 sm:flex-row sm:items-center lg:col-span-1 lg:col-start-1 lg:row-start-3 lg:mt-9">
           <Link
             href="/dashboard"
             className="group inline-flex items-center justify-center gap-2 rounded-xl bg-kplc px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-kplc/25 transition-all hover:-translate-y-0.5 hover:bg-kplc-light hover:shadow-xl hover:shadow-kplc/30"
