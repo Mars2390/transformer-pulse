@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { KplcMark } from "@/components/brand/KplcLogo";
 import { LogoutButton } from "@/components/app/LogoutButton";
 import { FieldBottomNav } from "@/components/field/FieldBottomNav";
+import { AlertBell } from "@/components/manager/AlertBell";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ROLE_LABELS } from "@/lib/format";
 import type { Role } from "@/generated/prisma/enums";
@@ -22,7 +23,10 @@ const NAV: Record<Role, { href: string; label: string }[]> = {
   ],
   MANAGER: [
     { href: "/manager/dashboard", label: "Dashboard" },
-    { href: "/transformers", label: "Transformers" },
+    { href: "/manager/map", label: "Map" },
+    { href: "/manager/warranty", label: "Warranty" },
+    { href: "/manager/reports", label: "Reports" },
+    { href: "/manager/search", label: "Search" },
   ],
   STORE_KEEPER: [
     { href: "/store/dashboard", label: "Store" },
@@ -77,6 +81,7 @@ export default async function AppLayout({
           </div>
 
           <div className="flex items-center gap-3">
+            {(user.role === "MANAGER" || user.role === "ADMIN") && <AlertBell />}
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold leading-tight text-navy">
                 {user.name}

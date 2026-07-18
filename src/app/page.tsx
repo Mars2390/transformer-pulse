@@ -301,21 +301,15 @@ export default function LandingPage() {
                   unit.
                 </p>
 
-                <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
+                <div className="mt-9 flex justify-center">
                   <Link
                     href="/dashboard"
-                    className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-7 py-3.5 text-sm font-bold text-navy-dark shadow-lg shadow-gold/20 transition-all hover:-translate-y-0.5 hover:bg-gold-dark"
+                    className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-8 py-3.5 text-sm font-bold text-navy-dark shadow-lg shadow-gold/20 transition-all hover:-translate-y-0.5 hover:bg-gold-dark"
                   >
                     Open dashboard
                     <span className="h-4 w-4 transition-transform group-hover:translate-x-0.5">
                       <IconArrowRight />
                     </span>
-                  </Link>
-                  <Link
-                    href="/login"
-                    className="inline-flex items-center justify-center rounded-xl border border-white/25 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-white/50 hover:bg-white/10"
-                  >
-                    Sign in
                   </Link>
                 </div>
               </div>

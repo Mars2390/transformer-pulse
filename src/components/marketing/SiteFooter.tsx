@@ -14,10 +14,10 @@ const COLUMNS = [
   {
     title: "FOR FIELD TEAMS",
     links: [
+      { label: "Open dashboard", href: "/dashboard" },
       { label: "Record an installation", href: "/field" },
       { label: "Report a fault", href: "/field" },
       { label: "Look up a transformer", href: "/transformers" },
-      { label: "Sign in", href: "/login" },
     ],
   },
 ];

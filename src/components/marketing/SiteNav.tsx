@@ -74,12 +74,6 @@ export function SiteNav() {
           <span className="h-5 w-px bg-line" aria-hidden="true" />
 
           <Link
-            href="/login"
-            className="text-sm font-semibold text-navy transition-colors hover:text-kplc"
-          >
-            Sign in
-          </Link>
-          <Link
             href="/dashboard"
             className="rounded-full bg-kplc px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-kplc/20 transition-all hover:-translate-y-0.5 hover:bg-kplc-light hover:shadow-kplc/30"
           >
@@ -137,18 +131,11 @@ export function SiteNav() {
             ))}
           </div>
 
-          <div className="mt-4 flex flex-col gap-3">
-            <Link
-              href="/login"
-              onClick={() => setOpen(false)}
-              className="rounded-xl border border-line px-4 py-3.5 text-center text-sm font-semibold text-navy"
-            >
-              Sign in
-            </Link>
+          <div className="mt-4">
             <Link
               href="/dashboard"
               onClick={() => setOpen(false)}
-              className="rounded-xl bg-kplc px-4 py-3.5 text-center text-sm font-bold text-white"
+              className="block rounded-xl bg-kplc px-4 py-3.5 text-center text-sm font-bold text-white"
             >
               Open dashboard
             </Link>

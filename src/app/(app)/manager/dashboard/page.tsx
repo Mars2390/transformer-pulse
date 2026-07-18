@@ -4,6 +4,8 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, StatTile, Badge, EmptyState, ActionLink } from "@/components/ui";
 import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
+import { AlertsPanel } from "@/components/manager/AlertsPanel";
+import { AutoRefresh } from "@/components/app/AutoRefresh";
 import {
   EVENT_META,
   formatKesCompact,
@@ -24,7 +26,9 @@ export default async function ManagerDashboard() {
   // A manager sees their region. An admin sees everything.
   const scope = user.role === "MANAGER" && user.region ? { region: user.region } : {};
 
-  const [counts, transformers, recentEvents, alerts, claims] = await Promise.all([
+  // The alerts panel fetches its own data live on the client, so it is not
+  // queried here — the server-rendered snapshot would be stale within seconds.
+  const [counts, transformers, recentEvents, claims] = await Promise.all([
     prisma.transformer.groupBy({
       by: ["status"],
       where: scope,
@@ -41,17 +45,11 @@ export default async function ManagerDashboard() {
     prisma.lifecycleEvent.findMany({
       where: { transformer: scope },
       orderBy: { occurredAt: "desc" },
-      take: 10,
+      take: 12,
       include: {
         user: { select: { name: true } },
         transformer: { select: { id: true, gNumber: true, ratingKva: true, currentSiteName: true } },
       },
-    }),
-    prisma.alert.findMany({
-      where: { acknowledged: false, ...(user.role === "MANAGER" && user.region ? { region: user.region } : {}) },
-      orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
-      take: 5,
-      include: { transformer: { select: { id: true, gNumber: true } } },
     }),
     prisma.warrantyClaim.findMany({
       where: { status: { in: ["OPEN", "SUBMITTED"] }, transformer: scope },
@@ -96,6 +94,7 @@ export default async function ManagerDashboard() {
 
   return (
     <div className="space-y-6">
+      <AutoRefresh seconds={30} />
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight text-navy">
           {user.region ?? "All regions"}
@@ -140,37 +139,10 @@ export default async function ManagerDashboard() {
           </div>
         </Card>
 
-        {/* --- Alerts ------------------------------------------------------- */}
-        <Card>
-          <CardHeader title={`Alerts (${alerts.length})`} />
-          {alerts.length ? (
-            <ul className="divide-y divide-line">
-              {alerts.map((alert) => (
-                <li key={alert.id} className="px-5 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <Badge tone={alert.severity === "CRITICAL" ? "danger" : "warning"}>
-                      {alert.severity}
-                    </Badge>
-                    <span className="shrink-0 text-[11px] text-ink-soft">
-                      {formatRelative(alert.createdAt)}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-[13px] leading-snug text-navy">
-                    {alert.message}
-                  </p>
-                  <Link
-                    href={`/transformers/${alert.transformerId}`}
-                    className="mt-1.5 inline-block text-[11px] font-bold text-kplc hover:underline"
-                  >
-                    {alert.transformer.gNumber} →
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState message="No open alerts." />
-          )}
-        </Card>
+        {/* --- Alerts (live, self-refreshing, acknowledgeable) -------------- */}
+        <div id="alerts" className="scroll-mt-20">
+          <AlertsPanel />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -212,7 +184,7 @@ export default async function ManagerDashboard() {
           <h2 className="text-sm font-bold text-navy">Quick links</h2>
           <div className="mt-4 grid gap-3">
             <ActionLink href="/manager/map" variant="primary">View full map</ActionLink>
-            <ActionLink href="/transformers" variant="secondary">Search transformers</ActionLink>
+            <ActionLink href="/manager/search" variant="secondary">Search transformers</ActionLink>
             <ActionLink href="/manager/warranty" variant="secondary">Warranty claims</ActionLink>
             <ActionLink href="/manager/reports" variant="secondary">Reports</ActionLink>
           </div>
