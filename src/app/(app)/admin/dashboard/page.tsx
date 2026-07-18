@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatTile, ActionLink } from "@/components/ui";
+import { AutoRefresh } from "@/components/app/AutoRefresh";
 import { formatNumber } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Administration" };
@@ -10,20 +11,36 @@ export const dynamic = "force-dynamic";
 export default async function AdminDashboard() {
   await requireRole("ADMIN");
 
-  const [users, lockedOut, manufacturers, stores, transformers, auditCount] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { lockedUntil: { gt: new Date() } } }),
-    prisma.manufacturer.count(),
-    prisma.store.count(),
-    prisma.transformer.count(),
-    prisma.auditLog.count(),
-  ]);
+  const dayStart = new Date(new Date().setHours(0, 0, 0, 0));
+  const [users, activeToday, lockedOut, manufacturers, stores, transformers, events, auditCount] =
+    await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { lastLoginAt: { gte: dayStart } } }),
+      prisma.user.count({ where: { lockedUntil: { gt: new Date() } } }),
+      prisma.manufacturer.count(),
+      prisma.store.count(),
+      prisma.transformer.count(),
+      prisma.lifecycleEvent.count(),
+      prisma.auditLog.count(),
+    ]);
 
   return (
     <div className="space-y-6">
+      <AutoRefresh seconds={30} />
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight text-navy">Administration</h1>
         <p className="mt-1 text-sm text-ink-soft">Everything that configures the system.</p>
+      </div>
+
+      {/* --- System health -------------------------------------------------- */}
+      <div>
+        <p className="mb-2 px-1 text-xs font-bold tracking-[0.1em] text-ink-soft">SYSTEM HEALTH</p>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <StatTile label="Total users" value={formatNumber(users)} tone="info" />
+          <StatTile label="Active today" value={formatNumber(activeToday)} tone="success" hint="Logged in today" />
+          <StatTile label="Transformers" value={formatNumber(transformers)} />
+          <StatTile label="Lifecycle events" value={formatNumber(events)} hint="Chain links, all sealed" />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

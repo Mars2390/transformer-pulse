@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Card, CardHeader, EmptyState } from "@/components/ui";
+import { Card, CardHeader, EmptyState, Badge, StatTile } from "@/components/ui";
 import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
 import { AutoRefresh } from "@/components/app/AutoRefresh";
-import { formatRating, formatRelative } from "@/lib/format";
+import { formatNumber, formatRating, formatRelative } from "@/lib/format";
 import {
   IconCamera,
   IconPin,
@@ -17,14 +17,17 @@ export const metadata: Metadata = { title: "My work" };
 export const dynamic = "force-dynamic";
 
 const DAY = 24 * 60 * 60 * 1000;
-/** A unit not inspected in this long goes on the list. */
+/** A unit not inspected in this long is overdue. */
 const INSPECTION_INTERVAL_DAYS = 180;
+/** From this many days, an inspection is "due soon" — plan-ahead, not overdue. */
+const INSPECTION_DUE_SOON_DAYS = 150;
 
 export default async function FieldDashboard() {
   const user = await requireRole("FIELD_ENGINEER", "ADMIN");
   const scope = user.region ? { region: user.region } : {};
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
-  const [inTransit, inField, nearby] = await Promise.all([
+  const [inTransit, inField, nearby, myInstalls, myInspections, myFaults] = await Promise.all([
     // Everything on the way to my region — split below by whether it has been
     // received on site yet.
     prisma.transformer.findMany({
@@ -56,6 +59,10 @@ export default async function FieldDashboard() {
       },
       take: 60,
     }),
+    // My performance this month.
+    prisma.lifecycleEvent.count({ where: { userId: user.id, type: "INSTALLED", occurredAt: { gte: monthStart } } }),
+    prisma.lifecycleEvent.count({ where: { userId: user.id, type: "INSPECTED", occurredAt: { gte: monthStart } } }),
+    prisma.lifecycleEvent.count({ where: { userId: user.id, type: "FAULT_REPORTED", occurredAt: { gte: monthStart } } }),
   ]);
 
   // In transit splits two ways by its latest event: not yet received (confirm
@@ -67,17 +74,18 @@ export default async function FieldDashboard() {
     (tx) => tx.events[0]?.type === "RECEIVED_BY_FIELD",
   );
 
-  const cutoff = Date.now() - INSPECTION_INTERVAL_DAYS * DAY;
+  // Inspections, tiered: "due soon" from 150 days (plan ahead, amber) and
+  // "overdue" past 180 (act now, red). Each row carries its day count so the
+  // UI can badge it without recomputing.
+  const now = Date.now();
   const inspectionsDue = inField
-    .filter((tx) => {
+    .map((tx) => {
       const last = tx.events[0]?.occurredAt ?? tx.commissionDate;
-      return last ? last.getTime() < cutoff : true;
+      const days = last ? Math.floor((now - last.getTime()) / DAY) : Infinity;
+      return { tx, days, overdue: days >= INSPECTION_INTERVAL_DAYS };
     })
-    .sort((a, b) => {
-      const at = a.events[0]?.occurredAt?.getTime() ?? 0;
-      const bt = b.events[0]?.occurredAt?.getTime() ?? 0;
-      return at - bt; // oldest first — most overdue at the top
-    });
+    .filter(({ days }) => days >= INSPECTION_DUE_SOON_DAYS)
+    .sort((a, b) => b.days - a.days); // most overdue first
 
   const points: MapPoint[] = nearby.map((tx) => ({
     id: tx.id,
@@ -143,8 +151,11 @@ export default async function FieldDashboard() {
                 <li key={tx.id} className="px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-navy">
+                      <p className="flex items-center gap-2 text-sm font-bold text-navy">
                         {tx.gNumber ?? tx.serialNumber}
+                        {dispatch && Date.now() - dispatch.occurredAt.getTime() < DAY && (
+                          <span className="rounded-full bg-kplc px-2 py-0.5 text-[10px] font-bold text-white">NEW</span>
+                        )}
                       </p>
                       <p className="mt-0.5 text-xs text-ink-soft">
                         {formatRating(tx.ratingKva)} · {tx.manufacturer.name}
@@ -209,40 +220,48 @@ export default async function FieldDashboard() {
         <CardHeader title={`Inspections due (${inspectionsDue.length})`} />
         {inspectionsDue.length ? (
           <ul className="divide-y divide-line">
-            {inspectionsDue.slice(0, 12).map((tx) => {
-              const last = tx.events[0]?.occurredAt ?? tx.commissionDate;
-              return (
-                <li key={tx.id}>
-                  <Link
-                    href={`/field/${tx.id}/inspect`}
-                    className="flex items-center gap-3 px-4 py-4 active:bg-surface"
-                  >
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-kplc/8 text-kplc">
-                      <span className="h-4 w-4">
-                        <IconPin />
-                      </span>
+            {inspectionsDue.slice(0, 15).map(({ tx, days, overdue }) => (
+              <li key={tx.id}>
+                <Link
+                  href={`/field/${tx.id}/inspect`}
+                  className="flex items-center gap-3 px-4 py-4 active:bg-surface"
+                >
+                  <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${overdue ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>
+                    <span className="h-4 w-4">
+                      <IconPin />
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold text-navy">
-                        {tx.currentSiteName ?? tx.gNumber}
-                      </span>
-                      <span className="block text-xs text-ink-soft">
-                        {tx.gNumber} · {formatRating(tx.ratingKva)} · last seen{" "}
-                        {last ? formatRelative(last) : "never"}
-                      </span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-bold text-navy">
+                      {tx.currentSiteName ?? tx.gNumber}
                     </span>
-                    <span className="h-4 w-4 shrink-0 text-ink-soft">
-                      <IconArrowRight />
+                    <span className="block text-xs text-ink-soft">
+                      {tx.gNumber} · {formatRating(tx.ratingKva)}
                     </span>
-                  </Link>
-                </li>
-              );
-            })}
+                  </span>
+                  <span className="shrink-0">
+                    <Badge tone={overdue ? "danger" : "warning"}>
+                      {overdue ? `${days}d overdue` : `due in ${INSPECTION_INTERVAL_DAYS - days}d`}
+                    </Badge>
+                  </span>
+                </Link>
+              </li>
+            ))}
           </ul>
         ) : (
-          <EmptyState message="No inspections are overdue in your region." />
+          <EmptyState message="No inspections are due in your region." />
         )}
       </Card>
+
+      {/* --- My performance this month -------------------------------------- */}
+      <div>
+        <p className="mb-2 px-1 text-xs font-bold tracking-[0.1em] text-ink-soft">MY PERFORMANCE THIS MONTH</p>
+        <div className="grid grid-cols-3 gap-3">
+          <StatTile label="Installed" value={formatNumber(myInstalls)} tone="success" />
+          <StatTile label="Inspected" value={formatNumber(myInspections)} tone="info" />
+          <StatTile label="Faults" value={formatNumber(myFaults)} tone={myFaults ? "warning" : "neutral"} />
+        </div>
+      </div>
 
       {/* --- Map ------------------------------------------------------------ */}
       <Card className="overflow-hidden">

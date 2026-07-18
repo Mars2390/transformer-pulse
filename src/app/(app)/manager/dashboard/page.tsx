@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, StatTile, Badge, EmptyState, ActionLink } from "@/components/ui";
 import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
 import { AlertsPanel } from "@/components/manager/AlertsPanel";
+import { ManagerInsights } from "@/components/manager/ManagerInsights";
 import { AutoRefresh } from "@/components/app/AutoRefresh";
 import {
   EVENT_META,
@@ -144,6 +145,9 @@ export default async function ManagerDashboard() {
           <AlertsPanel />
         </div>
       </div>
+
+      {/* --- Trends, digest, recovered money, warranty calendar, regions --- */}
+      <ManagerInsights region={user.role === "MANAGER" ? user.region : null} isAdmin={user.role === "ADMIN"} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* --- Activity ----------------------------------------------------- */}
