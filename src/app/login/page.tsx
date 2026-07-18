@@ -76,31 +76,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* --- Demo accounts -------------------------------------------------
-            Remove this block before any real deployment. It is here because a
-            conference demo where nobody can log in is not a demo. */}
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-          <p className="text-[11px] font-bold tracking-[0.12em] text-white/40">
-            DEMO ACCOUNTS
-          </p>
-          <ul className="mt-3 space-y-1.5 text-xs">
-            {[
-              { email: "manager@kplc.co.ke", pin: "200200", role: "Regional Manager" },
-              { email: "store@kplc.co.ke", pin: "300300", role: "Store Keeper" },
-              { email: "field@kplc.co.ke", pin: "400400", role: "Field Engineer" },
-              { email: "admin@kplc.co.ke", pin: "100100", role: "Administrator" },
-            ].map((account) => (
-              <li
-                key={account.email}
-                className="flex items-baseline justify-between gap-3"
-              >
-                <span className="font-mono text-white/70">{account.email}</span>
-                <span className="shrink-0 font-mono text-gold">{account.pin}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
         <p className="mt-8 text-center text-xs text-white/35">
           <Link href="/" className="transition-colors hover:text-white/70">
             ← Back to Transformer Pulse

@@ -117,6 +117,9 @@ model User {
   lockedUntil    DateTime?
 
   active    Boolean  @default(true)
+  // Set true after an admin resets the PIN, so the user is nudged to change it.
+  mustChangePin Boolean @default(false)
+  lastLoginAt   DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -124,9 +127,35 @@ model User {
   tests             TestRecord[]
   claimsRaised      WarrantyClaim[]  @relation("ClaimRaisedBy")
   alertsAcknowledged Alert[]         @relation("AlertAcknowledgedBy")
+  auditEntries      AuditLog[]       @relation("AuditActor")
 
   @@index([role])
   @@index([region])
+}
+
+// -------------------------- Admin audit trail -------------------------------
+// A record of every administrative EDIT/DELETE/RESTORE — users, manufacturers,
+// stores. This is SEPARATE from the LifecycleEvent chain, which no admin action
+// ever writes: the custody chain stays append-only and untouched. This table
+// answers "who changed this account, and when", not "what happened to a
+// transformer".
+model AuditLog {
+  id       String   @id @default(cuid())
+  actorId  String
+  actor    User     @relation("AuditActor", fields: [actorId], references: [id])
+
+  action     String // CREATE | EDIT | DISABLE | ENABLE | UNLOCK | RESET_PIN | DELETE
+  targetType String // User | Manufacturer | Store
+  targetId   String
+  targetLabel String // human-readable name at the time, so it survives deletion
+  details    String? // "Changed role from FIELD_ENGINEER to MANAGER"
+  reason     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
 }
 
 model Store {

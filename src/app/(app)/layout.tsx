@@ -19,7 +19,11 @@ import type { Role } from "@/generated/prisma/enums";
 const NAV: Record<Role, { href: string; label: string }[]> = {
   ADMIN: [
     { href: "/admin/dashboard", label: "Overview" },
-    { href: "/transformers", label: "Transformers" },
+    { href: "/admin/users", label: "Users" },
+    { href: "/admin/manufacturers", label: "Manufacturers" },
+    { href: "/admin/stores", label: "Stores" },
+    { href: "/admin/audit", label: "Audit" },
+    { href: "/admin/chain", label: "Chain" },
   ],
   MANAGER: [
     { href: "/manager/dashboard", label: "Dashboard" },

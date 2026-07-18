@@ -123,12 +123,10 @@ export async function POST(request: Request) {
   }
 
   // --- Success -------------------------------------------------------------
-  if (user.failedAttempts > 0 || user.lockedUntil) {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { failedAttempts: 0, lockedUntil: null },
-    });
-  }
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { failedAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
+  });
 
   const session = {
     id: user.id,

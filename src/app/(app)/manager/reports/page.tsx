@@ -37,6 +37,16 @@ const REPORTS = [
     body: "Every movement, vehicle, plate and driver.",
     formats: [{ label: "CSV", href: "/api/reports/dispatch-log?format=csv" }],
   },
+  {
+    title: "Intake Test Register",
+    body: "Every test value ever recorded, by unit and stage.",
+    formats: [{ label: "XLSX", href: "/api/reports/intake-tests?format=xlsx" }],
+  },
+  {
+    title: "Inspection Compliance",
+    body: "In-field units and days since last seen. Overdue rows flagged.",
+    formats: [{ label: "CSV", href: "/api/reports/inspection-compliance?format=csv" }],
+  },
 ];
 
 export default async function ReportsPage() {
