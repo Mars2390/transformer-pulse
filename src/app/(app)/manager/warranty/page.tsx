@@ -63,12 +63,18 @@ export default async function WarrantyPage() {
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Warranty claims</h1>
           <p className="mt-1 text-sm text-ink-soft">Money owed to KPLC by manufacturers.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <a
-            href="/api/reports/warranty-pack?format=xlsx"
+            href="/api/pdf/warranty-pack"
             className="rounded-xl bg-gold px-4 py-2.5 text-xs font-bold text-navy-dark shadow-lg shadow-gold/20 transition-colors hover:bg-gold-dark"
           >
-            Export claim pack (XLSX)
+            Export claim pack (PDF)
+          </a>
+          <a
+            href="/api/reports/warranty-pack?format=xlsx"
+            className="rounded-xl border border-line bg-white px-4 py-2.5 text-xs font-bold text-navy transition-colors hover:border-navy/30"
+          >
+            XLSX
           </a>
         </div>
       </div>

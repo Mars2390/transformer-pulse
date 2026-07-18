@@ -11,6 +11,12 @@ export const metadata: Metadata = { title: "Reports" };
  */
 const REPORTS = [
   {
+    title: "Regional Asset Summary (PDF)",
+    body: "The boardroom document: executive summary, status chart, region comparison and the full register — branded, paginated and ready to present.",
+    formats: [{ label: "PDF", href: "/api/pdf/regional-summary" }],
+    accent: true,
+  },
+  {
     title: "Regional Asset Register",
     body: "The master export — 35 columns: identity, GPS, status, install and inspection dates, test trends, warranty position, health and chain status.",
     formats: [
@@ -20,8 +26,11 @@ const REPORTS = [
   },
   {
     title: "Warranty Claim Pack",
-    body: "One sheet per manufacturer with a summary cover. Each claim carries its custody-chain hash — arithmetically undeniable proof. The document you send to claim.",
-    formats: [{ label: "XLSX", href: "/api/reports/warranty-pack?format=xlsx" }],
+    body: "The document you send to claim. PDF is the cover-letter submission with one page per claim and its chain proof; XLSX is the same data as a workbook.",
+    formats: [
+      { label: "PDF", href: "/api/pdf/warranty-pack" },
+      { label: "XLSX", href: "/api/reports/warranty-pack?format=xlsx" },
+    ],
     accent: true,
   },
   {

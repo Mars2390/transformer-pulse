@@ -21,3 +21,12 @@ export function xlsx(buffer: Uint8Array<ArrayBuffer>, name: string): NextRespons
     },
   });
 }
+
+export function pdf(buffer: Uint8Array<ArrayBuffer>, name: string): NextResponse {
+  return new NextResponse(buffer, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": attachment(name, "pdf"),
+    },
+  });
+}

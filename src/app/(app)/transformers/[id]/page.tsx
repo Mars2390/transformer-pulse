@@ -190,6 +190,12 @@ export default async function StoryPage({
               </p>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                href={`/api/pdf/transformer/${id}`}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-kplc px-3 py-2 text-xs font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
+              >
+                Download PDF
+              </a>
               {tx.currentLat != null && tx.currentLng != null && (
                 <NavigateButton lat={tx.currentLat} lng={tx.currentLng} label="Navigate to site" />
               )}
