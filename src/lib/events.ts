@@ -216,6 +216,38 @@ export async function recordEvent(
       update.currentStore = { disconnect: true };
     }
 
+    if (input.type === "INSPECTED") {
+      // The moment an onboarded record stops being a claim about the world and
+      // becomes a confirmation of it: someone stood under this transformer and
+      // saw it. This is what turns the map pin from amber to green, and it can
+      // only ever happen once — the first inspection is the baseline.
+      if (!transformer.verifiedAt) update.verifiedAt = occurredAt;
+
+      // An inspection also CORRECTS the pin of an onboarded unit — but only a
+      // small correction, and only while the unit is still unverified. That is
+      // the real case: an OSM pin sat 60 m off and the engineer is standing at
+      // the asset.
+      //
+      // A large discrepancy is deliberately NOT applied. Beyond the mismatch
+      // threshold this is no longer a survey correction, it is a transformer
+      // that is not where it should be — theft, or a move nobody recorded. That
+      // raises a CRITICAL alert below and the recorded position is left alone
+      // for a human to rule on. Quietly moving the pin would erase the very
+      // discrepancy the alert exists to report.
+      if (
+        input.lat != null && input.lng != null &&
+        !transformer.verifiedAt && transformer.dataSource != null &&
+        (transformer.currentLat == null || transformer.currentLng == null ||
+          distanceKm(
+            { lat: transformer.currentLat, lng: transformer.currentLng },
+            { lat: input.lat, lng: input.lng },
+          ) <= GPS_MISMATCH_THRESHOLD_KM)
+      ) {
+        update.currentLat = input.lat;
+        update.currentLng = input.lng;
+      }
+    }
+
     if (input.type === "RECEIVED_AT_STORE" && input.storeId) {
       update.currentStore = { connect: { id: input.storeId } };
       update.currentLat = null;

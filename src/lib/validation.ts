@@ -143,6 +143,64 @@ export const receiveTransformerSchema = z.object({
 export type ReceiveTransformerInput = z.infer<typeof receiveTransformerSchema>;
 
 /**
+ * Onboarding a transformer that is ALREADY on a pole.
+ *
+ * Deliberately far more permissive than receiving a new unit. A store keeper
+ * standing at a roadside pole can read a rating plate from the ground and often
+ * nothing else — the serial is on the far side, or corroded away. Demanding a
+ * serial number here would simply mean the unit never gets recorded at all,
+ * which is exactly the situation this system exists to end.
+ *
+ * What cannot be waived is position. An onboarded unit has no dispatch or
+ * install record, so its coordinates are the only hard fact about it.
+ */
+export const onboardTransformerSchema = z.object({
+  lat: z.coerce
+    .number()
+    .min(-90, "Latitude must be between -90 and 90.")
+    .max(90, "Latitude must be between -90 and 90."),
+  lng: z.coerce
+    .number()
+    .min(-180, "Longitude must be between -180 and 180.")
+    .max(180, "Longitude must be between -180 and 180."),
+
+  locationDescription: z
+    .string()
+    .trim()
+    .min(3, "Describe where this is — a road, a landmark, a plot.")
+    .max(160),
+
+  gNumber: gNumberField.optional().or(z.literal("")),
+
+  // Blank is a legitimate answer, and a common one.
+  serialNumber: z.string().trim().toUpperCase().max(40).optional().or(z.literal("")),
+
+  manufacturerId: z.string().min(1, "Choose the manufacturer, or Unknown."),
+
+  ratingKva: z.coerce
+    .number()
+    .int()
+    .refine((v) => [50, 100, 200, 315, 500, 1000].includes(v), "Choose a standard rating."),
+
+  mountingType: z.enum(["POLE_MOUNTED", "GROUND_MOUNTED", "PAD_MOUNTED", "SUBSTATION"]),
+
+  yearOfManufacture: z.coerce
+    .number()
+    .int()
+    .min(1960, "That year seems too early.")
+    .max(new Date().getFullYear(), "That year is in the future.")
+    .optional(),
+
+  dataSource: z.enum(["OSM_SURVEYED", "OSM_INFERRED", "MANUAL_PIN"]),
+
+  region: z.string().trim().max(80).optional().or(z.literal("")),
+  feeder: z.string().trim().max(60).optional().or(z.literal("")),
+  notes: z.string().trim().max(500).optional().or(z.literal("")),
+});
+
+export type OnboardTransformerInput = z.infer<typeof onboardTransformerSchema>;
+
+/**
  * Editing an EXISTING transformer's nameplate. Store keeper or admin. This
  * corrects static physical facts about the unit — it never touches a lifecycle
  * event, so the custody chain is untouched. Every edit is audited.
@@ -161,6 +219,34 @@ export const editTransformerSchema = z.object({
 });
 
 export type EditTransformerInput = z.infer<typeof editTransformerSchema>;
+
+/**
+ * Correcting an onboarded transformer after somebody has actually looked at it.
+ *
+ * Separate from the nameplate edit above because these are IDENTITY and
+ * POSITION fields, not plate values — changing them says "the record was wrong
+ * about which thing this is, or where". Every one is optional: an engineer who
+ * managed to read only the serial should not have to restate everything else.
+ *
+ * A reason is required. These edits overwrite the only record KPLC has, and
+ * "why" is the difference between a correction and a mystery six months later.
+ */
+export const correctTransformerSchema = z.object({
+  locationDescription: z.string().trim().min(3).max(160).optional(),
+  serialNumber: z.string().trim().toUpperCase().min(4).max(40).optional(),
+  manufacturerId: z.string().min(1).optional(),
+  ratingKva: z.coerce
+    .number()
+    .int()
+    .refine((v) => [50, 100, 200, 315, 500, 1000].includes(v), "Choose a standard rating.")
+    .optional(),
+  mountingType: z.enum(["POLE_MOUNTED", "GROUND_MOUNTED", "PAD_MOUNTED", "SUBSTATION"]).optional(),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
+  reason: z.string().trim().min(4, "Say why this is being corrected.").max(300),
+});
+
+export type CorrectTransformerInput = z.infer<typeof correctTransformerSchema>;
 
 // --- Test values ------------------------------------------------------------
 

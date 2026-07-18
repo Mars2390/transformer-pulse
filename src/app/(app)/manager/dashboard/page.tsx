@@ -41,6 +41,7 @@ export default async function ManagerDashboard() {
         id: true, gNumber: true, serialNumber: true, ratingKva: true,
         status: true, currentLat: true, currentLng: true,
         currentSiteName: true, feeder: true,
+        dataSource: true, verifiedAt: true,
       },
     }),
     prisma.lifecycleEvent.findMany({
@@ -91,6 +92,8 @@ export default async function ManagerDashboard() {
     lng: tx.currentLng!,
     siteName: tx.currentSiteName,
     feeder: tx.feeder,
+    dataSource: tx.dataSource,
+    verified: tx.verifiedAt != null,
   }));
 
   return (

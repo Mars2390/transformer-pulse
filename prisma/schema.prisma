@@ -43,7 +43,13 @@ enum TransformerStatus {
 }
 
 enum EventType {
-  RECEIVED_AT_STORE // the first event in every chain
+  RECEIVED_AT_STORE // genesis for a unit that enters through a KPLC store
+
+  // Genesis for a unit that was ALREADY on a pole before the system existed.
+  // KPLC has tens of thousands of these. They never passed through a store we
+  // have a record of, so their chain starts where we found them.
+  ONBOARDED_EXISTING
+
   TESTED
   DISPATCHED // leaves the store on a vehicle
   RECEIVED_BY_FIELD // field engineer confirms it arrived
@@ -256,6 +262,25 @@ model Transformer {
   county          String?
 
   commissionDate DateTime? // first energised
+
+  // --- Provenance ---------------------------------------------------------
+  // Where this record's position came from. Null means it entered through the
+  // normal store flow, where the GPS pin was born at installation and is
+  // therefore surveyed by definition.
+  //
+  // This is what keeps the map honest: a pin dropped from an office chair and
+  // a pin dropped standing under the transformer are not the same claim, and
+  // the map must not present them as though they were.
+  dataSource String? // OSM_SURVEYED | OSM_INFERRED | MANUAL_PIN
+
+  // How it is mounted. Only known for onboarded units, where the keeper can
+  // see it; for store units it is not established until installation.
+  mountingType String? // POLE_MOUNTED | GROUND_MOUNTED | PAD_MOUNTED | SUBSTATION
+
+  // Set the first time a field engineer physically inspects the unit. Until
+  // then an onboarded record is a claim about the world, not a confirmation of
+  // it, and the map legend says so.
+  verifiedAt DateTime?
 
   // Hash of the most recent event. The chain's head — see lib/chain.ts.
   lastEventHash String?

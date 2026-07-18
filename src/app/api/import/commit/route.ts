@@ -4,6 +4,7 @@ import { requireApiRole } from "@/lib/auth";
 import { apiError } from "@/lib/api";
 import { writeAudit } from "@/lib/audit";
 import { computeEventHash } from "@/lib/chain";
+import { DATA_SOURCE_META } from "@/lib/format";
 import type { ImportRowData } from "@/lib/import-rows";
 import type { EventType, TransformerStatus } from "@/generated/prisma/enums";
 
@@ -29,8 +30,25 @@ type Body = {
   totals?: { imported: number; updated: number; skipped: number; failed: number };
 };
 
-/** Which events an imported status implies, in order. */
-function eventPlan(status: string): { type: EventType; to: TransformerStatus }[] {
+/**
+ * Which events an imported status implies, in order.
+ *
+ * A row that states its provenance gets ONE genesis event and nothing else.
+ * The synthesised store-receipt-then-installation history below is a reasonable
+ * reconstruction for a unit KPLC really did receive and install — the paperwork
+ * exists, it is just not in this system. It would be a fabrication for a
+ * transformer found on a map: there was no store receipt, no dispatch, and no
+ * installation anybody here witnessed. Inventing that chain would put false
+ * events under a real hash, which is precisely what this system exists to make
+ * impossible.
+ */
+function eventPlan(
+  status: string,
+  dataSource?: string | null,
+): { type: EventType; to: TransformerStatus }[] {
+  if (dataSource) {
+    return [{ type: "ONBOARDED_EXISTING", to: "IN_FIELD" }];
+  }
   switch (status) {
     case "IN_FIELD":
       return [{ type: "RECEIVED_AT_STORE", to: "IN_STORE" }, { type: "INSTALLED", to: "IN_FIELD" }];
@@ -113,31 +131,43 @@ export async function POST(request: Request) {
               gNumber: row.gNumber || null,
               manufacturerId: row.manufacturerId!,
               ...specFields(row),
-              warrantyMonths: manufacturer.warrantyMonths,
-              warrantyStart: baseDate,
-              status: row.status as TransformerStatus,
-              currentStoreId: row.status === "IN_STORE" ? row.storeId : null,
-              currentLat: row.status === "IN_FIELD" || row.status === "FAULTY" ? row.lat : null,
-              currentLng: row.status === "IN_FIELD" || row.status === "FAULTY" ? row.lng : null,
+              // An onboarded unit claims no warranty. We do not know when KPLC
+              // took delivery, and a start date we invented would become a
+              // claim against a manufacturer that nobody can substantiate.
+              warrantyMonths: row.dataSource ? 0 : manufacturer.warrantyMonths,
+              warrantyStart: row.dataSource ? null : baseDate,
+              status: row.dataSource ? "IN_FIELD" : (row.status as TransformerStatus),
+              currentStoreId: !row.dataSource && row.status === "IN_STORE" ? row.storeId : null,
+              currentLat: row.dataSource || row.status === "IN_FIELD" || row.status === "FAULTY" ? row.lat : null,
+              currentLng: row.dataSource || row.status === "IN_FIELD" || row.status === "FAULTY" ? row.lng : null,
               currentSiteName: row.locationDescription,
               region: row.region,
-              commissionDate: installedAt,
+              dataSource: row.dataSource,
+              mountingType: row.mountingType,
+              // Not commissioned by us — we do not know when it was energised.
+              commissionDate: row.dataSource ? null : installedAt,
             },
           });
 
           // --- Build the chain -------------------------------------------
-          const plan = eventPlan(row.status);
+          const plan = eventPlan(row.status, row.dataSource);
           let prevHash: string | null = null;
           let fromStatus: TransformerStatus | null = null;
 
           for (let i = 0; i < plan.length; i++) {
             const step = plan[i];
-            const isLocated = step.type === "INSTALLED";
+            // Onboarded units carry their position on the genesis event itself —
+            // it is the only thing we actually know about them.
+            const isLocated = step.type === "INSTALLED" || step.type === "ONBOARDED_EXISTING";
             const occurredAt = new Date(baseDate.getTime() + i * 1000); // keep order stable
             const notes =
-              i === 0
-                ? `Imported from ${body.fileName} on ${new Date().toLocaleDateString("en-GB")}. Baseline record — not an observed field event.`
-                : `Imported baseline: recorded as ${step.to.replace(/_/g, " ").toLowerCase()}.`;
+              step.type === "ONBOARDED_EXISTING"
+                ? `Bulk onboarded from ${body.fileName} on ${new Date().toLocaleDateString("en-GB")}. ` +
+                  `Data source: ${DATA_SOURCE_META[row.dataSource!]?.label ?? row.dataSource}. ` +
+                  `Requires physical inspection to verify.`
+                : i === 0
+                  ? `Imported from ${body.fileName} on ${new Date().toLocaleDateString("en-GB")}. Baseline record — not an observed field event.`
+                  : `Imported baseline: recorded as ${step.to.replace(/_/g, " ").toLowerCase()}.`;
 
             const hash = computeEventHash(prevHash, {
               transformerId: created.id,

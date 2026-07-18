@@ -7,9 +7,37 @@ import {
 
 export type ImportLevel = "valid" | "warning" | "error";
 
+/**
+ * Reads the provenance columns the OSM harvester writes.
+ *
+ * Accepts both the explicit code and the human phrasing, because the file a
+ * person hand-edits in Excel will say "OSM surveyed", not "OSM_SURVEYED".
+ * Returns null when the file claims nothing — and null is the meaningful
+ * default: a row with no stated provenance is treated as an ordinary asset
+ * record, not silently branded as demonstration data.
+ */
+function normaliseDataSource(raw: string, basis: string): string | null {
+  const s = `${raw} ${basis}`.toLowerCase();
+  if (!s.trim()) return null;
+  if (/osm|openstreetmap/.test(s)) {
+    // "Site centroid" is the harvester's phrase for an inferred position.
+    return /inferred|centroid/.test(s) ? "OSM_INFERRED" : "OSM_SURVEYED";
+  }
+  if (/manual|pin/.test(s)) return "MANUAL_PIN";
+  return null;
+}
+
 export type ImportRowData = {
   serialNumber: string;
   gNumber: string | null;
+  /**
+   * Set when the file says where this position came from (OSM_SURVEYED,
+   * OSM_INFERRED, MANUAL_PIN). Its presence changes the whole import: the unit
+   * is onboarded as already-existing rather than given a synthesised store
+   * receipt and installation it never had.
+   */
+  dataSource: string | null;
+  mountingType: string | null;
   manufacturerId: string | null;
   manufacturerName: string;
   ratingKva: number | null;
@@ -176,6 +204,8 @@ export function buildRows(
     const data: ImportRowData = {
       serialNumber,
       gNumber: get("gNumber") ? get("gNumber").toUpperCase() : null,
+      dataSource: normaliseDataSource(get("dataSource"), get("positionBasis")),
+      mountingType: text("mountingType"),
       manufacturerId: matched?.id ?? null,
       manufacturerName: matched?.name ?? manufacturerName,
       ratingKva: ratingKva != null ? Math.round(ratingKva) : null,

@@ -143,6 +143,12 @@ export default async function StoreDashboard() {
             Import transformers
           </Link>
           <Link
+            href="/store-onboard"
+            className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-100"
+          >
+            📍 Onboard existing transformer
+          </Link>
+          <Link
             href="/store/receive"
             className="rounded-xl bg-kplc px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
           >

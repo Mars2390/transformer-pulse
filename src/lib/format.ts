@@ -100,6 +100,7 @@ export const STATUS_META: Record<
 
 export const EVENT_META: Record<EventType, { label: string; tone: Tone }> = {
   RECEIVED_AT_STORE: { label: "Received at store", tone: "info" },
+  ONBOARDED_EXISTING: { label: "Onboarded — existing", tone: "warning" },
   TESTED: { label: "Tested", tone: "info" },
   DISPATCHED: { label: "Dispatched", tone: "warning" },
   RECEIVED_BY_FIELD: { label: "Received on site", tone: "warning" },
@@ -110,6 +111,51 @@ export const EVENT_META: Record<EventType, { label: string; tone: Tone }> = {
   RETURNED_TO_MANUFACTURER: { label: "Returned to manufacturer", tone: "neutral" },
   SCRAPPED: { label: "Scrapped", tone: "neutral" },
 };
+
+/**
+ * Where a transformer's position came from, and how much it should be trusted.
+ *
+ * A pin dropped from an office chair and a pin dropped standing underneath the
+ * transformer are different claims. The map must never present them as the
+ * same one — so every onboarded unit carries its provenance until a field
+ * engineer physically confirms it, and the legend says which is which.
+ */
+export const DATA_SOURCE_META: Record<
+  string,
+  { label: string; short: string; tone: Tone; accuracy: string }
+> = {
+  OSM_SURVEYED: {
+    label: "OpenStreetMap — surveyed asset",
+    short: "OSM surveyed",
+    tone: "warning",
+    accuracy: "A mapped power asset at this point. Within a few metres.",
+  },
+  OSM_INFERRED: {
+    label: "OpenStreetMap — inferred from site",
+    short: "OSM inferred",
+    tone: "warning",
+    accuracy: "Placed at a real named site. The transformer serves it, but its exact position in the plot is unconfirmed — 20 to 80 m.",
+  },
+  MANUAL_PIN: {
+    label: "Manual map pin",
+    short: "Manual pin",
+    tone: "warning",
+    accuracy: "Positioned by hand on the map. Roughly 5 m if the operator could see the unit.",
+  },
+};
+
+/** The badge a transformer carries on the map and its story page. */
+export function provenanceBadge(
+  dataSource: string | null,
+  verifiedAt: Date | null,
+): { label: string; tone: Tone } {
+  if (verifiedAt) return { label: "Verified — physical inspection", tone: "success" };
+  if (!dataSource) return { label: "Recorded in service", tone: "info" };
+  return {
+    label: `Demonstration data — ${DATA_SOURCE_META[dataSource]?.short ?? dataSource}`,
+    tone: "warning",
+  };
+}
 
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administrator",

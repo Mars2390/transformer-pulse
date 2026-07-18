@@ -8,6 +8,7 @@ import { computeWarranty } from "@/lib/warranty";
 import { computeHealth, HEALTH_BAND_META } from "@/lib/health";
 import { Badge } from "@/components/ui";
 import { NavigateButton } from "@/components/field/NavigateButton";
+import { StreetViewButton } from "@/components/map/StreetViewButton";
 import { StoryTabs } from "@/components/transformer/StoryTabs";
 import type { WarrantyView } from "@/components/transformer/WarrantyTab";
 import type { StoryData, StoryEvent, StoryTest } from "@/components/transformer/story-types";
@@ -197,7 +198,10 @@ export default async function StoryPage({
                 Download PDF
               </a>
               {tx.currentLat != null && tx.currentLng != null && (
-                <NavigateButton lat={tx.currentLat} lng={tx.currentLng} label="Navigate to site" />
+                <>
+                  <NavigateButton lat={tx.currentLat} lng={tx.currentLng} label="Navigate to site" />
+                  <StreetViewButton lat={tx.currentLat} lng={tx.currentLng} />
+                </>
               )}
               {canEditNameplate && (
                 <Link

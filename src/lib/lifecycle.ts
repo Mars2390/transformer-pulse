@@ -43,6 +43,20 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     description: "Arrived at a KPLC store.",
     requires: { vehicle: true },
   },
+  ONBOARDED_EXISTING: {
+    // Empty on purpose. This event is written ONLY by the onboarding route,
+    // which creates the transformer and this event together. There is no legal
+    // transition INTO it from any existing status, so recordEvent() will refuse
+    // it on a transformer that already exists — you cannot re-onboard a unit to
+    // paper over its history.
+    allowedFrom: [],
+    toStatus: "IN_FIELD",
+    label: "Onboarded — existing unit",
+    description: "An already-installed transformer added to the register.",
+    // GPS is the whole point: an onboarded unit has no dispatch or install
+    // record, so its position is the only hard fact we have about it.
+    requires: { gps: true },
+  },
   TESTED: {
     allowedFrom: ["IN_STORE"],
     toStatus: "IN_STORE",
