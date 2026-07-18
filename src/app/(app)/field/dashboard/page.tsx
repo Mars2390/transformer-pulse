@@ -255,7 +255,13 @@ export default async function FieldDashboard() {
 
       {/* --- My performance this month -------------------------------------- */}
       <div>
-        <p className="mb-2 px-1 text-xs font-bold tracking-[0.1em] text-ink-soft">MY PERFORMANCE THIS MONTH</p>
+        <div className="mb-2 flex items-center justify-between px-1">
+          <p className="text-xs font-bold tracking-[0.1em] text-ink-soft">MY PERFORMANCE THIS MONTH</p>
+          <div className="flex gap-2">
+            <a href="/api/reports/engineer-performance?format=csv" className="text-[11px] font-bold text-kplc hover:underline">Export mine</a>
+            <a href="/api/reports/locations" className="text-[11px] font-bold text-kplc hover:underline">Locations CSV</a>
+          </div>
+        </div>
         <div className="grid grid-cols-3 gap-3">
           <StatTile label="Installed" value={formatNumber(myInstalls)} tone="success" />
           <StatTile label="Inspected" value={formatNumber(myInspections)} tone="info" />

@@ -125,16 +125,16 @@ export default async function StoreDashboard() {
 
         <div className="flex flex-wrap gap-2">
           <a
-            href="/api/reports/store-inventory?format=csv"
+            href="/api/reports/intake-tests?format=xlsx"
             className="rounded-xl border border-line bg-white px-4 py-2.5 text-xs font-bold text-navy transition-colors hover:border-navy/30"
           >
-            Export CSV
+            Intake register (XLSX)
           </a>
           <a
-            href="/api/reports/store-inventory?format=xlsx"
+            href="/api/reports/dispatch-log?format=csv"
             className="rounded-xl border border-line bg-white px-4 py-2.5 text-xs font-bold text-navy transition-colors hover:border-navy/30"
           >
-            Export XLSX
+            Dispatch log (CSV)
           </a>
           <Link
             href="/store/receive"

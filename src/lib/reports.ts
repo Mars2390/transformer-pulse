@@ -6,17 +6,32 @@ import path from "node:path";
 /**
  * Report generation.
  *
- * CSV is hand-rolled: it is fifteen lines, and a dependency for that is a
- * liability. XLSX uses ExcelJS because it can embed the KPLC logo — the claim
- * pack leaves KPLC and lands on a manufacturer's desk, so it has to look like
- * it came from a utility, not from a laptop.
+ * CSV is hand-rolled — fifteen lines, and a dependency for that is a liability.
+ * XLSX uses ExcelJS because it embeds the KPLC logo and colour-codes cells: the
+ * claim pack leaves KPLC and lands on a manufacturer's desk, so it must look
+ * like it came from a utility, not from a laptop.
+ *
+ * A column can declare a `numFmt` (Excel display format, ignored by CSV so the
+ * raw number stays clean) and a `tone` function (conditional cell fill by
+ * status/compliance/warranty). Dates are pre-formatted to DD/MM/YYYY strings in
+ * each column's `value`, so CSV and XLSX read identically.
  */
+
+export type CellTone =
+  | "field" | "faulty" | "store" | "transit" | "returned" | "scrapped"
+  | "ok" | "due" | "overdue"
+  | "covered" | "expiring" | "critical" | "expired"
+  | "pass" | "fail" | "good" | "warning";
 
 export type Column<T> = {
   header: string;
   /** Value for a data row. Return a primitive; formatting belongs here. */
   value: (row: T) => string | number | null;
   width?: number;
+  /** Excel number format, e.g. '#,##0.00' or '"KES" #,##0'. XLSX only. */
+  numFmt?: string;
+  /** Conditional cell fill by meaning. XLSX only. */
+  tone?: (row: T) => CellTone | null;
 };
 
 // --- CSV --------------------------------------------------------------------
@@ -26,7 +41,7 @@ export type Column<T> = {
  *
  * The leading-character check is not paranoia: Excel executes a cell starting
  * with =, +, - or @ as a formula. A site name of "=cmd|..." in our database
- * would run on the machine of whoever opens the export. Prefixing with a quote
+ * would run on the machine of whoever opens the export. Prefixing a quote
  * neutralises it.
  */
 function csvCell(value: string | number | null): string {
@@ -39,6 +54,9 @@ function csvCell(value: string | number | null): string {
 
 export function toCsv<T>(rows: T[], columns: Column<T>[]): string {
   const lines = [columns.map((c) => csvCell(c.header)).join(",")];
+  if (rows.length === 0) {
+    lines.push(csvCell("No data available"));
+  }
   for (const row of rows) {
     lines.push(columns.map((c) => csvCell(c.value(row))).join(","));
   }
@@ -49,18 +67,39 @@ export function toCsv<T>(rows: T[], columns: Column<T>[]): string {
 
 // --- XLSX -------------------------------------------------------------------
 
-const KPLC_BLUE = "FF1E40AF";
+const KPLC_GREEN = "FF006837"; // header per spec
 const KPLC_NAVY = "FF0A1A4F";
+const KPLC_BLUE = "FF1E40AF";
 const KPLC_GOLD = "FFF5B700";
+const ROW_ALT = "FFF5F5F5";
 
-/** Cell fills for the status column, so a manager can scan it in one look. */
-const STATUS_FILL: Record<string, string> = {
-  "In store": "FFDBEAFE",
-  "In transit": "FFFEF3C7",
-  "In field": "FFD1FAE5",
-  Faulty: "FFFEE2E2",
-  Returned: "FFE5E7EB",
-  Scrapped: "FFE5E7EB",
+/** Conditional cell fills, one consistent palette across every export. */
+const TONE_FILL: Record<CellTone, string> = {
+  field: "FFD1FAE5", // green
+  faulty: "FFFEE2E2", // red
+  store: "FFDBEAFE", // blue
+  transit: "FFEDE9FE", // purple
+  returned: "FFE5E7EB", // grey
+  scrapped: "FFE5E7EB",
+  ok: "FFD1FAE5",
+  due: "FFFEF3C7", // amber
+  overdue: "FFFEE2E2",
+  covered: "FFD1FAE5",
+  expiring: "FFFEF3C7",
+  critical: "FFFEE2E2",
+  expired: "FFE5E7EB",
+  pass: "FFD1FAE5",
+  fail: "FFFEE2E2",
+  good: "FFD1FAE5",
+  warning: "FFFEF3C7",
+};
+
+const TONE_BOLD: Set<CellTone> = new Set(["faulty", "overdue", "critical", "fail", "expired"]);
+
+export type XlsxSheet<T> = {
+  name: string;
+  rows: T[];
+  columns: Column<T>[];
 };
 
 export async function toXlsx<T>({
@@ -69,122 +108,185 @@ export async function toXlsx<T>({
   title,
   subtitle,
   generatedBy,
+  region,
   sheetName = "Report",
+  footerLines = [],
+  // Uint8Array<ArrayBuffer> specifically, not the default ArrayBufferLike:
+  // only the former satisfies the web BodyInit type NextResponse expects.
 }: {
   rows: T[];
   columns: Column<T>[];
   title: string;
-  subtitle: string;
+  subtitle?: string;
   generatedBy: string;
+  region?: string;
   sheetName?: string;
-  // Uint8Array<ArrayBuffer> specifically, not the default ArrayBufferLike:
-  // only the former satisfies the web BodyInit type NextResponse expects.
+  footerLines?: string[];
 }): Promise<Uint8Array<ArrayBuffer>> {
+  const workbook = await newWorkbook();
+  await addSheet(workbook, { name: sheetName, rows, columns }, { title, subtitle, generatedBy, region, footerLines });
+  return finalise(workbook);
+}
+
+/** A workbook with a cover sheet plus one data sheet per group. */
+export async function toXlsxWorkbook<T>({
+  sheets,
+  title,
+  generatedBy,
+  region,
+  cover,
+  footerLines = [],
+}: {
+  sheets: XlsxSheet<T>[];
+  title: string;
+  generatedBy: string;
+  region?: string;
+  cover?: { heading: string; lines: string[] };
+  footerLines?: string[];
+}): Promise<Uint8Array<ArrayBuffer>> {
+  const workbook = await newWorkbook();
+
+  if (cover) {
+    const sheet = workbook.addWorksheet("Summary");
+    sheet.getColumn(1).width = 90;
+    await brandHeader(workbook, sheet, { title, subtitle: cover.heading, generatedBy, region, cols: 1 });
+    let r = 6;
+    for (const line of cover.lines) {
+      const cell = sheet.getCell(r, 1);
+      cell.value = line;
+      cell.font = { name: "Calibri", size: 11, color: { argb: KPLC_NAVY } };
+      sheet.getRow(r).height = 18;
+      r++;
+    }
+  }
+
+  for (const sheet of sheets) {
+    await addSheet(workbook, sheet, { title, subtitle: sheet.name, generatedBy, region, footerLines });
+  }
+  return finalise(workbook);
+}
+
+// --- internals --------------------------------------------------------------
+
+async function newWorkbook(): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Transformer Pulse";
   workbook.created = new Date();
+  return workbook;
+}
 
-  const sheet = workbook.addWorksheet(sheetName, {
-    views: [{ state: "frozen", ySplit: 5 }], // header block + column headers
-    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1 },
-  });
+async function loadLogo(workbook: ExcelJS.Workbook): Promise<number | null> {
+  try {
+    const logo = await readFile(path.join(process.cwd(), "public", "images", "kenya-power-logo.png"));
+    return workbook.addImage({ base64: logo.toString("base64"), extension: "png" });
+  } catch {
+    return null;
+  }
+}
 
-  const lastCol = columns.length;
+async function brandHeader(
+  workbook: ExcelJS.Workbook,
+  sheet: ExcelJS.Worksheet,
+  { title, subtitle, generatedBy, region, cols }: { title: string; subtitle?: string; generatedBy: string; region?: string; cols: number },
+) {
+  const last = Math.max(cols, 2);
 
-  // --- Branded header block -------------------------------------------------
-  sheet.mergeCells(1, 1, 1, lastCol);
-  const titleCell = sheet.getCell(1, 1);
-  titleCell.value = title;
-  titleCell.font = { name: "Calibri", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
-  titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: KPLC_NAVY } };
-  titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 8 };
-  sheet.getRow(1).height = 38;
+  sheet.mergeCells(1, 1, 1, last);
+  const t = sheet.getCell(1, 1);
+  t.value = title;
+  t.font = { name: "Calibri", size: 14, bold: true, color: { argb: "FFFFFFFF" } };
+  t.fill = { type: "pattern", pattern: "solid", fgColor: { argb: KPLC_NAVY } };
+  t.alignment = { vertical: "middle", horizontal: "left", indent: 8 };
+  sheet.getRow(1).height = 40;
 
-  sheet.mergeCells(2, 1, 2, lastCol);
-  const subCell = sheet.getCell(2, 1);
-  subCell.value = subtitle;
-  subCell.font = { name: "Calibri", size: 10, color: { argb: "FFFFFFFF" } };
-  subCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: KPLC_BLUE } };
-  subCell.alignment = { vertical: "middle", horizontal: "left", indent: 8 };
+  sheet.mergeCells(2, 1, 2, last);
+  const s = sheet.getCell(2, 1);
+  s.value = subtitle ?? "Transformer Pulse";
+  s.font = { name: "Calibri", size: 10, color: { argb: "FFFFFFFF" } };
+  s.fill = { type: "pattern", pattern: "solid", fgColor: { argb: KPLC_BLUE } };
+  s.alignment = { vertical: "middle", horizontal: "left", indent: 8 };
   sheet.getRow(2).height = 20;
 
-  sheet.mergeCells(3, 1, 3, lastCol);
-  const metaCell = sheet.getCell(3, 1);
-  metaCell.value = `Generated ${new Date().toLocaleString("en-KE")} by ${generatedBy}`;
-  metaCell.font = { name: "Calibri", size: 9, italic: true, color: { argb: "FF5B6480" } };
-  metaCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+  sheet.mergeCells(3, 1, 3, last);
+  const m = sheet.getCell(3, 1);
+  const stamp = new Date().toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  m.value = `Generated: ${stamp}  |  By: ${generatedBy}${region ? `  |  Region: ${region}` : ""}`;
+  m.font = { name: "Calibri", size: 9, italic: true, color: { argb: "FF5B6480" } };
+  m.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
 
-  sheet.getRow(4).height = 6; // spacer
+  sheet.getRow(4).height = 6;
 
-  // --- Logo -----------------------------------------------------------------
-  // Best effort: if the file is missing the report must still generate. A
-  // missing logo is cosmetic; a failed export in front of a manager is not.
-  try {
-    const logo = await readFile(
-      path.join(process.cwd(), "public", "images", "kenya-power-logo.png"),
-    );
-    // base64 rather than the raw Buffer: ExcelJS's Buffer type and Node's have
-    // drifted apart, and this avoids a cast that would hide a real error later.
-    const imageId = workbook.addImage({
-      base64: logo.toString("base64"),
-      extension: "png",
-    });
-    sheet.addImage(imageId, {
-      tl: { col: lastCol - 1.6, row: 0.15 },
-      ext: { width: 46, height: 46 },
-    });
-  } catch {
-    // Carry on unbranded.
+  const imageId = await loadLogo(workbook);
+  if (imageId != null && cols >= 2) {
+    sheet.addImage(imageId, { tl: { col: last - 1.4, row: 0.12 }, ext: { width: 46, height: 46 } });
+  }
+}
+
+async function addSheet<T>(
+  workbook: ExcelJS.Workbook,
+  { name, rows, columns }: XlsxSheet<T>,
+  meta: { title: string; subtitle?: string; generatedBy: string; region?: string; footerLines: string[] },
+) {
+  const sheet = workbook.addWorksheet(name, {
+    views: [{ state: "frozen", ySplit: 5 }],
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1 },
+  });
+  const lastCol = columns.length;
+
+  await brandHeader(workbook, sheet, { ...meta, cols: lastCol });
+
+  // Column headers — KPLC green, white text, frozen.
+  const headerRow = sheet.getRow(5);
+  columns.forEach((column, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = column.header;
+    cell.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: KPLC_GREEN } };
+    cell.alignment = { vertical: "middle", wrapText: true };
+    sheet.getColumn(i + 1).width = column.width ?? 16;
+  });
+  headerRow.height = 26;
+
+  if (rows.length === 0) {
+    const r = sheet.addRow(["No data available"]);
+    r.font = { name: "Calibri", size: 10, italic: true, color: { argb: "FF5B6480" } };
   }
 
-  // --- Column headers -------------------------------------------------------
-  const headerRow = sheet.getRow(5);
-  columns.forEach((column, index) => {
-    const cell = headerRow.getCell(index + 1);
-    cell.value = column.header;
-    cell.font = { name: "Calibri", size: 10, bold: true, color: { argb: KPLC_NAVY } };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F6F8" } };
-    cell.border = { bottom: { style: "medium", color: { argb: KPLC_GOLD } } };
-    cell.alignment = { vertical: "middle" };
-    sheet.getColumn(index + 1).width = column.width ?? 18;
-  });
-  headerRow.height = 22;
-
-  // --- Data -----------------------------------------------------------------
-  rows.forEach((row) => {
-    const values = columns.map((c) => c.value(row) ?? "");
-    const added = sheet.addRow(values);
+  rows.forEach((row, ri) => {
+    const added = sheet.addRow(columns.map((c) => c.value(row) ?? ""));
     added.font = { name: "Calibri", size: 10 };
+    const alt = ri % 2 === 1;
 
-    columns.forEach((column, index) => {
-      const cell = added.getCell(index + 1);
+    columns.forEach((column, ci) => {
+      const cell = added.getCell(ci + 1);
       cell.border = { bottom: { style: "hair", color: { argb: "FFE2E5EB" } } };
+      if (column.numFmt) cell.numFmt = column.numFmt;
 
-      if (column.header === "Status") {
-        const fill = STATUS_FILL[String(cell.value)];
-        if (fill) {
-          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } };
-          cell.font = { name: "Calibri", size: 10, bold: true };
-        }
+      const tone = column.tone?.(row) ?? null;
+      if (tone) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: TONE_FILL[tone] } };
+        if (TONE_BOLD.has(tone)) cell.font = { name: "Calibri", size: 10, bold: true };
+      } else if (alt) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ROW_ALT } };
       }
     });
   });
 
-  // --- Footer ---------------------------------------------------------------
+  sheet.autoFilter = { from: { row: 5, column: 1 }, to: { row: 5, column: lastCol } };
+
+  // Footer.
   sheet.addRow([]);
-  const footer = sheet.addRow([
-    `${rows.length} record${rows.length === 1 ? "" : "s"} · Generated by Transformer Pulse · Custody chain verified at export`,
-  ]);
+  const footer = sheet.addRow([`Generated by Transformer Pulse | Grid and Innovation Conference 2026`]);
   footer.font = { name: "Calibri", size: 9, italic: true, color: { argb: "FF5B6480" } };
   sheet.mergeCells(footer.number, 1, footer.number, lastCol);
+  for (const line of meta.footerLines) {
+    const fr = sheet.addRow([line]);
+    fr.font = { name: "Calibri", size: 9, italic: true, color: { argb: "FF5B6480" } };
+    sheet.mergeCells(fr.number, 1, fr.number, lastCol);
+  }
+}
 
-  sheet.autoFilter = {
-    from: { row: 5, column: 1 },
-    to: { row: 5 + rows.length, column: lastCol },
-  };
-
-  // Return a Uint8Array, not a Buffer: NextResponse takes a web BodyInit, and
-  // Node's Buffer type drifts from ArrayBufferView across versions.
+async function finalise(workbook: ExcelJS.Workbook): Promise<Uint8Array<ArrayBuffer>> {
   const arrayBuffer = await workbook.xlsx.writeBuffer();
   return new Uint8Array(arrayBuffer as ArrayBuffer);
 }

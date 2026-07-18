@@ -12,40 +12,59 @@ export const metadata: Metadata = { title: "Reports" };
 const REPORTS = [
   {
     title: "Regional Asset Register",
-    body: "Every transformer: status, location, warranty and last test.",
+    body: "The master export — 35 columns: identity, GPS, status, install and inspection dates, test trends, warranty position, health and chain status.",
     formats: [
-      { label: "CSV", href: "/api/reports/asset-register?format=csv" },
       { label: "XLSX", href: "/api/reports/asset-register?format=xlsx" },
+      { label: "CSV", href: "/api/reports/asset-register?format=csv" },
     ],
   },
   {
     title: "Warranty Claim Pack",
-    body: "Per manufacturer: units, faults, values and chain hashes. The document you send to claim.",
+    body: "One sheet per manufacturer with a summary cover. Each claim carries its custody-chain hash — arithmetically undeniable proof. The document you send to claim.",
     formats: [{ label: "XLSX", href: "/api/reports/warranty-pack?format=xlsx" }],
     accent: true,
   },
   {
-    title: "Fault Report",
-    body: "Every fault, by cause and manufacturer, with GPS.",
+    title: "Fault Analysis Report",
+    body: "Every fault by region and cause, days-in-service, warranty coverage at fault, claim outcome and replacement unit.",
     formats: [
-      { label: "CSV", href: "/api/reports/fault-report?format=csv" },
       { label: "XLSX", href: "/api/reports/fault-report?format=xlsx" },
+      { label: "CSV", href: "/api/reports/fault-report?format=csv" },
     ],
   },
   {
-    title: "Dispatch Log",
-    body: "Every movement, vehicle, plate and driver.",
-    formats: [{ label: "CSV", href: "/api/reports/dispatch-log?format=csv" }],
+    title: "Inspection Compliance",
+    body: "Every in-field unit, most overdue first, colour-coded OK / Due Soon / Overdue, with the latest oil-BDV trend.",
+    formats: [
+      { label: "XLSX", href: "/api/reports/inspection-compliance?format=xlsx" },
+      { label: "CSV", href: "/api/reports/inspection-compliance?format=csv" },
+    ],
+  },
+  {
+    title: "Dispatch & Movement Log",
+    body: "Every dispatch paired with its field receipt: vehicle, plate, driver, days in transit.",
+    formats: [
+      { label: "XLSX", href: "/api/reports/dispatch-log?format=xlsx" },
+      { label: "CSV", href: "/api/reports/dispatch-log?format=csv" },
+    ],
   },
   {
     title: "Intake Test Register",
-    body: "Every test value ever recorded, by unit and stage.",
+    body: "Full IEC test values for every intake test, colour-coded pass/fail.",
     formats: [{ label: "XLSX", href: "/api/reports/intake-tests?format=xlsx" }],
   },
   {
-    title: "Inspection Compliance",
-    body: "In-field units and days since last seen. Overdue rows flagged.",
-    formats: [{ label: "CSV", href: "/api/reports/inspection-compliance?format=csv" }],
+    title: "Engineer Performance",
+    body: "Per engineer: installs, inspections and faults this month and year, plus average dispatch-to-install time.",
+    formats: [
+      { label: "XLSX", href: "/api/reports/engineer-performance?format=xlsx" },
+      { label: "CSV", href: "/api/reports/engineer-performance?format=csv" },
+    ],
+  },
+  {
+    title: "GPS Location Export",
+    body: "A clean coordinate CSV for import into QGIS, Google My Maps or any GIS tool.",
+    formats: [{ label: "CSV", href: "/api/reports/locations" }],
   },
 ];
 

@@ -1,70 +1,78 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/auth";
 import { apiError } from "@/lib/api";
-import { attachment, toXlsx, type Column } from "@/lib/reports";
-import { formatDate } from "@/lib/format";
+import { toXlsx, type Column } from "@/lib/reports";
+import { dmy } from "@/lib/report-data";
+import { xlsx } from "../asset-register/route";
 
 /** GET /api/reports/intake-tests?format=xlsx — every intake test value by unit. */
 
 type Row = {
   testedAt: Date;
-  stage: string;
-  passed: boolean;
   insulationResistanceHvMohm: number | null;
   insulationResistanceLvMohm: number | null;
   turnsRatioDeviationPct: number | null;
+  windingResistanceHvOhm: number | null;
+  windingResistanceLvOhm: number | null;
   oilBdvKv: number | null;
-  remarks: string | null;
-  transformer: { gNumber: string | null; serialNumber: string; manufacturer: { name: string } };
+  oilTempC: number | null;
+  ambientTempC: number | null;
+  polarityOk: boolean | null;
+  passed: boolean;
+  transformer: { gNumber: string | null; serialNumber: string; ratingKva: number; currentStore: { name: string } | null; manufacturer: { name: string } };
   testedBy: { name: string };
 };
 
+const passFail = (v: boolean | null) => (v == null ? "—" : v ? "Pass" : "Fail");
+
 const COLUMNS: Column<Row>[] = [
-  { header: "G-Number", value: (r) => r.transformer.gNumber ?? r.transformer.serialNumber, width: 16 },
-  { header: "Serial", value: (r) => r.transformer.serialNumber, width: 18 },
-  { header: "Manufacturer", value: (r) => r.transformer.manufacturer.name, width: 24 },
-  { header: "Test Date", value: (r) => formatDate(r.testedAt), width: 14 },
-  { header: "Stage", value: (r) => r.stage.replace(/_/g, " "), width: 16 },
-  { header: "IR HV-Earth (MΩ)", value: (r) => r.insulationResistanceHvMohm ?? "—", width: 15 },
-  { header: "IR LV-Earth (MΩ)", value: (r) => r.insulationResistanceLvMohm ?? "—", width: 15 },
-  { header: "Turns Ratio Dev (%)", value: (r) => r.turnsRatioDeviationPct ?? "—", width: 16 },
-  { header: "Oil BDV (kV)", value: (r) => r.oilBdvKv ?? "—", width: 12 },
-  { header: "Status", value: (r) => (r.passed ? "In field" : "Faulty"), width: 12 }, // colour-coded via STATUS_FILL
-  { header: "Result", value: (r) => (r.passed ? "PASS" : "FAIL"), width: 10 },
-  { header: "Tested By", value: (r) => r.testedBy.name, width: 18 },
+  { header: "G-Number", value: (r) => r.transformer.gNumber ?? r.transformer.serialNumber, width: 15 },
+  { header: "Serial Number", value: (r) => r.transformer.serialNumber, width: 18 },
+  { header: "Manufacturer", value: (r) => r.transformer.manufacturer.name, width: 22 },
+  { header: "Rating (kVA)", value: (r) => r.transformer.ratingKva, width: 11 },
+  { header: "Store", value: (r) => r.transformer.currentStore?.name ?? "", width: 20 },
+  { header: "Test Date", value: (r) => dmy(r.testedAt), width: 13 },
+  { header: "IR HV-Earth (MΩ)", value: (r) => r.insulationResistanceHvMohm ?? "", width: 13 },
+  { header: "IR LV-Earth (MΩ)", value: (r) => r.insulationResistanceLvMohm ?? "", width: 13 },
+  { header: "Turns Ratio Dev (%)", value: (r) => r.turnsRatioDeviationPct ?? "", width: 14 },
+  { header: "Winding Res HV (Ω)", value: (r) => r.windingResistanceHvOhm ?? "", width: 14 },
+  { header: "Winding Res LV (Ω)", value: (r) => r.windingResistanceLvOhm ?? "", width: 14 },
+  { header: "Oil BDV (kV)", value: (r) => r.oilBdvKv ?? "", width: 11 },
+  { header: "Oil Temp (°C)", value: (r) => r.oilTempC ?? "", width: 11 },
+  { header: "Ambient Temp (°C)", value: (r) => r.ambientTempC ?? "", width: 13 },
+  { header: "Polarity Check", value: (r) => passFail(r.polarityOk), width: 12, tone: (r) => (r.polarityOk === false ? "fail" : r.polarityOk ? "pass" : null) },
+  { header: "Vector Group Check", value: (r) => passFail(r.polarityOk), width: 14, tone: (r) => (r.polarityOk === false ? "fail" : r.polarityOk ? "pass" : null) },
+  { header: "Visual Inspection", value: (r) => (r.passed ? "Pass" : "Fail"), width: 13, tone: (r) => (r.passed ? "pass" : "fail") },
+  { header: "Overall Result", value: (r) => (r.passed ? "PASS" : "FAIL"), width: 12, tone: (r) => (r.passed ? "pass" : "fail") },
+  { header: "Tested By", value: (r) => r.testedBy.name, width: 16 },
 ];
 
 export async function GET() {
   try {
     const user = await requireApiRole("MANAGER", "ADMIN", "STORE_KEEPER");
-    const scope = user.role !== "ADMIN" && user.region ? { transformer: { region: user.region } } : {};
+    const scope =
+      user.role === "STORE_KEEPER" && user.region ? { transformer: { region: user.region } } :
+      user.role === "MANAGER" && user.region ? { transformer: { region: user.region } } : {};
 
-    const rows = await prisma.testRecord.findMany({
-      where: scope,
+    const rows = (await prisma.testRecord.findMany({
+      where: { ...scope, stage: "STORE_INTAKE" },
       orderBy: { testedAt: "desc" },
       take: 5000,
       include: {
-        transformer: { select: { gNumber: true, serialNumber: true, manufacturer: { select: { name: true } } } },
+        transformer: { select: { gNumber: true, serialNumber: true, ratingKva: true, currentStore: { select: { name: true } }, manufacturer: { select: { name: true } } } },
         testedBy: { select: { name: true } },
       },
-    });
+    })) as Row[];
 
     const buffer = await toXlsx({
-      rows: rows as Row[],
-      columns: COLUMNS,
+      rows, columns: COLUMNS,
       title: "Transformer Pulse — Intake Test Register",
       subtitle: `${user.region ?? "All regions"} · ${rows.length} tests`,
       generatedBy: user.name,
-      sheetName: "Tests",
+      region: user.region ?? "All regions",
+      sheetName: "Intake Tests",
     });
-
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": attachment("intake-test-register", "xlsx"),
-      },
-    });
+    return xlsx(buffer, "intake-test-register");
   } catch (error) {
     return apiError(error);
   }
