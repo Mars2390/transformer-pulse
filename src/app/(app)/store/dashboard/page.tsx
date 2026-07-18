@@ -137,6 +137,12 @@ export default async function StoreDashboard() {
             Dispatch log (CSV)
           </a>
           <Link
+            href="/store/import"
+            className="rounded-xl border border-kplc/30 bg-kplc/5 px-4 py-2.5 text-xs font-bold text-kplc transition-colors hover:bg-kplc/10"
+          >
+            Import transformers
+          </Link>
+          <Link
             href="/store/receive"
             className="rounded-xl bg-kplc px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
           >

@@ -57,6 +57,7 @@ export default async function AdminDashboard() {
         <Section title="Audit log" body={`${auditCount} administrative actions recorded.`} href="/admin/audit" cta="View audit log" />
         <Section title="Chain verification" body={`Verify every custody chain across ${transformers} transformers.`} href="/admin/chain" cta="Verify chains" />
         <Section title="Transformers" body="The full register, across every region." href="/transformers" cta="Browse transformers" />
+        <Section title="Bulk import" body="Bring an existing register in from CSV or Excel. Each unit gets a full event chain." href="/store/import" cta="Import transformers" />
       </div>
     </div>
   );
