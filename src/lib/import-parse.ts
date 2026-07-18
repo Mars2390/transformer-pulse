@@ -67,7 +67,9 @@ export async function parseXlsx(buffer: ArrayBuffer): Promise<string[][]> {
     for (let i = 1; i < raw.length; i++) {
       const v = raw[i];
       if (v == null) { values.push(""); continue; }
-      if (v instanceof Date) { values.push(v.toISOString().slice(0, 10)); continue; }
+      // Full ISO, not just the date. Meter readings are timestamps — truncating
+      // to the day would collapse all 96 intervals onto one.
+      if (v instanceof Date) { values.push(v.toISOString()); continue; }
       if (typeof v === "object" && v !== null && "text" in v) {
         values.push(String((v as { text: unknown }).text ?? "")); continue;
       }

@@ -58,6 +58,8 @@ export default async function AdminDashboard() {
         <Section title="Chain verification" body={`Verify every custody chain across ${transformers} transformers.`} href="/admin/chain" cta="Verify chains" />
         <Section title="Transformers" body="The full register, across every region." href="/transformers" cta="Browse transformers" />
         <Section title="Bulk import" body="Bring an existing register in from CSV or Excel. Each unit gets a full event chain." href="/store/import" cta="Import transformers" />
+        <Section title="Meter data" body="Smart-meter interval data for the control centre's live monitoring demonstration." href="/manager/meter-data" cta="Manage meter data" />
+        <Section title="Control centre" body="Live transformer monitoring with IEC 60076-7 thermal analysis." href="/kplc-control" cta="Open control centre" />
       </div>
     </div>
   );

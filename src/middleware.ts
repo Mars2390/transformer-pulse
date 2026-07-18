@@ -21,7 +21,7 @@ import {
  * requireRole() makes it safe. Never rely on this file alone.
  */
 
-const PROTECTED = ["/admin", "/manager", "/store", "/field", "/transformers", "/dashboard"];
+const PROTECTED = ["/admin", "/manager", "/store", "/field", "/transformers", "/dashboard", "/kplc-control"];
 
 function isProtected(pathname: string): boolean {
   return PROTECTED.some(

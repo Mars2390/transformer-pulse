@@ -187,6 +187,7 @@ export default async function ManagerDashboard() {
         <Card className="p-5">
           <h2 className="text-sm font-bold text-navy">Quick links</h2>
           <div className="mt-4 grid gap-3">
+            <ActionLink href="/kplc-control" variant="gold">Control centre — live</ActionLink>
             <ActionLink href="/manager/map" variant="primary">View full map</ActionLink>
             <ActionLink href="/manager/search" variant="secondary">Search transformers</ActionLink>
             <ActionLink href="/manager/warranty" variant="secondary">Warranty claims</ActionLink>

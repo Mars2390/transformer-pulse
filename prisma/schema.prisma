@@ -406,6 +406,46 @@ model WarrantyClaim {
   @@index([status])
 }
 
+// ==================== Smart-meter data (control room) ======================
+// A replayable day of interval data from the meters fed by one transformer.
+// Kept separate from the lifecycle chain: this is telemetry, not custody.
+
+model MeterDataset {
+  id             String   @id @default(cuid())
+  name           String
+  transformerRef String? // G-Number the data belongs to, free text
+  ratingKva      Int      @default(200)
+  meterCount     Int
+  intervalCount  Int
+  batchSize      Int      @default(200)
+  uploadedById   String
+  uploadedByName String
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  readings MeterReading[]
+}
+
+model MeterReading {
+  // An Int identity, not a cuid: a single upload is ~96,000 rows and a 25-byte
+  // random id on every one of them is pure overhead for data we only ever read
+  // back by (dataset, interval, batch).
+  id        Int    @id @default(autoincrement())
+  datasetId String
+  dataset   MeterDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  intervalIndex Int // 0..95 for a 24-hour day at 15-minute intervals
+  batchIndex    Int // 0..4 — which group of 200 meters
+  meterId       String
+  timestamp     DateTime
+  voltage       Float
+  current       Float
+  power         Float // kW
+  powerFactor   Float
+
+  @@index([datasetId, intervalIndex, batchIndex])
+}
+
 // ============================= Alerts ======================================
 
 model Alert {
