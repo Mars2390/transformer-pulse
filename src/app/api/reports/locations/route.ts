@@ -4,7 +4,7 @@ import { apiError } from "@/lib/api";
 import { toCsv, type Column } from "@/lib/reports";
 import { dmy, gps } from "@/lib/report-data";
 import { STATUS_META } from "@/lib/format";
-import { csv } from "../asset-register/route";
+import { csv } from "@/lib/report-response";
 
 /**
  * GET /api/reports/locations — a clean GPS CSV for import into any mapping tool.

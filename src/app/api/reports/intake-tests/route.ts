@@ -3,7 +3,7 @@ import { requireApiRole } from "@/lib/auth";
 import { apiError } from "@/lib/api";
 import { toXlsx, type Column } from "@/lib/reports";
 import { dmy } from "@/lib/report-data";
-import { xlsx } from "../asset-register/route";
+import { xlsx } from "@/lib/report-response";
 
 /** GET /api/reports/intake-tests?format=xlsx — every intake test value by unit. */
 

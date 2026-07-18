@@ -5,7 +5,7 @@ import { toCsv, toXlsx, type Column } from "@/lib/reports";
 import {
   dmy, daysSince, gps, inspectionStatus, trend, INSPECTION_OVERDUE,
 } from "@/lib/report-data";
-import { csv, xlsx } from "../asset-register/route";
+import { csv, xlsx } from "@/lib/report-response";
 
 /**
  * GET /api/reports/inspection-compliance?format=csv|xlsx

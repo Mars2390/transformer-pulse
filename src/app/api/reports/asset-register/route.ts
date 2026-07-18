@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
 import { requireApiRole } from "@/lib/auth";
 import { apiError } from "@/lib/api";
-import { attachment, toCsv, toXlsx, type Column } from "@/lib/reports";
+import { toCsv, toXlsx, type Column } from "@/lib/reports";
+import { csv, xlsx } from "@/lib/report-response";
 import {
   loadEnriched, reportScope, dmy, gps, STATUS_TONE, type EnrichedTransformer,
 } from "@/lib/report-data";
@@ -79,18 +79,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return apiError(error);
   }
-}
-
-export function csv(body: string, name: string) {
-  return new NextResponse(body, {
-    headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": attachment(name, "csv") },
-  });
-}
-export function xlsx(buffer: Uint8Array<ArrayBuffer>, name: string) {
-  return new NextResponse(buffer, {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": attachment(name, "xlsx"),
-    },
-  });
 }

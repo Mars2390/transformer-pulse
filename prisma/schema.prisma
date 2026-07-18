@@ -218,6 +218,21 @@ model Transformer {
   oilVolumeLitres   Int?
   yearOfManufacture Int
 
+  // --- Full nameplate (all optional — added after the first units were
+  // registered, so existing records stay valid and are backfilled by edit) ---
+  frequencyHz         Int?    @default(50)
+  duty                String? // CONT (continuous), etc.
+  standardRef         String? // IEC 60076
+  hvInsulationLevelKv String? // BIL, e.g. "125/50"
+  tempRiseOilC        Int? // top-oil temperature rise
+  tempRiseWindingC    Int? // winding temperature rise
+  tempClass           String? // insulation temperature class, e.g. "A"
+  maxAmbientTempC     Int?
+  insulationOilType   String? // e.g. Nytro 10GBNP
+  oilWeightKg         Int?
+  totalWeightKg       Int?
+  tapRange            String? // off-circuit tap voltages, free text
+
   // --- Warranty -----------------------------------------------------------
   warrantyMonths Int @default(24)
 

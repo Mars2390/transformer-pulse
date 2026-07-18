@@ -5,7 +5,7 @@ import { toXlsxWorkbook, type Column, type XlsxSheet } from "@/lib/reports";
 import { verifyChain, type ChainLink } from "@/lib/chain";
 import { computeWarranty } from "@/lib/warranty";
 import { dmy, daysSince, gps } from "@/lib/report-data";
-import { xlsx } from "../asset-register/route";
+import { xlsx } from "@/lib/report-response";
 
 /**
  * GET /api/reports/warranty-pack — the document sent to manufacturers.

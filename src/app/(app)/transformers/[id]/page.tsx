@@ -33,7 +33,8 @@ export default async function StoryPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireUser();
+  const viewer = await requireUser();
+  const canEditNameplate = viewer.role === "STORE_KEEPER" || viewer.role === "ADMIN";
   const { id } = await params;
 
   const tx = await prisma.transformer.findUnique({
@@ -188,11 +189,19 @@ export default async function StoryPage({
                 {story.feeder ? ` · feeder ${story.feeder}` : ""}
               </p>
             )}
-            {tx.currentLat != null && tx.currentLng != null && (
-              <div className="mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
+              {tx.currentLat != null && tx.currentLng != null && (
                 <NavigateButton lat={tx.currentLat} lng={tx.currentLng} label="Navigate to site" />
-              </div>
-            )}
+              )}
+              {canEditNameplate && (
+                <Link
+                  href={`/transformers/${id}/edit`}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-xs font-bold text-navy transition-colors hover:border-kplc hover:text-kplc"
+                >
+                  Edit nameplate
+                </Link>
+              )}
+            </div>
           </div>
 
           {/* Chain badge — the claim the whole system rests on. */}
@@ -246,6 +255,52 @@ export default async function StoryPage({
             <p className="mt-1 text-sm font-bold text-navy">{story.events.length}</p>
           </div>
         </div>
+
+        {/* --- Full nameplate ------------------------------------------- */}
+        {(() => {
+          const spec: [string, string | number | null][] = [
+            ["Rating", `${tx.ratingKva} kVA`],
+            ["Voltage", `${tx.primaryKv} / ${tx.secondaryKv} kV`],
+            ["Vector group", tx.vectorGroup],
+            ["Cooling", tx.coolingType],
+            ["Impedance", tx.impedancePct != null ? `${tx.impedancePct}%` : null],
+            ["Frequency", tx.frequencyHz != null ? `${tx.frequencyHz} Hz` : null],
+            ["Duty", tx.duty],
+            ["Standard", tx.standardRef],
+            ["HV insulation / BIL", tx.hvInsulationLevelKv],
+            ["Temp rise oil/wdg", tx.tempRiseOilC != null ? `${tx.tempRiseOilC}/${tx.tempRiseWindingC ?? "—"} °C` : null],
+            ["Temp class", tx.tempClass],
+            ["Max ambient", tx.maxAmbientTempC != null ? `${tx.maxAmbientTempC} °C` : null],
+            ["Oil type", tx.insulationOilType],
+            ["Oil weight", tx.oilWeightKg != null ? `${tx.oilWeightKg} kg` : null],
+            ["Oil volume", tx.oilVolumeLitres != null ? `${tx.oilVolumeLitres} L` : null],
+            ["Total weight", tx.totalWeightKg != null ? `${tx.totalWeightKg} kg` : null],
+            ["Year", tx.yearOfManufacture],
+            ["Tap range", tx.tapRange],
+          ];
+          const filled = spec.filter(([, v]) => v != null && v !== "");
+          const missing = spec.length - filled.length;
+          return (
+            <div className="mt-6 border-t border-line pt-5">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold tracking-wide text-ink-soft">NAMEPLATE</p>
+                {canEditNameplate && missing > 0 && (
+                  <Link href={`/transformers/${id}/edit`} className="text-[11px] font-bold text-kplc hover:underline">
+                    {missing} field{missing === 1 ? "" : "s"} blank — complete it →
+                  </Link>
+                )}
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-4">
+                {filled.map(([k, v]) => (
+                  <div key={k}>
+                    <dt className="text-[11px] text-ink-soft">{k}</dt>
+                    <dd className="text-sm font-semibold text-navy">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          );
+        })()}
       </div>
 
       {/* --- Tabs --------------------------------------------------------- */}

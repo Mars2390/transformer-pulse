@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Field, FormError, FormSection, inputClass } from "@/components/ui/Field";
 import { PhotoUpload } from "@/components/ui/PhotoUpload";
+import { NameplateFields } from "@/components/store/NameplateFields";
 
 type Manufacturer = {
   id: string;
@@ -222,6 +223,18 @@ export function ReceiveForm({
           </Field>
         </div>
       </FormSection>
+
+      <details className="rounded-2xl border border-line bg-white">
+        <summary className="cursor-pointer px-5 py-4 text-sm font-bold text-navy">
+          Full nameplate details (optional)
+          <span className="ml-2 font-normal text-ink-soft">
+            frequency, BIL, temp class, oil type, weights, taps
+          </span>
+        </summary>
+        <div className="border-t border-line p-5 sm:p-6">
+          <NameplateFields />
+        </div>
+      </details>
 
       <FormSection
         title="Delivery"

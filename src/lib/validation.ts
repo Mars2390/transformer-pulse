@@ -85,6 +85,24 @@ export const gNumberField = z
     return `G-${digits.slice(0, 4)}-${digits.slice(4).padStart(5, "0")}`;
   });
 
+// --- Full nameplate fields --------------------------------------------------
+// Everything on the plate a KPLC store records, beyond the core electricals.
+// All optional: a rusty plate may not be fully legible, and that is honest.
+const nameplateFields = {
+  frequencyHz: z.coerce.number().int().min(40).max(70).optional().nullable(),
+  duty: z.string().trim().max(20).optional().or(z.literal("")),
+  standardRef: z.string().trim().max(40).optional().or(z.literal("")),
+  hvInsulationLevelKv: z.string().trim().max(20).optional().or(z.literal("")),
+  tempRiseOilC: z.coerce.number().int().min(0).max(200).optional().nullable(),
+  tempRiseWindingC: z.coerce.number().int().min(0).max(200).optional().nullable(),
+  tempClass: z.string().trim().max(5).optional().or(z.literal("")),
+  maxAmbientTempC: z.coerce.number().int().min(0).max(80).optional().nullable(),
+  insulationOilType: z.string().trim().max(40).optional().or(z.literal("")),
+  oilWeightKg: z.coerce.number().int().min(0).max(100_000).optional().nullable(),
+  totalWeightKg: z.coerce.number().int().min(0).max(200_000).optional().nullable(),
+  tapRange: z.string().trim().max(120).optional().or(z.literal("")),
+};
+
 // --- Receiving a transformer ------------------------------------------------
 
 export const receiveTransformerSchema = z.object({
@@ -119,9 +137,30 @@ export const receiveTransformerSchema = z.object({
   vehiclePlate: vehiclePlateField.optional().or(z.literal("")),
   driverName: z.string().trim().max(80).optional().or(z.literal("")),
   photoUrls: z.array(z.string().url()).max(6).optional(),
+  ...nameplateFields,
 });
 
 export type ReceiveTransformerInput = z.infer<typeof receiveTransformerSchema>;
+
+/**
+ * Editing an EXISTING transformer's nameplate. Store keeper or admin. This
+ * corrects static physical facts about the unit — it never touches a lifecycle
+ * event, so the custody chain is untouched. Every edit is audited.
+ */
+export const editTransformerSchema = z.object({
+  ratingKva: z.coerce.number().int().positive().max(5000),
+  primaryKv: z.coerce.number().positive().max(500),
+  secondaryKv: z.coerce.number().positive().max(500),
+  phases: z.coerce.number().int().refine((v) => v === 1 || v === 3, "Phases must be 1 or 3."),
+  coolingType: z.string().trim().max(20),
+  impedancePct: z.coerce.number().min(0).max(30).optional().nullable(),
+  vectorGroup: z.string().trim().max(20).optional().or(z.literal("")),
+  oilVolumeLitres: z.coerce.number().int().min(0).max(20_000).optional().nullable(),
+  yearOfManufacture: z.coerce.number().int().min(1950).max(new Date().getFullYear()),
+  ...nameplateFields,
+});
+
+export type EditTransformerInput = z.infer<typeof editTransformerSchema>;
 
 // --- Test values ------------------------------------------------------------
 

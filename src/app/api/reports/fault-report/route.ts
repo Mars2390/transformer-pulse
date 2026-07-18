@@ -4,7 +4,7 @@ import { apiError } from "@/lib/api";
 import { toCsv, toXlsx, type Column } from "@/lib/reports";
 import { computeWarranty } from "@/lib/warranty";
 import { dmy, gps } from "@/lib/report-data";
-import { csv, xlsx } from "../asset-register/route";
+import { csv, xlsx } from "@/lib/report-response";
 
 /** GET /api/reports/fault-report?format=csv|xlsx — faults with claim outcome. */
 

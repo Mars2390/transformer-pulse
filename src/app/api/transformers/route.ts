@@ -60,6 +60,20 @@ export async function POST(request: Request) {
           oilVolumeLitres: input.oilVolumeLitres ?? null,
           yearOfManufacture: input.yearOfManufacture,
 
+          // Full nameplate — empty strings normalised to null.
+          frequencyHz: input.frequencyHz ?? null,
+          duty: input.duty || null,
+          standardRef: input.standardRef || null,
+          hvInsulationLevelKv: input.hvInsulationLevelKv || null,
+          tempRiseOilC: input.tempRiseOilC ?? null,
+          tempRiseWindingC: input.tempRiseWindingC ?? null,
+          tempClass: input.tempClass || null,
+          maxAmbientTempC: input.maxAmbientTempC ?? null,
+          insulationOilType: input.insulationOilType || null,
+          oilWeightKg: input.oilWeightKg ?? null,
+          totalWeightKg: input.totalWeightKg ?? null,
+          tapRange: input.tapRange || null,
+
           // Copied from the manufacturer, not referenced. Renegotiating a
           // contract next year must not silently rewrite the warranty of units
           // already sitting in the field.

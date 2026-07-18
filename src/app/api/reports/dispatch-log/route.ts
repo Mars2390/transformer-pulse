@@ -4,7 +4,7 @@ import { apiError } from "@/lib/api";
 import { toCsv, toXlsx, type Column } from "@/lib/reports";
 import { dmy, gps } from "@/lib/report-data";
 import { formatPlate } from "@/lib/format";
-import { csv, xlsx } from "../asset-register/route";
+import { csv, xlsx } from "@/lib/report-response";
 
 /**
  * GET /api/reports/dispatch-log?format=csv|xlsx
