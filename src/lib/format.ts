@@ -143,6 +143,13 @@ export const DATA_SOURCE_META: Record<
     tone: "warning",
     accuracy: "Positioned by hand on the map. Roughly 5 m if the operator could see the unit.",
   },
+  INSPECTION_REGISTER: {
+    label: "KPLC inspection register — Nairobi West",
+    short: "Inspection register",
+    tone: "warning",
+    accuracy:
+      "Promoted from a KPLC field inspection. The asset is real and was physically visited; its position is NOT in the register, which records only a written landmark. No coordinates until someone surveys it.",
+  },
 };
 
 /** The badge a transformer carries on the map and its story page. */
