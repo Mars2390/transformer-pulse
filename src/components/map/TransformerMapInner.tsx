@@ -28,6 +28,12 @@ const PIN_COLOUR: Record<TransformerStatus, string> = {
   FAULTY: "#c02626",
   IN_TRANSIT: "#d99e00",
   IN_STORE: "#1e40af",
+  // The repair loop. A unit awaiting replacement is drawn as red as a fault,
+  // because from the customer's side that is exactly what it is: no supply.
+  IN_REPAIR: "#d99e00",
+  REPAIRED: "#0e8a4f",
+  BEYOND_REPAIR: "#4b5563",
+  AWAITING_REPLACEMENT: "#c02626",
   RETURNED: "#7b8383",
   SCRAPPED: "#7b8383",
 };

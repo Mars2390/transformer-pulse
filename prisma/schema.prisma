@@ -37,9 +37,48 @@ enum TransformerStatus {
   IN_STORE // received at a KPLC store, G-Number assigned
   IN_TRANSIT // on a vehicle, between two places
   IN_FIELD // energised at a site
-  FAULTY // failed in service
+  FAULTY // failed in service, still on the pole
+
+  // --- The repair loop -----------------------------------------------------
+  IN_REPAIR // recovered from the field, at a workshop
+  REPAIRED // work complete and tested, ready to go back to a store
+  BEYOND_REPAIR // opened, diagnosed, and not economically repairable
+
+  // A site is off supply and no unit of the right rating is free. This is the
+  // status that makes a procurement gap visible instead of invisible.
+  AWAITING_REPLACEMENT
+
   RETURNED // sent back to the manufacturer
   SCRAPPED // written off
+}
+
+enum SupplyRequestReason {
+  TRANSFORMER_FAILED // the unit that was there is gone or dead
+  NO_SUPPLY_AT_SITE // an area that has never had one
+  CAPACITY_UPGRADE // existing unit too small for the load
+  RELOCATION
+}
+
+enum SupplyUrgency {
+  NORMAL
+  HIGH
+  EMERGENCY // customers off supply now
+}
+
+enum SupplyRequestStatus {
+  SUBMITTED // raised by a field engineer
+  APPROVED // a manager authorised it
+  REJECTED
+  ALLOCATED // a specific transformer is reserved against it
+  FULFILLED // energised on site
+  CANCELLED
+}
+
+enum AllocationStatus {
+  RESERVED // held for this site, not yet dispatched
+  DISPATCHED // on a vehicle
+  INSTALLED // energised; the request is satisfied
+  RELEASED // the hold was given up, the unit is free again
 }
 
 enum EventType {
@@ -63,6 +102,19 @@ enum EventType {
 
   FAULT_REPORTED
   RECOVERED // removed from site
+
+  // --- The repair loop -----------------------------------------------------
+  RECOVERED_FOR_REPAIR // taken off the pole with the workshop as its destination
+  RECEIVED_AT_WORKSHOP
+  REPAIR_STARTED
+  REPAIRED // work finished and proved by test
+  REPAIR_FAILED // opened and condemned
+  DISPOSED // scrapped after a failed repair
+
+  // No unit of this rating is free. Recorded as an event so the waiting has a
+  // start time and the outage can be measured, not estimated.
+  AWAITING_REPLACEMENT
+
   RETURNED_TO_MANUFACTURER
   SCRAPPED
 }
@@ -178,6 +230,14 @@ enum AlertType {
   // --- From field diagnostics ----------------------------------------------
   IR_LOW
   WR_DEVIATION
+
+  // --- Repair and replacement ----------------------------------------------
+  REPAIR_COMPLETED
+  REPAIR_FAILED
+  AWAITING_REPLACEMENT // a site is off supply with nothing to give it
+  STOCK_LOW // a rating is running out before it runs out
+  SUPPLY_REQUEST_RAISED
+  ALLOCATION_OVERDUE // reserved, install date passed, still not energised
 }
 
 enum AlertSeverity {
@@ -229,6 +289,10 @@ model User {
   inspectionsCarriedOut SubstationInspection[] @relation("InspectionInspector")
   conflictsResolved     RecordConflict[]       @relation("ConflictResolver")
   importsUploaded       ImportBatch[]          @relation("ImportUploader")
+
+  supplyRequestsRaised   SupplyRequest[] @relation("SupplyRaisedBy")
+  supplyRequestsApproved SupplyRequest[] @relation("SupplyApprovedBy")
+  allocationsMade        Allocation[]    @relation("AllocatedBy")
 
   @@index([role])
   @@index([region])
@@ -404,6 +468,14 @@ model Transformer {
   emdisHourly    EmdisHourly[]
   conflicts      RecordConflict[]
 
+  repairs             RepairRecord[]
+  allocations         Allocation[]
+  replacementRequests SupplyRequest[] @relation("ReplacementFor")
+
+  /** How many times this unit has been through a workshop. A transformer on
+   *  its third repair is telling you something a single record cannot. */
+  repairCount Int @default(0)
+
   // Hash of the most recent event. The chain's head — see lib/chain.ts.
   lastEventHash String?
 
@@ -427,6 +499,8 @@ model Transformer {
 // ========================= The story itself ================================
 
 model LifecycleEvent {
+  repairsOpened RepairRecord[] @relation("RepairOpenedBy")
+
   id            String      @id @default(cuid())
   transformerId String
   transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
@@ -492,6 +566,8 @@ model LifecycleEvent {
 // ============================= Testing =====================================
 
 model TestRecord {
+  postRepairFor RepairRecord[] @relation("PostRepairTest")
+
   id            String      @id @default(cuid())
   transformerId String
   transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
@@ -984,4 +1060,192 @@ model ImportBatch {
   emdisDatasets EmdisDataset[]
 
   @@index([kind, createdAt])
+}
+
+// ============================================================================
+// THE REPAIR AND REPLACEMENT LOOP
+//
+// A transformer that fails does not simply stop. It is recovered, carried to a
+// workshop, opened, diagnosed, and either repaired or condemned. If it is
+// condemned, a site somewhere is off supply until a replacement is found,
+// allocated and installed — and that waiting period, not the fault itself, is
+// what customers actually experience.
+//
+// This half of the model exists to make that waiting visible.
+// ============================================================================
+
+/**
+ * One visit to the workshop.
+ *
+ * Separate from LifecycleEvent because a repair is a PROCESS with a beginning,
+ * a middle and an outcome, while an event is an instant. The events record that
+ * it arrived and that it left; this records what happened in between, what it
+ * cost, and whether it worked.
+ */
+model RepairRecord {
+  id String @id @default(cuid())
+
+  transformerId String
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+
+  /** The RECEIVED_AT_WORKSHOP event that opened this repair. */
+  lifecycleEventId String?
+  lifecycleEvent   LifecycleEvent? @relation("RepairOpenedBy", fields: [lifecycleEventId], references: [id])
+
+  receivedAtWorkshop DateTime
+  workshopName       String?
+
+  /**
+   * What the workshop ACTUALLY found, which is frequently not what the field
+   * reported. A unit sent in for "oil leak" that turns out to have a shorted
+   * winding is the single most useful correction in the whole loop: it tells
+   * the fleet what is really killing transformers.
+   */
+  faultCauseConfirmed String?
+  faultCauseReported  String?
+
+  repairActions String? // what was done
+  partsReplaced String? // bushings, gaskets, oil, windings
+
+  repairCostKes    Float?
+  /** Set when the workshop finishes, successfully or not. */
+  repairCompletedAt DateTime?
+
+  /**
+   * A repaired unit carries a workshop warranty, not the manufacturer's. If it
+   * fails inside this window the workshop owes the rework — and without the
+   * distinction recorded, that claim is unarguable.
+   */
+  repairWarrantyMonths Int? @default(3)
+
+  /** IR, WR, oil BDV and ratio measured after the work. */
+  postRepairTestId String?
+  postRepairTest   TestRecord? @relation("PostRepairTest", fields: [postRepairTestId], references: [id])
+
+  repairSuccessful Boolean?
+  failureReason    String? // "winding damage too extensive to rewind economically"
+
+  workshopTechnician String?
+  notes              String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([transformerId, receivedAtWorkshop])
+  @@index([repairSuccessful])
+  @@index([repairCompletedAt])
+}
+
+/**
+ * A site that needs a transformer and does not have one.
+ *
+ * This is the part of the cycle paper loses completely. A transformer fails, is
+ * carried away, and the site waits — but nothing anywhere holds the fact that
+ * customers are off supply, how long they have been off, or who is accountable
+ * for ending it. A fault is closed when the unit is recovered; the OUTAGE is
+ * not over until something is energised in its place.
+ *
+ * Raised by a field engineer, approved by a manager, satisfied by an allocation.
+ */
+model SupplyRequest {
+  id String @id @default(cuid())
+
+  /** Short human reference, e.g. SR-2026-0041, for radio and WhatsApp. */
+  reference String @unique
+
+  // --- Where -------------------------------------------------------------
+  siteName       String
+  substationCode String?
+  region         String?
+  county         String?
+  lat            Float?
+  lng            Float?
+  landmark       String?
+
+  // --- What is needed ----------------------------------------------------
+  ratingKvaNeeded Int
+  reason          SupplyRequestReason
+  /** The unit that failed, when this request replaces one. */
+  failedTransformerId String?
+  failedTransformer   Transformer? @relation("ReplacementFor", fields: [failedTransformerId], references: [id])
+
+  /**
+   * How many customers are off supply. The number that turns an engineering
+   * queue into a priority order — 400 households waiting outranks 6.
+   */
+  customersAffected Int?
+  urgency           SupplyUrgency @default(NORMAL)
+
+  // --- Who ---------------------------------------------------------------
+  raisedById String
+  raisedBy   User   @relation("SupplyRaisedBy", fields: [raisedById], references: [id])
+  raisedAt   DateTime @default(now())
+  notes      String?
+
+  status SupplyRequestStatus @default(SUBMITTED)
+
+  // --- Approval ----------------------------------------------------------
+  // A field engineer reports the need; a manager authorises spending an asset
+  // on it. Keeping those separate is what stops the store being emptied by
+  // whoever shouts loudest.
+  approvedById   String?
+  approvedBy     User?     @relation("SupplyApprovedBy", fields: [approvedById], references: [id])
+  approvedAt     DateTime?
+  approvalNotes  String?
+  rejectionReason String?
+
+  allocations Allocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, urgency])
+  @@index([region])
+  @@index([raisedAt])
+}
+
+/**
+ * A specific transformer, reserved for a specific site, on a specific date.
+ *
+ * The reservation is the point. Without it two engineers can be promised the
+ * same unit by two different people, and the second one discovers it at the
+ * roadside with a crane hired. A transformer is either free or it is spoken
+ * for, and the system has to be able to say which.
+ */
+model Allocation {
+  id String @id @default(cuid())
+
+  requestId String
+  request   SupplyRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  transformerId String
+  transformer   Transformer @relation(fields: [transformerId], references: [id])
+
+  allocatedById String
+  allocatedBy   User   @relation("AllocatedBy", fields: [allocatedById], references: [id])
+  allocatedAt   DateTime @default(now())
+
+  /** When the crew intends to energise it. */
+  plannedInstallDate DateTime?
+
+  status AllocationStatus @default(RESERVED)
+
+  releasedAt    DateTime?
+  releaseReason String?
+
+  /** The INSTALLED event that closed this allocation. */
+  fulfilledEventId String?
+  fulfilledAt      DateTime?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One live reservation per transformer. Enforced in the write path rather
+  // than by a partial index, because Prisma cannot express "unique where
+  // status = RESERVED" portably — see reserveTransformer().
+  @@index([transformerId, status])
+  @@index([requestId])
+  @@index([status, plannedInstallDate])
 }

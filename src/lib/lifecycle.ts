@@ -35,9 +35,10 @@ export type EventRule = {
 export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
   RECEIVED_AT_STORE: {
     // Genesis is written by the receive form, which creates the transformer and
-    // its first event together. This transition covers the OTHER case: a unit
-    // coming back from the field into the store.
-    allowedFrom: ["IN_TRANSIT"],
+    // its first event together. This transition covers the OTHER cases: a unit
+    // coming back from the field, and a repaired unit returning from a
+    // workshop ready to be dispatched again.
+    allowedFrom: ["IN_TRANSIT", "REPAIRED"],
     toStatus: "IN_STORE",
     label: "Received at store",
     description: "Arrived at a KPLC store.",
@@ -105,6 +106,70 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     // not required — an inspection in a signal shadow must still be recordable.
     requires: {},
   },
+  // --- The repair loop ------------------------------------------------------
+  // A failed transformer does not simply stop. It comes off the pole, goes to a
+  // workshop, is opened, and is either repaired or condemned. Each step is a
+  // legal transition and the state machine refuses the rest — you cannot repair
+  // a unit that is still energised, and you cannot dispose of one nobody has
+  // opened.
+
+  RECOVERED_FOR_REPAIR: {
+    // From FAULTY normally; from IN_FIELD when a unit is pulled proactively,
+    // which happens after a bad inspection rather than a failure.
+    allowedFrom: ["FAULTY", "IN_FIELD"],
+    toStatus: "IN_REPAIR",
+    label: "Recovered for repair",
+    description: "Taken off the pole with a workshop as its destination.",
+    // Whoever carried it is who we ask when it does not arrive.
+    requires: { vehicle: true },
+  },
+  RECEIVED_AT_WORKSHOP: {
+    allowedFrom: ["IN_REPAIR", "IN_TRANSIT"],
+    toStatus: "IN_REPAIR",
+    label: "Received at workshop",
+    description: "Booked in at the repair workshop.",
+    requires: {},
+  },
+  REPAIR_STARTED: {
+    allowedFrom: ["IN_REPAIR"],
+    toStatus: "IN_REPAIR",
+    label: "Repair started",
+    description: "Work began. The clock on turnaround starts here.",
+    requires: {},
+  },
+  REPAIRED: {
+    allowedFrom: ["IN_REPAIR"],
+    toStatus: "REPAIRED",
+    label: "Repaired",
+    description: "Work complete and proved by test.",
+    // A repair claimed without a test is a repair nobody can stand behind. The
+    // unit is about to go back on a pole above someone's house.
+    requires: { test: true },
+  },
+  REPAIR_FAILED: {
+    allowedFrom: ["IN_REPAIR"],
+    toStatus: "BEYOND_REPAIR",
+    label: "Repair failed",
+    description: "Opened, diagnosed, and not economically repairable.",
+    requires: {},
+  },
+  DISPOSED: {
+    // Only from BEYOND_REPAIR: a transformer is condemned by a workshop that
+    // opened it, never written off straight from the field.
+    allowedFrom: ["BEYOND_REPAIR"],
+    toStatus: "SCRAPPED",
+    label: "Disposed",
+    description: "Scrapped after a failed repair.",
+    requires: {},
+  },
+  AWAITING_REPLACEMENT: {
+    allowedFrom: ["FAULTY", "BEYOND_REPAIR"],
+    toStatus: "AWAITING_REPLACEMENT",
+    label: "Awaiting replacement",
+    description: "A site is off supply and no unit of this rating is free.",
+    requires: {},
+  },
+
   FAULT_REPORTED: {
     allowedFrom: ["IN_FIELD"],
     toStatus: "FAULTY",
@@ -139,6 +204,10 @@ export const STATUS_LABELS: Record<TransformerStatus, string> = {
   IN_STORE: "in store",
   IN_TRANSIT: "in transit",
   IN_FIELD: "in the field",
+  IN_REPAIR: "at a workshop",
+  REPAIRED: "repaired and awaiting return to store",
+  BEYOND_REPAIR: "condemned as beyond repair",
+  AWAITING_REPLACEMENT: "awaiting a replacement",
   FAULTY: "faulty",
   RETURNED: "returned",
   SCRAPPED: "scrapped",
