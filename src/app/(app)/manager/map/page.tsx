@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { FilterableMap, type MapRow } from "@/components/manager/FilterableMap";
+import { toMapPoints } from "@/lib/map-points";
 import { computeWarranty } from "@/lib/warranty";
 
 export const metadata: Metadata = { title: "Map" };
@@ -17,19 +18,18 @@ export default async function ManagerMapPage() {
     include: { manufacturer: { select: { name: true } } },
   });
 
-  const rows: MapRow[] = transformers.map((tx) => ({
-    id: tx.id,
-    gNumber: tx.gNumber,
-    serialNumber: tx.serialNumber,
-    ratingKva: tx.ratingKva,
-    status: tx.status,
-    lat: tx.currentLat!,
-    lng: tx.currentLng!,
-    siteName: tx.currentSiteName,
-    feeder: tx.feeder,
-    manufacturer: tx.manufacturer.name,
-    warrantyState: computeWarranty(tx.warrantyStart, tx.warrantyMonths).state,
-  }));
+  // toMapPoints() carries the position provenance and popup fields; the filter
+  // bar needs two more of its own on top.
+  const points = toMapPoints(transformers);
+  const byId = new Map(transformers.map((t) => [t.id, t]));
+  const rows: MapRow[] = points.map((p) => {
+    const tx = byId.get(p.id)!;
+    return {
+      ...p,
+      manufacturer: tx.manufacturer.name,
+      warrantyState: computeWarranty(tx.warrantyStart, tx.warrantyMonths).state,
+    };
+  });
 
   const manufacturers = [...new Set(rows.map((r) => r.manufacturer))].sort();
 

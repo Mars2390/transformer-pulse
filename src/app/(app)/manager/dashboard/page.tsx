@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, StatTile, Badge, EmptyState, ActionLink } from "@/components/ui";
 import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
+import { MAP_POINT_SELECT, toMapPoints } from "@/lib/map-points";
 import { AlertsPanel } from "@/components/manager/AlertsPanel";
 import { ManagerInsights } from "@/components/manager/ManagerInsights";
 import { AutoRefresh } from "@/components/app/AutoRefresh";
@@ -37,12 +38,7 @@ export default async function ManagerDashboard() {
     }),
     prisma.transformer.findMany({
       where: { ...scope, currentLat: { not: null }, currentLng: { not: null } },
-      select: {
-        id: true, gNumber: true, serialNumber: true, ratingKva: true,
-        status: true, currentLat: true, currentLng: true,
-        currentSiteName: true, feeder: true,
-        dataSource: true, verifiedAt: true,
-      },
+      select: MAP_POINT_SELECT,
     }),
     prisma.lifecycleEvent.findMany({
       where: { transformer: scope },
@@ -82,19 +78,7 @@ export default async function ManagerDashboard() {
     return expiry.getTime() > Date.now();
   }).length;
 
-  const points: MapPoint[] = transformers.map((tx) => ({
-    id: tx.id,
-    gNumber: tx.gNumber,
-    serialNumber: tx.serialNumber,
-    ratingKva: tx.ratingKva,
-    status: tx.status,
-    lat: tx.currentLat!,
-    lng: tx.currentLng!,
-    siteName: tx.currentSiteName,
-    feeder: tx.feeder,
-    dataSource: tx.dataSource,
-    verified: tx.verifiedAt != null,
-  }));
+  const points: MapPoint[] = toMapPoints(transformers);
 
   return (
     <div className="space-y-6">

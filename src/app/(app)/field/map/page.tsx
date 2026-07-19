@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
+import { MAP_POINT_SELECT, toMapPoints } from "@/lib/map-points";
 import { EmptyState } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Map" };
@@ -17,23 +18,10 @@ export default async function FieldMapPage() {
       currentLat: { not: null },
       currentLng: { not: null },
     },
-    select: {
-      id: true, gNumber: true, serialNumber: true, ratingKva: true,
-      status: true, currentLat: true, currentLng: true, currentSiteName: true, feeder: true,
-    },
+    select: MAP_POINT_SELECT,
   });
 
-  const points: MapPoint[] = transformers.map((tx) => ({
-    id: tx.id,
-    gNumber: tx.gNumber,
-    serialNumber: tx.serialNumber,
-    ratingKva: tx.ratingKva,
-    status: tx.status,
-    lat: tx.currentLat!,
-    lng: tx.currentLng!,
-    siteName: tx.currentSiteName,
-    feeder: tx.feeder,
-  }));
+  const points: MapPoint[] = toMapPoints(transformers);
 
   return (
     <div className="pb-20">

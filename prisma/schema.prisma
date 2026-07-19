@@ -74,6 +74,20 @@ enum SupplyRequestStatus {
   CANCELLED
 }
 
+/**
+ * Where a transformer's COORDINATES came from — a different question from where
+ * its record came from.
+ *
+ * A pin placed by someone standing under the transformer and a pin derived from
+ * the words "Wanyee rd" are both dots on a map, and a map that draws them
+ * identically is lying by omission. Every view colours by this.
+ */
+enum PositionSource {
+  SURVEYED // a GPS fix taken at the asset
+  GEOCODED // derived from a written landmark. 50-200 m at best.
+  UNAVAILABLE // no usable location text; cannot be placed at all
+}
+
 enum AllocationStatus {
   RESERVED // held for this site, not yet dispatched
   DISPATCHED // on a vehicle
@@ -440,6 +454,13 @@ model Transformer {
   // then an onboarded record is a claim about the world, not a confirmation of
   // it, and the map legend says so.
   verifiedAt DateTime?
+
+  /** How the coordinates above were obtained. Drives the map pin. */
+  positionSource PositionSource?
+  /** Best-case accuracy in metres, for the popup. Geocoding is 50-200 m. */
+  positionAccuracyM Int?
+  /** The text a geocode was derived from, so a wrong pin can be traced. */
+  positionSourceText String?
 
   // --- KPLC's own identifier ----------------------------------------------
   // How Kenya Power actually refers to these assets in the field: "14537 - LEE
