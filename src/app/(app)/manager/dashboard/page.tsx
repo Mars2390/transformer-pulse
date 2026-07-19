@@ -221,7 +221,7 @@ export default async function ManagerDashboard() {
 async function KplcFindings({ region }: { region: string | null }) {
   const scope = region ? { region } : {};
 
-  const [phaseOverload, rottenPoles, openEarths, conflicts, lowIr, staged] = await Promise.all([
+  const [phaseOverload, rottenPoles, openEarths, conflicts, lowIr, staged, inRepair, awaitingReplacement] = await Promise.all([
     prisma.alert.count({ where: { type: "SINGLE_PHASE_OVERLOAD", acknowledged: false, ...(region ? { region } : {}) } }),
     prisma.transformer.count({ where: { ...scope, structureCondition: { in: ["ROTTEN", "LEANING"] } } }),
     prisma.substationInspection.count({
@@ -233,9 +233,11 @@ async function KplcFindings({ region }: { region: string | null }) {
     prisma.recordConflict.count({ where: { status: "OPEN" } }),
     prisma.testRecord.count({ where: { stage: "FIELD_DIAGNOSTIC", passed: false } }),
     prisma.substationInspection.count({ where: { transformerId: null } }),
+    prisma.transformer.count({ where: { ...scope, status: "IN_REPAIR" } }),
+    prisma.transformer.count({ where: { ...scope, status: "AWAITING_REPLACEMENT" } }),
   ]);
 
-  const anything = phaseOverload + rottenPoles + openEarths + conflicts + lowIr + staged;
+  const anything = phaseOverload + rottenPoles + openEarths + conflicts + lowIr + staged + inRepair + awaitingReplacement;
   if (!anything) return null;
 
   return (
@@ -246,7 +248,21 @@ async function KplcFindings({ region }: { region: string | null }) {
           Repair priority →
         </Link>
       </div>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatTile
+          label="In repair"
+          value={formatNumber(inRepair)}
+          tone={inRepair ? "warning" : "neutral"}
+          hint="on a workshop bench"
+          href="/store/workshop"
+        />
+        <StatTile
+          label="Awaiting replacement"
+          value={formatNumber(awaitingReplacement)}
+          tone={awaitingReplacement ? "danger" : "neutral"}
+          hint={awaitingReplacement ? "sites off supply" : "none"}
+          href="/store/workshop"
+        />
         <StatTile
           label="Phase overload"
           value={formatNumber(phaseOverload)}

@@ -84,8 +84,15 @@ export type RepairOutcomeInput = {
   notes?: string;
   successful: boolean;
   failureReason?: string;
-  /** Post-repair test, required when the repair succeeded. */
-  testRecordId?: string;
+  /** Post-repair test values. The state machine requires these on REPAIRED. */
+  test?: {
+    oilBdvKv?: number;
+    insulationResistanceHvMohm?: number;
+    insulationResistanceLvMohm?: number;
+    turnsRatioDeviationPct?: number;
+    passed: boolean;
+    remarks?: string;
+  };
 };
 
 export type RepairOutcomeResult = {
@@ -164,7 +171,6 @@ export async function closeRepair(
       failureReason: input.successful ? null : (input.failureReason ?? "Not stated"),
       workshopTechnician: input.workshopTechnician ?? actor.name,
       notes: input.notes ?? null,
-      postRepairTestId: input.testRecordId ?? null,
     },
   });
 
@@ -189,9 +195,11 @@ export async function closeRepair(
           (input.partsReplaced ? `Parts: ${input.partsReplaced}. ` : "") +
           (input.repairCostKes ? `Cost KES ${Math.round(input.repairCostKes).toLocaleString()}. ` : "") +
           `Workshop warranty ${input.repairWarrantyMonths ?? 3} months.`,
-        // The state machine requires a test on REPAIRED. A repair claimed
-        // without one is a repair nobody can stand behind.
-        test: input.testRecordId ? undefined : undefined,
+        // The state machine requires this. A repair claimed without a test is
+        // a repair nobody can stand behind.
+        test: input.test
+          ? { ...input.test, stage: "POST_FAULT" as const }
+          : undefined,
       },
       actor,
     );
