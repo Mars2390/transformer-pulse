@@ -204,7 +204,7 @@ export type Measurement = {
  * winding to earth, and lives on TestRecord.
  *
  * The important case is "OL". On an earth tester that is the instrument
- * reporting OVER LIMIT: the resistance is beyond what it can measure, which in
+ * reporting OVER RANGE (confirmed by KPLC): the resistance is beyond what it can
  * practice means there is no effective earth at all. It appears 46 times in the
  * real file. Treating it as missing data deletes a genuine shock-and-fire
  * hazard from the register; it is a finding and it is stored as one.
@@ -437,8 +437,8 @@ export function parseInspectionRow(
   const neutralEarth = parseMeasurement(get("neutralEarth"));
   const surgeArrester = parseMeasurement(get("surgeArresters"));
 
-  if (hvEarth.state === "OPEN_CIRCUIT") reviewReasons.push("HV earth read OL — no effective earth");
-  if (neutralEarth.state === "OPEN_CIRCUIT") reviewReasons.push("Neutral earth read OL — no effective earth");
+  if (hvEarth.state === "OPEN_CIRCUIT") reviewReasons.push("HV earth read OL (over range) — no effective earth");
+  if (neutralEarth.state === "OPEN_CIRCUIT") reviewReasons.push("Neutral earth read OL (over range) — no effective earth");
   if (hvEarth.state === "VANDALISED" || neutralEarth.state === "VANDALISED") {
     reviewReasons.push("Earth conductor reported vandalised");
   }

@@ -123,6 +123,9 @@ export default async function ManagerDashboard() {
         />
       </div>
 
+      {/* --- KPLC data findings --------------------------------------------- */}
+      <KplcFindings region={user.role === "MANAGER" ? user.region : null} />
+
       <div className="grid gap-6 lg:grid-cols-3">
         {/* --- Map ---------------------------------------------------------- */}
         <Card className="overflow-hidden lg:col-span-2">
@@ -219,6 +222,89 @@ export default async function ManagerDashboard() {
             </p>
           </div>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What the two KPLC data sources say, side by side.
+ *
+ * Deliberately a separate block from the status tiles above: those count where
+ * transformers ARE, these count what is WRONG with them. Mixing the two makes
+ * a dashboard where nothing stands out.
+ */
+async function KplcFindings({ region }: { region: string | null }) {
+  const scope = region ? { region } : {};
+
+  const [phaseOverload, rottenPoles, openEarths, conflicts, lowIr, staged] = await Promise.all([
+    prisma.alert.count({ where: { type: "SINGLE_PHASE_OVERLOAD", acknowledged: false, ...(region ? { region } : {}) } }),
+    prisma.transformer.count({ where: { ...scope, structureCondition: { in: ["ROTTEN", "LEANING"] } } }),
+    prisma.substationInspection.count({
+      where: {
+        OR: [{ hvEarthState: "OPEN_CIRCUIT" }, { neutralEarthState: "OPEN_CIRCUIT" }],
+        ...(region ? { region } : {}),
+      },
+    }),
+    prisma.recordConflict.count({ where: { status: "OPEN" } }),
+    prisma.testRecord.count({ where: { stage: "FIELD_DIAGNOSTIC", passed: false } }),
+    prisma.substationInspection.count({ where: { transformerId: null } }),
+  ]);
+
+  const anything = phaseOverload + rottenPoles + openEarths + conflicts + lowIr + staged;
+  if (!anything) return null;
+
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline justify-between px-1">
+        <p className="text-xs font-bold tracking-[0.1em] text-ink-soft">FROM KPLC DATA</p>
+        <Link href="/manager/priority" className="text-xs font-bold text-kplc hover:underline">
+          Repair priority →
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+        <StatTile
+          label="Phase overload"
+          value={formatNumber(phaseOverload)}
+          tone={phaseOverload ? "danger" : "neutral"}
+          hint="a phase over rating"
+          href="/manager/priority?defect=phase"
+        />
+        <StatTile
+          label="Rotten poles"
+          value={formatNumber(rottenPoles)}
+          tone={rottenPoles ? "danger" : "neutral"}
+          hint="rotten or leaning"
+          href="/manager/priority?defect=pole"
+        />
+        <StatTile
+          label="Open earths"
+          value={formatNumber(openEarths)}
+          tone={openEarths ? "danger" : "neutral"}
+          hint="tester read over range"
+          href="/manager/priority?defect=earth"
+        />
+        <StatTile
+          label="Failed IR/WR"
+          value={formatNumber(lowIr)}
+          tone={lowIr ? "warning" : "neutral"}
+          hint="insulation or winding"
+          href="/manager/priority?defect=ir"
+        />
+        <StatTile
+          label="Conflicts"
+          value={formatNumber(conflicts)}
+          tone={conflicts ? "warning" : "neutral"}
+          hint="records disagree"
+          href="/manager/conflicts"
+        />
+        <StatTile
+          label="Staged"
+          value={formatNumber(staged)}
+          tone={staged ? "info" : "neutral"}
+          hint="awaiting a transformer"
+          href="/manager/staging"
+        />
       </div>
     </div>
   );

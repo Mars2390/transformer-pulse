@@ -83,13 +83,14 @@ enum TestStage {
 /**
  * How a measurement that should be a number came back.
  *
- * An earth tester reading "OL" is NOT missing data — it is the instrument
- * reporting over-limit, which means the earth is effectively open. Storing that
- * as null loses a safety defect; storing it as text loses it from every report.
+ * An earth tester reading "OL" is NOT missing data. KPLC confirm it means OVER
+ * RANGE: the resistance is beyond what the instrument can measure, which in
+ * practice means there is no effective earth. Storing that as null loses a
+ * safety defect; storing it as text loses it from every report.
  */
 enum MeasurementState {
   MEASURED // a real number is present
-  OPEN_CIRCUIT // tester read OL / Infinity — earth is open
+  OPEN_CIRCUIT // tester read OL (over range) — no effective earth
   VANDALISED // earth conductor stolen or cut
   NOT_MEASURED // nobody carried a tester; an honest blank
 }
@@ -170,7 +171,7 @@ enum AlertType {
   THD_HIGH
 
   // --- From substation inspections -----------------------------------------
-  EARTH_OPEN // tester read OL — no effective earth
+  EARTH_OPEN // tester read OL (over range) — no effective earth
   EARTH_HIGH
   STRUCTURE_DEFECT // pole rotten or leaning
 

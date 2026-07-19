@@ -58,9 +58,19 @@ export const LIMITS = {
   neutralCritical: 0.5,
 
   /**
-   * Total harmonic distortion. IEEE 519-2014 sets 8% voltage THD below 1 kV,
-   * and 5% current TDD for the common Isc/IL band on distribution.
+   * Total harmonic distortion, IEEE 519-2014.
+   *
+   * The EMDis export does not say whether its THD channel is VOLTAGE or
+   * CURRENT distortion, and the two have different limits: 8% for voltage
+   * below 1 kV, 5% for current TDD in the common Isc/IL band. Rather than
+   * guess, both are shown and the reading is judged against both — a value
+   * over 8% is out of tolerance whichever quantity it turns out to be, and a
+   * value between 5 and 8% is out only if it is current.
+   *
+   * This stays until George confirms the channel.
    */
+  thdCurrentLimit: 5,
+  thdVoltageLimit: 8,
   thdWarn: 5,
   thdCritical: 8,
 
@@ -437,15 +447,25 @@ export function analyseDataset(
       }
     : null;
 
-  if (thdStats && thdStats.median > LIMITS.thdCritical) {
+  if (thdStats && thdStats.median > LIMITS.thdCurrentLimit) {
+    // Over BOTH limits is out of tolerance whichever quantity this channel
+    // turns out to be — so it is critical without needing the answer. Between
+    // the two, it depends on the answer, so it is a warning.
+    const overBoth = thdStats.median > LIMITS.thdVoltageLimit;
     findings.push({
       code: "THD_HIGH",
-      severity: thdStats.median > 2 * LIMITS.thdCritical ? "CRITICAL" : "WARNING",
-      headline: `Harmonic distortion ${thdStats.median.toFixed(1)}% for half the time, peaking at ${thdStats.max.toFixed(1)}%`,
+      severity: overBoth ? "CRITICAL" : "WARNING",
+      headline: `Harmonic distortion ${thdStats.median.toFixed(1)}% median, peaking at ${thdStats.max.toFixed(1)}%`,
       detail:
-        `IEEE 519 sets 8% for voltage distortion below 1 kV and 5% for current distortion on typical distribution. ` +
-        `Harmonics raise eddy-current loss in the windings, so the unit runs hotter than the load alone explains.`,
-      action: "Confirm with George whether this channel is voltage or current distortion, then survey the connected non-linear load.",
+        `THD type unconfirmed — showing both IEEE 519 limits: ${LIMITS.thdVoltageLimit}% for voltage distortion below 1 kV, ` +
+        `${LIMITS.thdCurrentLimit}% for current distortion on typical distribution. ` +
+        (overBoth
+          ? `At ${thdStats.median.toFixed(1)}% this exceeds BOTH, so it is out of tolerance whichever quantity the meter reports.`
+          : `At ${thdStats.median.toFixed(1)}% this exceeds only the stricter current limit, so the verdict depends on which quantity this is.`) +
+        ` Harmonics raise eddy-current loss in the windings, so the unit runs hotter than the load alone explains.` +
+        (thdStats.minutesOverLimit > 0 ? ` Above ${LIMITS.thdVoltageLimit}% for ${thdStats.minutesOverLimit.toFixed(0)} minutes.` : ""),
+      action:
+        "Survey the connected non-linear load. Confirm with the metering team whether this channel is voltage or current distortion so the limit can be fixed to one value.",
     });
   }
 
