@@ -6,6 +6,7 @@ import { TestsTab } from "./TestsTab";
 import { PhotosTab } from "./PhotosTab";
 import { WarrantyTab, type WarrantyView } from "./WarrantyTab";
 import { ChainTab } from "./ChainTab";
+import { RepairsTab, type RepairView } from "./RepairsTab";
 import type { StoryData, StoryTest } from "./story-types";
 
 type Verification = {
@@ -15,7 +16,7 @@ type Verification = {
   reason: string | null;
 };
 
-const TABS = ["Timeline", "Tests", "Photos", "Warranty", "Chain"] as const;
+const TABS = ["Timeline", "Tests", "Repairs", "Photos", "Warranty", "Chain"] as const;
 type Tab = (typeof TABS)[number];
 
 export function StoryTabs({
@@ -23,11 +24,17 @@ export function StoryTabs({
   tests,
   warranty,
   verification,
+  repairs,
+  ratingKva,
+  repairCount,
 }: {
   story: StoryData;
   tests: StoryTest[];
   warranty: WarrantyView;
   verification: Verification;
+  repairs: RepairView[];
+  ratingKva: number;
+  repairCount: number;
 }) {
   const [tab, setTab] = useState<Tab>("Timeline");
 
@@ -35,6 +42,7 @@ export function StoryTabs({
   const counts: Record<Tab, number | null> = {
     Timeline: story.events.length,
     Tests: tests.length,
+    Repairs: repairs.length || null,
     Photos: photoCount,
     Warranty: story.claims.length || null,
     Chain: verification.checked,
@@ -81,6 +89,9 @@ export function StoryTabs({
       {/* --- Panels ------------------------------------------------------- */}
       {tab === "Timeline" && <Timeline events={story.events} />}
       {tab === "Tests" && <TestsTab tests={tests} />}
+      {tab === "Repairs" && (
+        <RepairsTab repairs={repairs} ratingKva={ratingKva} repairCount={repairCount} />
+      )}
       {tab === "Photos" && <PhotosTab events={story.events} />}
       {tab === "Warranty" && <WarrantyTab warranty={warranty} claims={story.claims} />}
       {tab === "Chain" && (

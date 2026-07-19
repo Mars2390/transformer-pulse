@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth";
 import { analyseDatasetById, ASSUMED_AMBIENT_C } from "@/lib/emdis-read";
 import { PhaseBars } from "@/components/control/PhaseBars";
 import { LIMITS } from "@/lib/load-analysis";
+import { LoadAnalysisActions } from "@/components/control/LoadAnalysisActions";
 
 export const metadata: Metadata = { title: "Load analysis" };
 export const dynamic = "force-dynamic";
@@ -277,6 +278,20 @@ export default async function LoadAnalysisPage({
           ))}
         </ul>
       </div>
+
+      {/* --- Actions --------------------------------------------------------- */}
+      <LoadAnalysisActions
+        datasetId={dataset.id}
+        transformerId={transformer?.id ?? null}
+        gNumber={transformer?.gNumber ?? null}
+        siteName={transformer?.siteName ?? inspection?.locationNote ?? null}
+        substationCode={dataset.substationCode}
+        region={transformer?.region ?? null}
+        ratingKva={a.ratingKva}
+        peakPhasePct={a.peakPhasePctRated}
+        unbalancePct={a.unbalance.median}
+        severity={a.severity}
+      />
 
       {/* --- Load curve ------------------------------------------------------ */}
       <div className="rounded-2xl border border-line bg-white p-5">

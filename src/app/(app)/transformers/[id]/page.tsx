@@ -51,6 +51,7 @@ export default async function StoryPage({
       },
       tests: { orderBy: { testedAt: "desc" }, include: { testedBy: { select: { name: true } } } },
       claims: { include: { manufacturer: { select: { name: true } } }, orderBy: { createdAt: "desc" } },
+      repairs: { orderBy: { receivedAtWorkshop: "desc" } },
     },
   });
 
@@ -83,6 +84,27 @@ export default async function StoryPage({
     (Date.now() - new Date(tx.yearOfManufacture, 0, 1).getTime()) /
     (1000 * 60 * 60 * 24 * 365.25);
   const health = computeHealth({ latestTest, failureCount, ageYears });
+
+  // Dates cannot cross into a client component, and the turnaround is worth
+  // computing once here rather than in three places in the table.
+  const repairs = tx.repairs.map((r) => ({
+    id: r.id,
+    receivedAtWorkshop: r.receivedAtWorkshop.toISOString().slice(0, 10),
+    repairCompletedAt: r.repairCompletedAt?.toISOString().slice(0, 10) ?? null,
+    workshopName: r.workshopName,
+    faultCauseReported: r.faultCauseReported,
+    faultCauseConfirmed: r.faultCauseConfirmed,
+    repairActions: r.repairActions,
+    partsReplaced: r.partsReplaced,
+    repairCostKes: r.repairCostKes,
+    repairWarrantyMonths: r.repairWarrantyMonths,
+    repairSuccessful: r.repairSuccessful,
+    failureReason: r.failureReason,
+    workshopTechnician: r.workshopTechnician,
+    turnaroundDays: r.repairCompletedAt
+      ? Math.round((r.repairCompletedAt.getTime() - r.receivedAtWorkshop.getTime()) / 86_400_000)
+      : null,
+  }));
 
   // --- Serialise for the client tabs ---------------------------------------
   const events: StoryEvent[] = tx.events.map((e) => {
@@ -315,7 +337,15 @@ export default async function StoryPage({
 
       {/* --- Tabs --------------------------------------------------------- */}
       <div className="mt-6">
-        <StoryTabs story={story} tests={tests} warranty={warranty} verification={verification} />
+        <StoryTabs
+          story={story}
+          tests={tests}
+          warranty={warranty}
+          verification={verification}
+          repairs={repairs}
+          ratingKva={tx.ratingKva}
+          repairCount={tx.repairCount}
+        />
       </div>
     </div>
   );
