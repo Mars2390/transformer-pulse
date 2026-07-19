@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 import { formatRating } from "./format";
+import { inRegion } from "./region-scope";
 
 /**
  * Loads a transformer for a field action and builds its header line. Returns
@@ -21,10 +22,16 @@ export async function loadFieldTransformer(id: string, region: string | null) {
   });
 
   // Region scoping. An admin (region null) sees everything; an engineer is
-  // limited to theirs. A unit still in transit may not have a region yet, so
-  // allow it when the region is unset.
+  // limited to their patch. Matching is on the BASE region, case-insensitively,
+  // so an account set to "Nairobi North" still reaches a "NAIROBI" transformer —
+  // the same tolerant rule the dashboards use. Without this, every promoted
+  // unit 404s the moment an engineer taps "Inspect", which is exactly what a
+  // strict "NAIROBI" !== "Nairobi North" comparison was doing.
+  //
+  // A unit still in transit may have no region yet; inRegion() treats a null
+  // transformer region as out of scope, so allow that case explicitly.
   if (!tx) return null;
-  if (region && tx.region && tx.region !== region) return null;
+  if (region && tx.region && !inRegion(tx.region, region)) return null;
 
   return {
     id: tx.id,

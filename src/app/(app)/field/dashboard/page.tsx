@@ -43,6 +43,10 @@ export default async function FieldDashboard() {
       select: {
         id: true, gNumber: true, ratingKva: true, currentSiteName: true,
         commissionDate: true,
+        // lastInspectionAt carries the register's inspection date for a
+        // promoted unit, which has no INSPECTED event of its own. Without it,
+        // every one of the 927 promoted transformers shows "Infinityd overdue".
+        lastInspectionAt: true,
         events: {
           where: { type: { in: ["INSPECTED", "INSTALLED"] } },
           orderBy: { occurredAt: "desc" },
@@ -81,12 +85,23 @@ export default async function FieldDashboard() {
   const now = Date.now();
   const inspectionsDue = inField
     .map((tx) => {
-      const last = tx.events[0]?.occurredAt ?? tx.commissionDate;
-      const days = last ? Math.floor((now - last.getTime()) / DAY) : Infinity;
-      return { tx, days, overdue: days >= INSPECTION_INTERVAL_DAYS };
+      // Newest of: a real inspection/install event, the register's inspection
+      // date, or the commission date. Whichever we actually know.
+      const known = [
+        tx.events[0]?.occurredAt,
+        tx.lastInspectionAt,
+        tx.commissionDate,
+      ].filter((d): d is Date => d != null);
+      const last = known.length
+        ? new Date(Math.max(...known.map((d) => d.getTime())))
+        : null;
+      // `never` when nothing is on record, so the UI can say so instead of
+      // rendering "Infinityd overdue".
+      const days = last ? Math.floor((now - last.getTime()) / DAY) : null;
+      return { tx, days, overdue: days == null || days >= INSPECTION_INTERVAL_DAYS };
     })
-    .filter(({ days }) => days >= INSPECTION_DUE_SOON_DAYS)
-    .sort((a, b) => b.days - a.days); // most overdue first
+    .filter(({ days }) => days == null || days >= INSPECTION_DUE_SOON_DAYS)
+    .sort((a, b) => (b.days ?? Infinity) - (a.days ?? Infinity)); // never-inspected first
 
   const points: MapPoint[] = nearby.map((tx) => ({
     id: tx.id,
@@ -242,7 +257,11 @@ export default async function FieldDashboard() {
                   </span>
                   <span className="shrink-0">
                     <Badge tone={overdue ? "danger" : "warning"}>
-                      {overdue ? `${days}d overdue` : `due in ${INSPECTION_INTERVAL_DAYS - days}d`}
+                      {days == null
+                        ? "Never inspected"
+                        : overdue
+                          ? `${days}d overdue`
+                          : `due in ${INSPECTION_INTERVAL_DAYS - days}d`}
                     </Badge>
                   </span>
                 </Link>
