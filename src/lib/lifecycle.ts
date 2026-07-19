@@ -57,6 +57,15 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     // record, so its position is the only hard fact we have about it.
     requires: { gps: true },
   },
+  LOAD_CHECK_RECORDED: {
+    // A load check observes the transformer; it does not move it. Legal only
+    // on a unit that is actually energised, and it leaves the status alone.
+    allowedFrom: ["IN_FIELD"],
+    toStatus: "IN_FIELD",
+    label: "Load check recorded",
+    description: "Meter data ingested and analysed against the nameplate.",
+    requires: {},
+  },
   TESTED: {
     allowedFrom: ["IN_STORE"],
     toStatus: "IN_STORE",

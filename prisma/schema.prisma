@@ -55,6 +55,12 @@ enum EventType {
   RECEIVED_BY_FIELD // field engineer confirms it arrived
   INSTALLED // energised — this is where the GPS pin is born
   INSPECTED
+
+  // An EMDis load export was ingested against this transformer. A load check is
+  // something that HAPPENED to the asset, so it belongs on the chain next to
+  // the dispatches and inspections rather than in a side table.
+  LOAD_CHECK_RECORDED
+
   FAULT_REPORTED
   RECOVERED // removed from site
   RETURNED_TO_MANUFACTURER
@@ -67,6 +73,72 @@ enum TestStage {
   SITE_COMMISSIONING
   ROUTINE
   POST_FAULT
+
+  // Insulation and winding resistance measured at the pole, on a unit already
+  // in service. Not tied to intake or commissioning — an engineer went out
+  // specifically to test it.
+  FIELD_DIAGNOSTIC
+}
+
+/**
+ * How a measurement that should be a number came back.
+ *
+ * An earth tester reading "OL" is NOT missing data — it is the instrument
+ * reporting over-limit, which means the earth is effectively open. Storing that
+ * as null loses a safety defect; storing it as text loses it from every report.
+ */
+enum MeasurementState {
+  MEASURED // a real number is present
+  OPEN_CIRCUIT // tester read OL / Infinity — earth is open
+  VANDALISED // earth conductor stolen or cut
+  NOT_MEASURED // nobody carried a tester; an honest blank
+}
+
+enum StructureCondition {
+  OKAY
+  LEANING
+  ROTTEN
+}
+
+enum FuseCarrierState {
+  OKAY
+  NEEDS_REPLACEMENT
+}
+
+enum FuseBarType {
+  WOODEN
+  STEADY_BAR
+  FUSE_CARRIERS_ON_POLE
+  PLASTIC // the file spells this "plasctic"
+}
+
+/** What the inspector prescribed when loading was not okay. */
+enum LoadAction {
+  PHASE_BALANCING
+  RELIEVE
+  ADDITIONAL_CIRCUIT
+  UPRATE
+  DERATE
+}
+
+/** How an imported row found its transformer — recorded so the join is auditable. */
+enum MatchMethod {
+  G_NUMBER
+  SERIAL
+  SUBSTATION_CODE
+  MANUAL
+  UNRESOLVED
+}
+
+enum ImportKind {
+  INSPECTION
+  EMDIS
+}
+
+enum ConflictStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
 }
 
 enum ClaimStatus {
@@ -88,6 +160,23 @@ enum AlertType {
   INTAKE_TEST_FAILED
   // A transformer was energised in the field — good news, shown to the manager.
   INSTALLED
+
+  // --- From EMDis load telemetry -------------------------------------------
+  // One phase exceeded its rated current. This is invisible in the kVA figure:
+  // a unit can sit at 71% of nameplate while a single phase runs at 121%.
+  SINGLE_PHASE_OVERLOAD
+  PHASE_UNBALANCE
+  NEUTRAL_CURRENT_HIGH
+  THD_HIGH
+
+  // --- From substation inspections -----------------------------------------
+  EARTH_OPEN // tester read OL — no effective earth
+  EARTH_HIGH
+  STRUCTURE_DEFECT // pole rotten or leaning
+
+  // --- From field diagnostics ----------------------------------------------
+  IR_LOW
+  WR_DEVIATION
 }
 
 enum AlertSeverity {
@@ -134,6 +223,11 @@ model User {
   claimsRaised      WarrantyClaim[]  @relation("ClaimRaisedBy")
   alertsAcknowledged Alert[]         @relation("AlertAcknowledgedBy")
   auditEntries      AuditLog[]       @relation("AuditActor")
+
+  // KPLC data operations
+  inspectionsCarriedOut SubstationInspection[] @relation("InspectionInspector")
+  conflictsResolved     RecordConflict[]       @relation("ConflictResolver")
+  importsUploaded       ImportBatch[]          @relation("ImportUploader")
 
   @@index([role])
   @@index([region])
@@ -282,6 +376,33 @@ model Transformer {
   // it, and the map legend says so.
   verifiedAt DateTime?
 
+  // --- KPLC's own identifier ----------------------------------------------
+  // How Kenya Power actually refers to these assets in the field: "14537 - LEE
+  // PIC ACADEMY". Both the EMDis export and the inspection register carry it,
+  // and the EMDis file carries NO G-Number — so this is the only key that lets
+  // load telemetry find its transformer.
+  substationCode String?
+  substationName String?
+
+  // --- Cached condition (a view over inspections and load data) ------------
+  // Denormalised for the same reason `status` is: the register and the map
+  // would otherwise run a subquery per row.
+  lastInspectionAt   DateTime?
+  structureCondition StructureCondition?
+
+  // 0-100, higher is healthier. NULL means "not measured", which is not the
+  // same as 100 and must never be displayed as though it were.
+  electricalStressScore  Int?
+  physicalConditionScore Int?
+
+  // Drives the repair list. Recomputed whenever either score changes.
+  priorityRank Int?
+
+  inspections    SubstationInspection[]
+  emdisDatasets  EmdisDataset[]
+  emdisHourly    EmdisHourly[]
+  conflicts      RecordConflict[]
+
   // Hash of the most recent event. The chain's head — see lib/chain.ts.
   lastEventHash String?
 
@@ -297,6 +418,9 @@ model Transformer {
   @@index([region])
   @@index([manufacturerId])
   @@index([currentLat, currentLng])
+  @@index([substationCode])
+  @@index([priorityRank])
+  @@index([lastInspectionAt])
 }
 
 // ========================= The story itself ================================
@@ -392,6 +516,31 @@ model TestRecord {
   oilTempC                   Float?
   ambientTempC               Float?
   polarityOk                 Boolean?
+
+  // --- What makes an insulation reading comparable -------------------------
+  // Without these, IR is a number that cannot be trended and should not be.
+
+  // A 500 V megger and a 5 kV megger do not produce comparable readings on the
+  // same winding. Recording the test voltage is what makes two dates arguable.
+  irTestVoltageV Int?
+
+  // 60 s spot reading vs a 10 minute soak. Different measurements.
+  irDurationSec Int?
+
+  // IR(10 min) / IR(1 min). The actual diagnostic: below 1.0 means the
+  // insulation is absorbing moisture, and it catches problems that a single
+  // healthy-looking megohm figure hides completely.
+  polarizationIndex Float?
+
+  // Insulation resistance roughly HALVES for every 10 C rise. A reading taken
+  // at noon and one taken at dawn differ by 3x on the same healthy transformer.
+  // Trending uncorrected IR produces confident nonsense, so the winding
+  // temperature is required whenever IR is recorded.
+  windingTempC Float?
+
+  // IR normalised to 20 C. Computed on save from windingTempC — this is the
+  // figure that gets trended and compared against thresholds.
+  irCorrectedTo20C Float?
 
   passed   Boolean
   remarks  String?
@@ -494,4 +643,344 @@ model Alert {
 
   @@index([acknowledged, severity])
   @@index([region])
+}
+
+// ============================================================================
+// KPLC OPERATIONAL DATA
+//
+// Two real KPLC sources, joined to the register:
+//
+//   SubstationInspection — what a lineman can see from the ground. Once or
+//   twice a year, 30 fields, human judgement. Answers "can it survive?"
+//
+//   EmdisReading — what the meter records. Every 60 seconds, 18 electrical
+//   quantities, three phases. Answers "how hard is it working?"
+//
+// Neither is sufficient alone. A transformer in perfect condition is destroyed
+// by phase imbalance; a lightly loaded one still falls off a rotten pole.
+// ============================================================================
+
+/**
+ * One inspection visit. APPEND-ONLY: a later visit never overwrites an earlier
+ * one, because the disagreements between visits are themselves the finding.
+ *
+ * In the first 1,536 real records, 266 transformers were inspected more than
+ * once and 82 of those visits disagree about the make or the rating — twice on
+ * the same day by different inspectors. Paper cannot disagree with itself, so
+ * both filings simply stand. This table lets them disagree in the open.
+ */
+model SubstationInspection {
+  id String @id @default(cuid())
+
+  // KPLC's own report number. Unique, so re-uploading a file is a no-op rather
+  // than a duplicate — the natural idempotency key.
+  reportId Int @unique
+
+  inspectedOn DateTime
+
+  // Nullable on purpose. A row whose transformer is not on the register yet is
+  // STAGED, never dropped and never used to auto-create an asset: the source
+  // has 66% serial coverage and G-Numbers reading "Defaced", so auto-creation
+  // would manufacture duplicates against the real register.
+  transformerId String?
+  transformer   Transformer? @relation(fields: [transformerId], references: [id])
+  matchedBy     MatchMethod  @default(UNRESOLVED)
+
+  // "14537 - LEE PIC ACADEMY" arrives as one field; split on ingest.
+  substationCode String
+  substationName String?
+  region         String?
+  county         String?
+
+  // KPLC staff number as written on the form (e.g. KPL52857). Resolved to a
+  // User only if one exists — the register must import without every inspector
+  // having an account first.
+  inspectorRef    String
+  inspectorUserId String?
+  inspectorUser   User?   @relation("InspectionInspector", fields: [inspectorUserId], references: [id])
+
+  // --- Identity AS RECORDED ON THE FORM ------------------------------------
+  // Never written back to Transformer by the importer. These are what one
+  // inspector claimed on one day; Transformer holds what was RESOLVED. Letting
+  // the last upload win is exactly the failure mode this replaces.
+  serialAsRecorded    String?
+  gNumberAsRecorded   String?
+  makeAsRecorded      String?
+  ratingKvaAsRecorded Int?
+  yomAsRecorded       Int?
+  voltageKv           Int?
+
+  // --- Protection -----------------------------------------------------------
+  fuseSizeA    Int?
+  circuits     Int?
+  fuseCarriers FuseCarrierState?
+  fuseBarType  FuseBarType?
+
+  // --- Earthing (OHMS — earth resistance, NOT insulation resistance) --------
+  // Worth stating plainly because the two are easy to confuse and an engineer
+  // will not forgive it: insulation resistance is megohms, winding to earth.
+  // This is the resistance of the earth electrode itself, in single ohms.
+  hvEarthOhm         Float?
+  hvEarthState       MeasurementState @default(NOT_MEASURED)
+  neutralEarthOhm    Float?
+  neutralEarthState  MeasurementState @default(NOT_MEASURED)
+  surgeArresterOhm   Float?
+  surgeArresterState MeasurementState @default(NOT_MEASURED)
+  gapsetMm           Float?
+
+  // --- Conductors -----------------------------------------------------------
+  lvConductorMm2 Int?
+  leadSizeMm2    Int?
+
+  // --- Loading, as judged by eye and experience -----------------------------
+  // The single most valuable column in the file. On substation 14537 an
+  // inspector recorded loadingOk=false, loadAction=RELIEVE on 28 Nov 2025. The
+  // EMDis meter data nine days later measured a phase at 121% of rated while
+  // the kVA figure read 71%. He was right, and nothing in KPLC could show it.
+  loadingOk  Boolean?
+  loadAction LoadAction?
+
+  // --- Physical condition ---------------------------------------------------
+  structure    StructureCondition?
+  locationNote String?
+
+  // --- Provenance -----------------------------------------------------------
+  sourceFile    String
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+
+  // The original row, verbatim. Every normalisation this system performs — "OL"
+  // to OPEN_CIRCUIT, a rejected year of 19999, a rating of "3*5" — stays
+  // reversible because the untouched source is one column away.
+  rawRow Json
+
+  // Set when a value could not be trusted: a year of 2811, a G-Number reading
+  // "Faded numbers". The row still imports; a human is asked to look.
+  needsReview   Boolean  @default(false)
+  reviewReasons String[]
+
+  createdAt DateTime @default(now())
+
+  @@index([transformerId, inspectedOn])
+  @@index([substationCode])
+  @@index([inspectedOn])
+  @@index([structure])
+  @@index([loadingOk])
+  @@index([needsReview])
+}
+
+/**
+ * One EMDis export. The file header names a substation and a serial but carries
+ * NO G-Number, so it can only reach its transformer through the mapping the
+ * inspection register provides. That is why inspections must import first.
+ */
+model EmdisDataset {
+  id   String @id @default(cuid())
+  name String
+
+  transformerId String?
+  transformer   Transformer? @relation(fields: [transformerId], references: [id])
+  resolvedBy    MatchMethod  @default(UNRESOLVED)
+
+  // Straight from the seven header lines, kept as recorded.
+  substationCode      String?
+  serialAsRecorded    String?
+  makeAsRecorded      String?
+  ratingKvaAsRecorded Int?
+
+  // Everything per-phase is judged against rated current, and rated current
+  // depends on the line-to-line voltage. Stored per dataset so an 11 kV feeder
+  // and a 415 V board are never silently compared on the same basis.
+  nominalVoltLL Float @default(415)
+
+  firstReadingAt  DateTime
+  lastReadingAt   DateTime
+  readingCount    Int
+  intervalSeconds Int
+
+  uploadedById   String
+  uploadedByName String
+
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  readings EmdisReading[]
+  hourly   EmdisHourly[]
+
+  @@index([transformerId])
+  @@index([substationCode])
+}
+
+/**
+ * One instant of three-phase measurement.
+ *
+ * An Int identity, not a cuid: one transformer at 1-minute resolution is about
+ * 525,000 rows a year. Raw readings are kept for a rolling window; dashboards
+ * read EmdisHourly instead.
+ */
+model EmdisReading {
+  id        Int          @id @default(autoincrement())
+  datasetId String
+  dataset   EmdisDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  recordedAt DateTime
+
+  // Phase-to-neutral volts
+  l1nV Float?
+  l2nV Float?
+  l3nV Float?
+
+  // Phase currents, and the neutral. A balanced three-phase load carries almost
+  // nothing in the neutral, so neutralC reads directly on imbalance and on
+  // triplen harmonics returning through it.
+  l1c      Float?
+  l2c      Float?
+  l3c      Float?
+  neutralC Float?
+
+  // Line-to-line volts
+  l1l2V Float?
+  l2l3V Float?
+  l3l1V Float?
+
+  kva    Float?
+  kw     Float?
+  kvar   Float?
+  pf     Float?
+  hz     Float?
+  thdPct Float?
+  kwh    Float? // cumulative meter register
+
+  // --- Derived once, at ingest ---------------------------------------------
+  // Computed here rather than at query time, because the alternative is
+  // recomputing across millions of rows on every dashboard load.
+  maxPhaseC         Float?
+  phaseUnbalancePct Float? // max deviation from the mean of the three phases
+  loadingPct        Float? // measured kVA as a percentage of the nameplate
+  maxPhasePctRated  Float? // the figure the kVA number hides
+  neutralPctRated   Float?
+
+  @@index([datasetId, recordedAt])
+}
+
+/**
+ * Hourly rollup. Not an optimisation — the only way the numbers work. A
+ * thousand transformers at 1-minute resolution is 525 million rows a year. Raw
+ * data answers "what happened at 20:08"; this answers everything else.
+ */
+model EmdisHourly {
+  id String @id @default(cuid())
+
+  datasetId String
+  dataset   EmdisDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  transformerId String?
+  transformer   Transformer? @relation(fields: [transformerId], references: [id])
+
+  hourStart DateTime
+  samples   Int
+
+  avgKva Float?
+  maxKva Float?
+  p95Kva Float?
+  avgKw  Float?
+  avgPf  Float?
+
+  avgL1c Float?
+  avgL2c Float?
+  avgL3c Float?
+  maxL1c Float?
+  maxL2c Float?
+  maxL3c Float?
+
+  avgNeutralC Float?
+  maxNeutralC Float?
+
+  avgVoltage Float?
+  minVoltage Float?
+  maxVoltage Float?
+
+  avgThdPct Float?
+  maxThdPct Float?
+
+  avgUnbalancePct Float?
+  maxUnbalancePct Float?
+
+  maxLoadingPct    Float?
+  maxPhasePctRated Float?
+
+  // Minutes within this hour spent over each threshold. Five minutes at 105%
+  // and six hours at 105% are different problems; a peak figure cannot tell
+  // them apart and a duration can.
+  minutesOver80Pct  Int @default(0)
+  minutesOver100Pct Int @default(0)
+
+  @@unique([datasetId, hourStart])
+  @@index([transformerId, hourStart])
+}
+
+/**
+ * Two records of the same transformer that cannot both be true.
+ *
+ * Raised by the importer, never resolved by it. Import does not get to decide
+ * which inspector was right — it surfaces the disagreement, and a named human
+ * settles it with a stated reason.
+ */
+model RecordConflict {
+  id String @id @default(cuid())
+
+  transformerId String
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+
+  field String // "make" | "ratingKva" | "yearOfManufacture"
+
+  valueA  String
+  sourceA String // inspection report id / file
+  dateA   DateTime?
+
+  valueB  String
+  sourceB String
+  dateB   DateTime?
+
+  status ConflictStatus @default(OPEN)
+
+  resolvedValue  String?
+  resolvedById   String?
+  resolvedByUser User?     @relation("ConflictResolver", fields: [resolvedById], references: [id])
+  resolvedAt     DateTime?
+  resolutionNote String?
+
+  createdAt DateTime @default(now())
+
+  @@index([transformerId, status])
+  @@index([status])
+}
+
+/** One upload. Makes every import reviewable, attributable and reversible. */
+model ImportBatch {
+  id   String     @id @default(cuid())
+  kind ImportKind
+
+  fileName String
+
+  uploadedById   String
+  uploadedBy     User   @relation("ImportUploader", fields: [uploadedById], references: [id])
+  uploadedByName String
+
+  rowsTotal    Int @default(0)
+  rowsImported Int @default(0)
+  rowsStaged   Int @default(0) // parsed fine, no transformer to attach to
+  rowsRejected Int @default(0) // unreadable
+  rowsFlagged  Int @default(0) // imported but needing human review
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  inspections   SubstationInspection[]
+  emdisDatasets EmdisDataset[]
+
+  @@index([kind, createdAt])
 }

@@ -35,3 +35,21 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# --- Real KPLC operational data -------------------------------------------
+# Kept locally for development and reference, NEVER committed. These files are
+# live utility data: transformer serials, GPS-adjacent site descriptions, staff
+# numbers of named inspectors, and load telemetry for real customers. Pushing
+# them puts KPLC data in a public git history that cannot be un-published.
+#
+# Import them through the app instead — the database is the right home.
+KPLC.csv
+KPLC.xlsx
+*EMDIS*.csv
+*EMDIS*.xlsx
+*INSPECTION*.csv
+*INSPECTION*.xlsx
+*SUBSTATION*.csv
+*SUBSTATION*.xlsx
+nairobi-sites.csv
+/data/

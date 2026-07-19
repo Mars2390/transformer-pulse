@@ -106,6 +106,7 @@ export const EVENT_META: Record<EventType, { label: string; tone: Tone }> = {
   RECEIVED_BY_FIELD: { label: "Received on site", tone: "warning" },
   INSTALLED: { label: "Installed", tone: "success" },
   INSPECTED: { label: "Inspected", tone: "success" },
+  LOAD_CHECK_RECORDED: { label: "Load check", tone: "info" },
   FAULT_REPORTED: { label: "Fault reported", tone: "danger" },
   RECOVERED: { label: "Recovered", tone: "warning" },
   RETURNED_TO_MANUFACTURER: { label: "Returned to manufacturer", tone: "neutral" },
