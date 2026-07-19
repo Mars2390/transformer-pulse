@@ -5,13 +5,14 @@ import { prisma } from "@/lib/prisma";
 import { FilterableMap, type MapRow } from "@/components/manager/FilterableMap";
 import { toMapPoints } from "@/lib/map-points";
 import { computeWarranty } from "@/lib/warranty";
+import { regionWhere } from "@/lib/region-scope";
 
 export const metadata: Metadata = { title: "Map" };
 export const dynamic = "force-dynamic";
 
 export default async function ManagerMapPage() {
   const user = await requireRole("MANAGER", "ADMIN");
-  const scope = user.role === "MANAGER" && user.region ? { region: user.region } : {};
+  const scope = regionWhere(user.region, user.role);
 
   const transformers = await prisma.transformer.findMany({
     where: { ...scope, currentLat: { not: null }, currentLng: { not: null } },

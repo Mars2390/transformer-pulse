@@ -16,6 +16,7 @@ import {
   formatRelative,
   STATUS_META,
 } from "@/lib/format";
+import { regionWhere } from "@/lib/region-scope";
 
 export const metadata: Metadata = { title: "Manager dashboard" };
 
@@ -26,7 +27,7 @@ export default async function ManagerDashboard() {
   const user = await requireRole("MANAGER", "ADMIN");
 
   // A manager sees their region. An admin sees everything.
-  const scope = user.role === "MANAGER" && user.region ? { region: user.region } : {};
+  const scope = regionWhere(user.region, user.role);
 
   // The alerts panel fetches its own data live on the client, so it is not
   // queried here — the server-rendered snapshot would be stale within seconds.

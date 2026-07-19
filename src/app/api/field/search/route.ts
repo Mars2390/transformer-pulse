@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiRole, AuthError } from "@/lib/auth";
+import { regionWhere } from "@/lib/region-scope";
 
 /**
  * GET /api/field/search?q= — find a transformer to act on, scoped to the
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
 
     const results = await prisma.transformer.findMany({
       where: {
-        ...(actor.region ? { region: actor.region } : {}),
+        ...regionWhere(actor.region, actor.role),
         ...(q
           ? {
               OR: [

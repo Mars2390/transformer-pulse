@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiRole, AuthError } from "@/lib/auth";
+import { regionWhere } from "@/lib/region-scope";
 
 /**
  * GET /api/alerts — unacknowledged alerts for the caller's region.
@@ -13,7 +14,7 @@ export async function GET() {
     const user = await requireApiRole("MANAGER", "ADMIN");
 
     const where =
-      user.role === "MANAGER" && user.region ? { region: user.region } : {};
+      regionWhere(user.region, user.role);
 
     const [alerts, unreadCount] = await Promise.all([
       prisma.alert.findMany({

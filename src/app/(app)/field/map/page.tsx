@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
 import { MAP_POINT_SELECT, toMapPoints } from "@/lib/map-points";
 import { EmptyState } from "@/components/ui";
+import { regionWhere } from "@/lib/region-scope";
 
 export const metadata: Metadata = { title: "Map" };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function FieldMapPage() {
 
   const transformers = await prisma.transformer.findMany({
     where: {
-      ...(user.region ? { region: user.region } : {}),
+      ...regionWhere(user.region, user.role),
       currentLat: { not: null },
       currentLng: { not: null },
     },

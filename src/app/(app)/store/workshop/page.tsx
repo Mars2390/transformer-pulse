@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatTile } from "@/components/ui";
 import { formatKes, formatNumber, formatRelative } from "@/lib/format";
+import { regionWhere } from "@/lib/region-scope";
 
 export const metadata: Metadata = { title: "Workshop" };
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function WorkshopPage() {
   const user = await requireRole("STORE_KEEPER", "ADMIN", "MANAGER");
-  const scope = user.region && user.role !== "ADMIN" ? { region: user.region } : {};
+  const scope = regionWhere(user.region, user.role);
 
   const monthStart = new Date();
   monthStart.setUTCDate(1);

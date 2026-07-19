@@ -8,6 +8,7 @@ import { verifyChain, type ChainLink } from "@/lib/chain";
 import { computeWarranty } from "@/lib/warranty";
 import { dmy, gps } from "@/lib/report-data";
 import { EVENT_META, ROLE_LABELS, formatKes } from "@/lib/format";
+import { regionWhere } from "@/lib/region-scope";
 
 /**
  * GET /api/pdf/warranty-pack[?manufacturerId=...]
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
   try {
     const user = await requireApiRole("MANAGER", "ADMIN");
     const manufacturerId = new URL(request.url).searchParams.get("manufacturerId");
-    const scope = user.role === "MANAGER" && user.region ? { region: user.region } : {};
+    const scope = regionWhere(user.region, user.role);
 
     const claims = await prisma.warrantyClaim.findMany({
       where: {

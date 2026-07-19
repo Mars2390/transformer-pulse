@@ -6,6 +6,7 @@ import { Card, CardHeader, StatTile } from "@/components/ui";
 import { ClaimsTable, type ClaimRow } from "@/components/manager/ClaimsTable";
 import { computeWarranty } from "@/lib/warranty";
 import { formatKesCompact, formatNumber } from "@/lib/format";
+import { regionWhere } from "@/lib/region-scope";
 
 export const metadata: Metadata = { title: "Warranty claims" };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ const DAY = 86_400_000;
 
 export default async function WarrantyPage() {
   const user = await requireRole("MANAGER", "ADMIN");
-  const scope = user.role === "MANAGER" && user.region ? { region: user.region } : {};
+  const scope = regionWhere(user.region, user.role);
 
   const claims = await prisma.warrantyClaim.findMany({
     where: { transformer: scope },

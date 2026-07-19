@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { loadFieldTransformer } from "@/lib/field-load";
 import { ReplaceForm } from "@/components/field/ReplaceForm";
+import { regionWhere } from "@/lib/region-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function ReplacePage({ params }: { params: Promise<{ id: st
   const candidates = await prisma.transformer.findMany({
     where: {
       status: "IN_TRANSIT",
-      region: user.region ?? undefined,
+      ...regionWhere(user.region, user.role),
       id: { not: tx.id },
     },
     select: { id: true, gNumber: true, serialNumber: true, ratingKva: true },

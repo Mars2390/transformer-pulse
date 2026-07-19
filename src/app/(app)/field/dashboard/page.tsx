@@ -12,6 +12,7 @@ import {
   IconClipboard,
   IconArrowRight,
 } from "@/components/marketing/icons";
+import { regionWhere } from "@/lib/region-scope";
 
 export const metadata: Metadata = { title: "My work" };
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ const INSPECTION_DUE_SOON_DAYS = 150;
 
 export default async function FieldDashboard() {
   const user = await requireRole("FIELD_ENGINEER", "ADMIN");
-  const scope = user.region ? { region: user.region } : {};
+  const scope = regionWhere(user.region, user.role);
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
   const [inTransit, inField, nearby, myInstalls, myInspections, myFaults] = await Promise.all([

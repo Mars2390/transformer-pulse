@@ -5,6 +5,7 @@ import { Card, CardHeader } from "@/components/ui";
 import { InventoryTable, type InventoryRow } from "@/components/store/InventoryTable";
 import { computeWarranty, warrantyLabel } from "@/lib/warranty";
 import type { Prisma } from "@/generated/prisma/client";
+import { regionWhere } from "@/lib/region-scope";
 
 export const metadata: Metadata = { title: "Transformers" };
 export const dynamic = "force-dynamic";
@@ -15,11 +16,13 @@ export default async function TransformersPage() {
   // Everyone sees transformers, but scoped to their patch. A field engineer or
   // manager sees their region; a store keeper sees their store's region; an
   // admin sees everything.
+  // Region first, store second. An engineer or manager sees their whole region;
+  // a store keeper with no region falls back to their own store's stock.
   const where: Prisma.TransformerWhereInput =
     user.role === "ADMIN"
       ? {}
       : user.region
-        ? { region: user.region }
+        ? regionWhere(user.region, user.role)
         : user.storeId
           ? { currentStoreId: user.storeId }
           : {};
