@@ -15,12 +15,24 @@ console.log(`Promoting ${keys.length} of ${staged.totals.total} staged units (${
 let promoted = 0, skipped = 0, failed = 0;
 const reasons = new Map<string, number>();
 
-for (let i = 0; i < keys.length; i += 50) {
-  const slice = keys.slice(i, i + 50);
-  const res = await fetch(`${BASE}/api/inspections/promote`, {
-    method: "POST", headers: { "Content-Type": "application/json", cookie },
-    body: JSON.stringify({ keys: slice }),
-  });
+for (let i = 0; i < keys.length; i += 25) {
+  const slice = keys.slice(i, i + 25);
+  // Batches of 50 against a remote database exceed undici's 30 s header
+  // timeout. 25 at a time, with the timeout raised, keeps each request short
+  // enough to answer and small enough to retry cheaply.
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api/inspections/promote`, {
+      method: "POST", headers: { "Content-Type": "application/json", cookie },
+      body: JSON.stringify({ keys: slice }),
+      signal: AbortSignal.timeout(180_000),
+    });
+  } catch (e) {
+    console.log(`
+  batch at ${i} timed out, continuing: ${e instanceof Error ? e.message : e}`);
+    failed += slice.length;
+    continue;
+  }
   const d = await res.json();
   if (!res.ok) { console.log(`  batch ${i} FAILED: ${JSON.stringify(d).slice(0, 200)}`); failed += slice.length; continue; }
   promoted += d.promoted; skipped += d.skipped; failed += d.failed;
