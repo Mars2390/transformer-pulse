@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
-import { analyseDatasetById, ASSUMED_AMBIENT_C } from "@/lib/emdis-read";
+import { analyseDatasetById } from "@/lib/emdis-read";
 import { PhaseBars } from "@/components/control/PhaseBars";
 import { LIMITS } from "@/lib/load-analysis";
 import { LoadAnalysisActions } from "@/components/control/LoadAnalysisActions";
+import { LoadBalancingPanel } from "@/components/control/LoadBalancingPanel";
+import { ASSUMED_CUSTOMER_AMPS } from "@/lib/emdis-read";
 
 export const metadata: Metadata = { title: "Load analysis" };
 export const dynamic = "force-dynamic";
@@ -21,7 +23,8 @@ export default async function LoadAnalysisPage({
   const full = await analyseDatasetById(id);
   if (!full) notFound();
 
-  const { dataset, transformer, inspection, analysis: a, thermalByKva, thermalByPhase } = full;
+  const { dataset, transformer, inspection, analysis: a, thermalByKva, thermalByPhase,
+    environment, balance, capacity, prognosis, money, whatIfBalance, whatIfUprate, scorecard } = full;
   const label = transformer?.gNumber ?? dataset.substationCode ?? dataset.name;
 
   const critical = a.findings.filter((f) => f.severity === "CRITICAL");
@@ -166,7 +169,7 @@ export default async function LoadAnalysisPage({
       <div className="rounded-2xl border border-line bg-white">
         <div className="border-b border-line px-5 py-3">
           <h2 className="text-sm font-bold text-navy">
-            Thermal — IEC 60076-7, ambient {ASSUMED_AMBIENT_C} °C
+            Thermal — IEC 60076-7, ambient {environment.ambientC} °C
           </h2>
           <p className="mt-0.5 text-xs text-ink-soft">
             The hot-spot sits in the winding carrying the most current, not in an average.
@@ -279,6 +282,20 @@ export default async function LoadAnalysisPage({
         </ul>
       </div>
 
+      {/* --- Load balancing — the prescriptive layer ------------------------ */}
+      <LoadBalancingPanel
+        gNumber={transformer?.gNumber ?? null}
+        ratingKva={a.ratingKva}
+        balance={balance}
+        capacity={capacity}
+        prognosis={prognosis}
+        money={money}
+        whatIfBalance={whatIfBalance}
+        whatIfUprate={whatIfUprate}
+        scorecard={scorecard}
+        customerAmps={ASSUMED_CUSTOMER_AMPS}
+      />
+
       {/* --- Actions --------------------------------------------------------- */}
       <LoadAnalysisActions
         datasetId={dataset.id}
@@ -341,9 +358,9 @@ export default async function LoadAnalysisPage({
         <p className="mt-2">
           Rated phase current I = S / (√3 × V) = {a.ratingKva} kVA ÷ (√3 × {a.voltLL} V) ={" "}
           {a.ratedPhaseA.toFixed(0)} A. Unbalance is the NEMA definition — maximum deviation from the
-          three-phase mean. Thermal figures follow IEC 60076-7 at an assumed {ASSUMED_AMBIENT_C} °C
-          ambient; the transformer&apos;s own loss values would sharpen them, and they come from its
-          test certificate.
+          three-phase mean. Thermal figures follow IEC 60076-7 at {environment.ambientC} °C
+          ({environment.ambientSource}), rated against {environment.voltLL} V ({environment.voltSource}).
+          The transformer&apos;s own loss values, from its test certificate, would sharpen them further.
         </p>
       </div>
     </div>

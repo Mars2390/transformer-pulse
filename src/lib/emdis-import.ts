@@ -4,6 +4,8 @@ import type { MatchMethod } from "@/generated/prisma/enums";
 import { prisma } from "./prisma";
 import { parseCsv, parseXlsx } from "./import-parse";
 import { parseEmdisBlocks, normaliseSerialForMatch, type EmdisBlock } from "./emdis-parse";
+import { parseFlatTable, headerSignature } from "./flat-import";
+import { mapColumns, detectFormat, type CanonField, type ColumnMapping, type FormatDetection } from "./universal-columns";
 import { analyseReading, ratedPhaseCurrent, NOMINAL_VLL, LIMITS } from "./load-analysis";
 import { computeEventHash } from "./chain";
 
@@ -26,6 +28,19 @@ import { computeEventHash } from "./chain";
  */
 
 export type EmdisPreview = {
+  /** How the file was read, so the confirm screen can lead with it. */
+  layout: "emdis" | "flat-table";
+  detection: FormatDetection;
+  /** The column recognition, for the mapping table and the unmapped warning. */
+  columnMapping: {
+    columns: { index: number; header: string; mappedTo: CanonField | null }[];
+    unmapped: string[];
+    missing: CanonField[];
+    mappedCount: number;
+    totalColumns: number;
+  };
+  /** A saved profile whose header set matches this file, if one exists. */
+  matchedProfile: { id: string; name: string } | null;
   blocks: {
     substationCode: string | null;
     serial: string | null;
@@ -107,22 +122,125 @@ async function matchBlock(block: EmdisBlock) {
   return { transformerId: null, label: null, method: "UNRESOLVED" as MatchMethod, registerRatingKva: null };
 }
 
-async function readFile(buffer: ArrayBuffer, fileName: string): Promise<EmdisBlock[]> {
-  const grid = fileName.toLowerCase().endsWith(".csv")
-    ? parseCsv(new TextDecoder().decode(buffer))
-    : await parseXlsx(buffer);
-
-  const blocks = parseEmdisBlocks(grid);
-  if (!blocks.length) {
-    throw new Error(
-      "No EMDis blocks found. The export should begin with a line reading \"Transformer Substation: ...\" followed by a Timestamp header.",
-    );
-  }
-  return blocks;
+/** The engineer picked this transformer explicitly in the confirm screen. */
+async function matchChosen(transformerId: string) {
+  const t = await prisma.transformer.findUnique({
+    where: { id: transformerId },
+    select: { id: true, gNumber: true, serialNumber: true, ratingKva: true },
+  });
+  if (!t) return { transformerId: null, label: null, method: "UNRESOLVED" as MatchMethod, registerRatingKva: null };
+  return {
+    transformerId: t.id,
+    label: t.gNumber ?? t.serialNumber,
+    method: "MANUAL" as MatchMethod,
+    registerRatingKva: t.ratingKva,
+  };
 }
 
-export async function previewEmdis(buffer: ArrayBuffer, fileName: string): Promise<EmdisPreview> {
-  const blocks = await readFile(buffer, fileName);
+/** Persist the resolved mapping under a name, keyed on the header fingerprint. */
+async function saveProfile(
+  name: string,
+  mapping: ColumnMapping,
+  headerRow: string[],
+  actor: { id: string; name: string },
+) {
+  const map: Record<string, CanonField> = {};
+  for (const c of mapping.columns) if (c.mappedTo) map[c.header] = c.mappedTo;
+  const sig = headerSignature(headerRow);
+  await prisma.columnMappingProfile.upsert({
+    where: { name },
+    create: {
+      name, mapping: map, headerSignature: sig,
+      createdById: actor.id, createdByName: actor.name, timesUsed: 1,
+    },
+    update: { mapping: map, headerSignature: sig, lastUsedAt: new Date(), timesUsed: { increment: 1 } },
+  });
+}
+
+/** A file matched a saved profile — record that it was used again. */
+async function touchProfile(headerRow: string[]) {
+  const sig = headerSignature(headerRow);
+  if (!sig) return;
+  await prisma.columnMappingProfile.updateMany({
+    where: { headerSignature: sig },
+    data: { lastUsedAt: new Date(), timesUsed: { increment: 1 } },
+  });
+}
+
+async function readGrid(buffer: ArrayBuffer, fileName: string): Promise<string[][]> {
+  return fileName.toLowerCase().endsWith(".csv")
+    ? parseCsv(new TextDecoder().decode(buffer))
+    : await parseXlsx(buffer);
+}
+
+/** The header row a layout uses, for building the mapping display. */
+function headerRowOf(grid: string[][], layout: "emdis" | "flat-table"): string[] {
+  if (layout === "emdis") return grid.find((r) => /^timestamp$/i.test((r[0] ?? "").trim())) ?? [];
+  for (let i = 0; i < Math.min(grid.length, 10); i++) {
+    if (Object.keys(mapColumns(grid[i]).fieldToIndex).length >= 2) return grid[i];
+  }
+  return [];
+}
+
+type UniversalRead = {
+  layout: "emdis" | "flat-table";
+  blocks: EmdisBlock[];
+  detection: FormatDetection;
+  mapping: ColumnMapping;
+  headerRow: string[];
+};
+
+/**
+ * Read any supported file into blocks, and say how it was read.
+ *
+ * The EMDis report and a plain flat table both end up as `EmdisBlock[]`, so
+ * everything downstream — analysis, rollups, alerts — is written once. The
+ * difference between the two lives only here.
+ */
+async function readUniversal(
+  buffer: ArrayBuffer,
+  fileName: string,
+  mappingOverride?: Record<string, CanonField>,
+): Promise<UniversalRead> {
+  const grid = await readGrid(buffer, fileName);
+  const detection = detectFormat(grid);
+
+  if (detection.layout === "emdis") {
+    const blocks = parseEmdisBlocks(grid);
+    if (!blocks.length) {
+      throw new Error(
+        "This looked like an EMDis report but no readings were found under its header.",
+      );
+    }
+    const headerRow = headerRowOf(grid, "emdis");
+    return { layout: "emdis", blocks, detection, mapping: mapColumns(headerRow), headerRow };
+  }
+
+  // Flat table (or an unrecognised layout we still try to read as a table).
+  const flat = parseFlatTable(grid, mappingOverride);
+  if (!flat || !flat.block.rows.length) {
+    throw new Error(
+      "No readings could be read. The file needs a header row naming at least a timestamp and one " +
+        "current or voltage column, with the readings beneath it. Nothing recognisable was found.",
+    );
+  }
+  return {
+    layout: "flat-table",
+    blocks: [flat.block],
+    detection: flat.detection,
+    mapping: flat.mapping,
+    headerRow: headerRowOf(grid, "flat-table"),
+  };
+}
+
+export async function previewEmdis(
+  buffer: ArrayBuffer,
+  fileName: string,
+  mappingOverride?: Record<string, CanonField>,
+): Promise<EmdisPreview> {
+  const { layout, blocks, detection, mapping, headerRow } = await readUniversal(
+    buffer, fileName, mappingOverride,
+  );
 
   const out: EmdisPreview["blocks"] = [];
   for (const b of blocks) {
@@ -152,11 +270,36 @@ export async function previewEmdis(buffer: ArrayBuffer, fileName: string): Promi
     });
   }
 
+  const matchedProfile = await findMatchingProfile(headerRow);
+
   return {
+    layout,
+    detection,
+    columnMapping: {
+      columns: mapping.columns,
+      unmapped: mapping.unmapped,
+      missing: mapping.missing,
+      mappedCount: Object.keys(mapping.fieldToIndex).length,
+      totalColumns: mapping.columns.length,
+    },
+    matchedProfile,
     blocks: out,
     totalReadings: blocks.reduce((s, b) => s + b.rows.length, 0),
     rejected: blocks.reduce((s, b) => s + b.rejected, 0),
   };
+}
+
+/** A saved profile whose header fingerprint matches this file, if any. */
+async function findMatchingProfile(headerRow: string[]): Promise<{ id: string; name: string } | null> {
+  if (!headerRow.length) return null;
+  const sig = headerSignature(headerRow);
+  if (!sig) return null;
+  const hit = await prisma.columnMappingProfile.findFirst({
+    where: { headerSignature: sig },
+    select: { id: true, name: true },
+    orderBy: { lastUsedAt: "desc" },
+  });
+  return hit;
 }
 
 export type EmdisCommitResult = {
@@ -172,12 +315,32 @@ export type EmdisCommitResult = {
   totalReadings: number;
 };
 
+export type CommitOptions = {
+  /** For a flat table with no automatic match: the transformer the engineer
+   *  chose in the confirm screen. Applies to the single block a flat file has. */
+  transformerId?: string | null;
+  /** Header -> field corrections from the confirm screen or a saved profile. */
+  mappingOverride?: Record<string, CanonField>;
+  /** If set, save the resolved mapping under this name for next time. */
+  saveProfileName?: string | null;
+};
+
 export async function commitEmdis(
   buffer: ArrayBuffer,
   fileName: string,
   actor: { id: string; name: string },
+  options: CommitOptions = {},
 ): Promise<EmdisCommitResult> {
-  const blocks = await readFile(buffer, fileName);
+  const { layout, blocks, mapping, headerRow } = await readUniversal(
+    buffer, fileName, options.mappingOverride,
+  );
+
+  // Save or refresh the mapping profile, so the next identical file is instant.
+  if (options.saveProfileName?.trim()) {
+    await saveProfile(options.saveProfileName.trim(), mapping, headerRow, actor);
+  } else if (headerRow.length) {
+    await touchProfile(headerRow);
+  }
 
   const batch = await prisma.importBatch.create({
     data: {
@@ -193,7 +356,13 @@ export async function commitEmdis(
   let imported = 0;
 
   for (const block of blocks) {
-    const m = await matchBlock(block);
+    let m = await matchBlock(block);
+    // A flat file with one block and an engineer-chosen transformer overrides
+    // the automatic match — this is the "Select from register" path in the
+    // confirm screen, and the engineer's choice is authoritative.
+    if (layout === "flat-table" && blocks.length === 1 && options.transformerId) {
+      m = await matchChosen(options.transformerId);
+    }
     const sorted = [...block.rows].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
 
     // The register's rating wins when we have one. It is the value a human has

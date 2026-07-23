@@ -3,6 +3,7 @@ import { requireApiRole } from "@/lib/auth";
 import { apiError } from "@/lib/api";
 import { writeAudit } from "@/lib/audit";
 import { previewEmdis, commitEmdis } from "@/lib/emdis-import";
+import type { CanonField } from "@/lib/universal-columns";
 
 /**
  * EMDis load telemetry upload.
@@ -12,6 +13,17 @@ import { previewEmdis, commitEmdis } from "@/lib/emdis-import";
  */
 
 const MAX_BYTES = 40 * 1024 * 1024;
+
+/** A form field that may hold JSON (the column overrides). Bad JSON is ignored. */
+function parseJsonField(v: FormDataEntryValue | null): Record<string, string> | null {
+  if (typeof v !== "string" || !v.trim()) return null;
+  try {
+    const parsed = JSON.parse(v);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -33,11 +45,20 @@ export async function POST(request: Request) {
 
     const buffer = await file.arrayBuffer();
 
+    // Optional confirm-screen inputs, sent as JSON strings in the same form.
+    const mappingOverride = parseJsonField(form.get("mapping")) as Record<string, CanonField> | null;
+    const transformerId = (form.get("transformerId") as string) || null;
+    const saveProfileName = (form.get("saveProfileName") as string) || null;
+
     if (mode === "preview") {
-      return NextResponse.json(await previewEmdis(buffer, file.name));
+      return NextResponse.json(await previewEmdis(buffer, file.name, mappingOverride ?? undefined));
     }
 
-    const result = await commitEmdis(buffer, file.name, { id: actor.id, name: actor.name });
+    const result = await commitEmdis(
+      buffer, file.name,
+      { id: actor.id, name: actor.name },
+      { transformerId, mappingOverride: mappingOverride ?? undefined, saveProfileName },
+    );
 
     await writeAudit({
       actorId: actor.id,

@@ -1,7 +1,14 @@
 import "server-only";
 import { prisma } from "./prisma";
-import { analyseDataset, type DatasetAnalysis } from "./load-analysis";
+import { analyseDataset, ratedPhaseCurrent, NOMINAL_VLN, LIMITS, type DatasetAnalysis } from "./load-analysis";
 import { computeThermal, type ThermalResult } from "./transformer-thermal";
+import {
+  planBalance, assessCapacity, prognose, priceLossOfLife,
+  whatIfMove, whatIfUprate, scoreVoltageQuality, ambientForMonth,
+  type BalancePlan, type Capacity, type LifePrognosis, type LossOfLifeMoney,
+  type WhatIfResult, type VoltageScorecard,
+} from "./load-balancing";
+import { estimateNewUnitCostKes } from "./repair-economics";
 
 /**
  * Reading a dataset back out and analysing it.
@@ -52,10 +59,31 @@ export type FullAnalysis = {
    *  winding actually experiences. The gap between them is the finding. */
   thermalByKva: ThermalResult;
   thermalByPhase: ThermalResult;
+
+  // --- The prescriptive layer ---------------------------------------------
+  /** The ambient and voltage the analysis actually used, so a reader can see
+   *  they were derived, not assumed. */
+  environment: { voltLL: number; voltSource: string; ambientC: number; ambientSource: string };
+  balance: BalancePlan;
+  capacity: Capacity;
+  prognosis: LifePrognosis;
+  money: LossOfLifeMoney;
+  whatIfBalance: WhatIfResult | null;
+  whatIfUprate: WhatIfResult | null;
+  scorecard: VoltageScorecard;
 };
 
 /** Ambient for the thermal model. Nairobi runs 24-30 C; 28 is a fair working figure. */
 export const ASSUMED_AMBIENT_C = 28;
+
+/**
+ * Assumed current per single-phase customer at the evening peak, for turning an
+ * amperage into a customer count. Deliberately a round, conservative figure —
+ * a Kenyan domestic connection under load — and every screen that uses it says
+ * "about N meters", never a precise count. Real meter-level data would replace
+ * this with an exact list.
+ */
+export const ASSUMED_CUSTOMER_AMPS = 5;
 
 export async function analyseDatasetById(datasetId: string): Promise<FullAnalysis | null> {
   const ds = await prisma.emdisDataset.findUnique({
@@ -80,6 +108,15 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
   const ratingKva = ds.transformer?.ratingKva ?? ds.ratingKvaAsRecorded ?? 200;
   const insp = ds.transformer?.inspections?.[0] ?? null;
 
+  // --- Voltage, now dynamic ------------------------------------------------
+  // The rated current every per-phase judgement hangs on depends on the line
+  // voltage. EMDis is LV-side metering, so the transformer's secondary voltage
+  // is the right basis; fall back to the dataset's stored value, then to 415 V.
+  // Before this it was hardcoded to 415, which would be wrong by a factor of ~26
+  // for any 11 kV feeder reading.
+  const secondaryV = ds.transformer?.secondaryKv ? ds.transformer.secondaryKv * 1000 : null;
+  const voltLL = secondaryV && secondaryV > 100 ? secondaryV : ds.nominalVoltLL;
+
   const analysis = analyseDataset(
     rows.map((r) => ({
       recordedAt: r.recordedAt,
@@ -88,11 +125,64 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
       kva: r.kva, kw: r.kw, pf: r.pf, thdPct: r.thdPct, kwh: r.kwh,
     })),
     ratingKva,
-    ds.nominalVoltLL,
+    voltLL,
     { fuseSizeA: insp?.fuseSizeA ?? null },
   );
 
   const pf = analysis.powerFactor?.median ?? 0.95;
+
+  // --- Ambient, now dynamic ------------------------------------------------
+  // A hardcoded 28 C makes the hot-spot optimistic on a hot afternoon. Keyed on
+  // the month the data was actually recorded, a Nairobi seasonal figure is
+  // closer to the truth, and still falls back to 28 C when the month is unknown.
+  const ambientC = ambientForMonth(ds.firstReadingAt.getUTCMonth());
+
+  const iRated = ratedPhaseCurrent(ratingKva, voltLL);
+
+  // --- The worst single minute, for the balancing plan ---------------------
+  // Balancing is planned against the actual currents at the peak, not against
+  // three separate per-phase peaks that never happened at the same instant.
+  let worst = rows[0];
+  for (const r of rows) if ((r.maxPhaseC ?? 0) > (worst.maxPhaseC ?? 0)) worst = r;
+  const worstCurrents = { l1: worst.l1c ?? 0, l2: worst.l2c ?? 0, l3: worst.l3c ?? 0 };
+
+  const balance = planBalance(worstCurrents, ratingKva, voltLL, ASSUMED_CUSTOMER_AMPS);
+  const capacity = assessCapacity(worstCurrents, ratingKva, voltLL, ASSUMED_CUSTOMER_AMPS);
+
+  // --- Prognosis over the whole window -------------------------------------
+  const perReadingHotspot = rows.map((r) => {
+    const t = computeThermal({
+      loadKva: ((r.maxPhasePctRated ?? 0) / 100) * ratingKva,
+      ratingKva, ambientC, powerFactor: r.pf && r.pf > 0.1 ? r.pf : pf,
+    });
+    return t.hotspotC;
+  });
+  const prognosis = prognose(perReadingHotspot, analysis.spanHours);
+  const money = priceLossOfLife(prognosis.avgAgeingRate, estimateNewUnitCostKes(ratingKva), analysis.spanHours);
+
+  // --- What-if, precomputed for the two obvious interventions --------------
+  const baseThermal = computeThermal({
+    loadKva: (analysis.peakPhasePctRated / 100) * ratingKva, ratingKva, ambientC, powerFactor: pf,
+  });
+  const baselineForWhatIf = { hotspotC: baseThermal.hotspotC, ageingRate: baseThermal.ageingRate };
+  const whatIfBalance = balance.moves.length
+    ? whatIfMove(worstCurrents, ratingKva, voltLL, ambientC, pf, balance.moves[0], baselineForWhatIf)
+    : null;
+  const nextSize: Record<number, number> = { 50: 100, 100: 200, 200: 315, 315: 500, 500: 630, 630: 1000 };
+  const whatIfUp = nextSize[ratingKva]
+    ? whatIfUprate(worstCurrents, nextSize[ratingKva], voltLL, ambientC, pf, baselineForWhatIf)
+    : null;
+
+  // --- Voltage-quality scorecard -------------------------------------------
+  const scorecard = scoreVoltageQuality({
+    minVoltage: analysis.voltage?.min ?? null,
+    maxVoltage: analysis.voltage?.max ?? null,
+    nominalVln: NOMINAL_VLN,
+    medianThd: analysis.thd?.median ?? null,
+    thdLimit: LIMITS.thdVoltageLimit,
+    medianHz: null,
+    medianUnbalancePct: analysis.unbalance.median,
+  });
 
   return {
     dataset: {
@@ -130,15 +220,28 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
     analysis,
     // The kVA view: what a conventional report would conclude.
     thermalByKva: computeThermal({
-      loadKva: analysis.peakKva, ratingKva, ambientC: ASSUMED_AMBIENT_C, powerFactor: pf,
+      loadKva: analysis.peakKva, ratingKva, ambientC, powerFactor: pf,
     }),
     // The truth: the hot-spot sits in the winding carrying the most current.
-    thermalByPhase: computeThermal({
-      loadKva: (analysis.peakPhasePctRated / 100) * ratingKva,
-      ratingKva, ambientC: ASSUMED_AMBIENT_C, powerFactor: pf,
-    }),
+    thermalByPhase: baseThermal,
+
+    environment: {
+      voltLL,
+      voltSource: secondaryV && secondaryV > 100 ? "transformer secondary voltage" : "default 415 V (LV)",
+      ambientC,
+      ambientSource: `Nairobi seasonal (${ds.firstReadingAt.toLocaleString("en", { month: "short", timeZone: "UTC" })})`,
+    },
+    balance,
+    capacity,
+    prognosis,
+    money,
+    whatIfBalance,
+    whatIfUprate: whatIfUp,
+    scorecard,
   };
 }
+
+void ASSUMED_AMBIENT_C;
 
 /** Datasets available, newest first. */
 export async function listDatasets() {

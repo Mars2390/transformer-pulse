@@ -20,7 +20,8 @@ export default async function EmdisPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Load data</h1>
         <p className="mt-1 max-w-3xl text-sm text-ink-soft">
-          Three-phase telemetry from KPLC&apos;s EMDis. Each upload is analysed on ingest — per-phase
+          Load telemetry from any source — KPLC&apos;s EMDis reports and plain column tables are both
+          understood, the format detected automatically. Each upload is analysed on ingest — per-phase
           loading against rated current, unbalance, neutral, harmonics and thermal ageing — and any
           defect raises an alert without anyone asking.
         </p>

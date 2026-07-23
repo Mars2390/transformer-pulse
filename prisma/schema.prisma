@@ -1083,6 +1083,37 @@ model ImportBatch {
   @@index([kind, createdAt])
 }
 
+/**
+ * A saved column-mapping profile.
+ *
+ * The universal recognizer places most headers on its own, but the first time a
+ * new vendor's export arrives an engineer may confirm or correct a column or
+ * two. Saving that decision as a named profile means the next file with the same
+ * headers is recognised instantly — "George's EMDis v2", applied in one click —
+ * instead of re-confirming the same mapping every month.
+ */
+model ColumnMappingProfile {
+  id   String @id @default(cuid())
+  name String @unique
+
+  // header (exactly as written in the file) -> canonical field name. Held as
+  // JSON so the field vocabulary can grow without a migration; the recognizer
+  // owns the list of valid canonical fields.
+  mapping Json
+
+  // A fingerprint of the sorted, normalised header set, so a file that matches a
+  // saved profile can be spotted before the engineer even names it.
+  headerSignature String?
+
+  createdById   String
+  createdByName String
+  createdAt     DateTime @default(now())
+  lastUsedAt    DateTime @default(now())
+  timesUsed     Int      @default(0)
+
+  @@index([headerSignature])
+}
+
 // ============================================================================
 // THE REPAIR AND REPLACEMENT LOOP
 //
