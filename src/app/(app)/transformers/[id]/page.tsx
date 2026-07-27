@@ -7,8 +7,7 @@ import { verifyChain, type ChainLink } from "@/lib/chain";
 import { computeWarranty } from "@/lib/warranty";
 import { computeHealth, HEALTH_BAND_META } from "@/lib/health";
 import { Badge } from "@/components/ui";
-import { NavigateButton } from "@/components/field/NavigateButton";
-import { StreetViewButton } from "@/components/map/StreetViewButton";
+import { StoryLocationMap } from "@/components/transformer/StoryLocationMap";
 import { StoryTabs } from "@/components/transformer/StoryTabs";
 import type { WarrantyView } from "@/components/transformer/WarrantyTab";
 import type { StoryData, StoryEvent, StoryTest } from "@/components/transformer/story-types";
@@ -219,12 +218,6 @@ export default async function StoryPage({
               >
                 Download PDF
               </a>
-              {tx.currentLat != null && tx.currentLng != null && (
-                <>
-                  <NavigateButton lat={tx.currentLat} lng={tx.currentLng} label="Navigate to site" />
-                  <StreetViewButton lat={tx.currentLat} lng={tx.currentLng} />
-                </>
-              )}
               {canEditNameplate && (
                 <Link
                   href={`/transformers/${id}/edit`}
@@ -334,6 +327,16 @@ export default async function StoryPage({
           );
         })()}
       </div>
+
+      {/* --- Location ------------------------------------------------------ */}
+      {tx.currentLat != null && tx.currentLng != null && (
+        <div className="mt-6 rounded-2xl border border-line bg-white p-6">
+          <p className="text-[11px] font-bold tracking-wide text-ink-soft">LOCATION</p>
+          <div className="mt-3">
+            <StoryLocationMap lat={tx.currentLat} lng={tx.currentLng} />
+          </div>
+        </div>
+      )}
 
       {/* --- Tabs --------------------------------------------------------- */}
       <div className="mt-6">

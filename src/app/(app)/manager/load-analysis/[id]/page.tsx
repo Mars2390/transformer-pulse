@@ -8,6 +8,9 @@ import { LIMITS } from "@/lib/load-analysis";
 import { LoadAnalysisActions } from "@/components/control/LoadAnalysisActions";
 import { LoadBalancingPanel } from "@/components/control/LoadBalancingPanel";
 import { ASSUMED_CUSTOMER_AMPS } from "@/lib/emdis-read";
+import { computePhaseDistribution } from "@/lib/phase-distribution";
+import { OverloadedPhaseBanner } from "@/components/control/OverloadedPhaseBanner";
+import { PhaseDistributionPanel } from "@/components/control/PhaseDistributionPanel";
 
 export const metadata: Metadata = { title: "Load analysis" };
 export const dynamic = "force-dynamic";
@@ -31,6 +34,20 @@ export default async function LoadAnalysisPage({
   const warnings = a.findings.filter((f) => f.severity === "WARNING");
 
   const hrs = (m: number) => (m >= 120 ? `${(m / 60).toFixed(1)} h` : `${m.toFixed(0)} min`);
+
+  // --- Phase distribution — customer estimates by phase, KPLC R-Y-B ---------
+  const worstCurrents = {
+    l1: balance.present.find((p) => p.phase === "L1")?.amps ?? 0,
+    l2: balance.present.find((p) => p.phase === "L2")?.amps ?? 0,
+    l3: balance.present.find((p) => p.phase === "L3")?.amps ?? 0,
+  };
+  const distribution = computePhaseDistribution({
+    currents: worstCurrents,
+    ratedPhaseA: a.ratedPhaseA,
+    ratingKva: a.ratingKva,
+  });
+  const heaviestMinutesOverRated =
+    a.perPhase.find((p) => p.name === distribution.heaviest.phase)?.minutesOverRated ?? 0;
 
   return (
     <div className="space-y-6">
@@ -77,6 +94,18 @@ export default async function LoadAnalysisPage({
           </div>
         </div>
       </div>
+
+      {/* --- Most overloaded phase, up front --------------------------------- */}
+      <OverloadedPhaseBanner
+        heaviest={distribution.heaviest}
+        ratedPhaseA={a.ratedPhaseA}
+        minutesOverRated={heaviestMinutesOverRated}
+        hotspotC={thermalByPhase.hotspotC}
+        ageingRate={thermalByPhase.ageingRate}
+        yearsToEndOfLife={prognosis.yearsToEndOfLife}
+        currentPerHourKes={money.currentPerHourKes}
+        datasetId={dataset.id}
+      />
 
       {/* --- THE CONTRADICTION ---------------------------------------------- */}
       {a.hiddenOverloadMinutes > 0 && (
@@ -282,19 +311,29 @@ export default async function LoadAnalysisPage({
         </ul>
       </div>
 
-      {/* --- Load balancing — the prescriptive layer ------------------------ */}
-      <LoadBalancingPanel
+      {/* --- Phase distribution — estimated customers by phase --------------- */}
+      <PhaseDistributionPanel
         gNumber={transformer?.gNumber ?? null}
-        ratingKva={a.ratingKva}
-        balance={balance}
-        capacity={capacity}
-        prognosis={prognosis}
-        money={money}
-        whatIfBalance={whatIfBalance}
-        whatIfUprate={whatIfUprate}
-        scorecard={scorecard}
-        customerAmps={ASSUMED_CUSTOMER_AMPS}
+        ratedPhaseA={a.ratedPhaseA}
+        distribution={distribution}
+        neutral={{ amps: a.neutral.medianA, pctRated: a.neutral.medianPctRated }}
       />
+
+      {/* --- Load balancing — the prescriptive layer ------------------------ */}
+      <div id="balancing-plan" className="scroll-mt-20">
+        <LoadBalancingPanel
+          gNumber={transformer?.gNumber ?? null}
+          ratingKva={a.ratingKva}
+          balance={balance}
+          capacity={capacity}
+          prognosis={prognosis}
+          money={money}
+          whatIfBalance={whatIfBalance}
+          whatIfUprate={whatIfUprate}
+          scorecard={scorecard}
+          customerAmps={ASSUMED_CUSTOMER_AMPS}
+        />
+      </div>
 
       {/* --- Actions --------------------------------------------------------- */}
       <LoadAnalysisActions

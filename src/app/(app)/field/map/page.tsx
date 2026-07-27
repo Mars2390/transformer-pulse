@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
+import { FilterableMap, type MapRow } from "@/components/manager/FilterableMap";
 import { MAP_POINT_SELECT, toMapPoints } from "@/lib/map-points";
 import { EmptyState } from "@/components/ui";
 import { regionWhere } from "@/lib/region-scope";
+import { findArea, NAIROBI_AREAS } from "@/lib/areas";
 
 export const metadata: Metadata = { title: "Map" };
 export const dynamic = "force-dynamic";
@@ -22,7 +23,13 @@ export default async function FieldMapPage() {
     select: MAP_POINT_SELECT,
   });
 
-  const points: MapPoint[] = toMapPoints(transformers);
+  const points = toMapPoints(transformers);
+  const byId = new Map(transformers.map((t) => [t.id, t]));
+  const rows: MapRow[] = points.map((p) => {
+    const tx = byId.get(p.id)!;
+    return { ...p, area: findArea(tx.currentSiteName, tx.substationName, tx.feeder) };
+  });
+  const areasPresent = NAIROBI_AREAS.filter((a) => rows.some((r) => r.area === a));
 
   return (
     <div className="pb-20">
@@ -38,15 +45,13 @@ export default async function FieldMapPage() {
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-line">
-        {points.length ? (
-          <div className="h-[70vh]">
-            <TransformerMap points={points} height="70vh" zoom={10} />
-          </div>
-        ) : (
+      {points.length ? (
+        <FilterableMap rows={rows} areas={areasPresent} showManufacturerWarranty={false} />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-line">
           <EmptyState message="No transformers with a recorded location in your region yet." />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

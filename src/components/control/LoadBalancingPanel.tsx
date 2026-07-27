@@ -1,4 +1,5 @@
 import { formatKes } from "@/lib/format";
+import { PHASE_META, type PhaseKey } from "@/lib/phase-colors";
 import type { BalancePlan, Capacity, LifePrognosis, LossOfLifeMoney, WhatIfResult, VoltageScorecard } from "@/lib/load-balancing";
 
 /**
@@ -76,7 +77,7 @@ export function LoadBalancingPanel({
             <ul className="mt-2 space-y-1">
               {balance.moves.map((m, i) => (
                 <li key={i} className="text-sm font-semibold text-navy">
-                  • Move <span className="text-red-700">{m.amps} A</span> from {m.from} → {m.to}
+                  • Move <span className="text-red-700">{m.amps} A</span> from {PHASE_META[m.from].word} Phase → {PHASE_META[m.to].word} Phase
                 </li>
               ))}
             </ul>
@@ -216,10 +217,11 @@ export function LoadBalancingPanel({
 
 function PhaseRow({ name, amps, pct, target }: { name: string; amps: number; pct: number; target: boolean }) {
   const colour = pct >= 100 ? "#dc2626" : pct >= 80 ? "#d97706" : "#0e8a4f";
+  const label = PHASE_META[name as PhaseKey]?.label ?? name;
   return (
     <div className="mt-2 first:mt-3">
       <div className="flex items-baseline justify-between text-xs">
-        <span className="font-bold" style={{ color: target ? "#0e8a4f" : colour }}>{name}</span>
+        <span className="font-bold" style={{ color: target ? "#0e8a4f" : colour }}>{label}</span>
         <span className="font-mono tabular-nums" style={{ color: target ? "#0e8a4f" : colour }}>
           {amps.toFixed(0)} A · {pct.toFixed(0)}%
         </span>

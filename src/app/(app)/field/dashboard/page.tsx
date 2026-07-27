@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, EmptyState, Badge, StatTile } from "@/components/ui";
 import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
+import { MAP_POINT_SELECT, toMapPoints } from "@/lib/map-points";
 import { AutoRefresh } from "@/components/app/AutoRefresh";
 import { formatNumber, formatRating, formatRelative } from "@/lib/format";
 import {
@@ -57,11 +58,7 @@ export default async function FieldDashboard() {
     }),
     prisma.transformer.findMany({
       where: { ...scope, currentLat: { not: null }, currentLng: { not: null } },
-      select: {
-        id: true, gNumber: true, serialNumber: true, ratingKva: true,
-        status: true, currentLat: true, currentLng: true,
-        currentSiteName: true, feeder: true,
-      },
+      select: MAP_POINT_SELECT,
       take: 60,
     }),
     // My performance this month.
@@ -103,17 +100,7 @@ export default async function FieldDashboard() {
     .filter(({ days }) => days == null || days >= INSPECTION_DUE_SOON_DAYS)
     .sort((a, b) => (b.days ?? Infinity) - (a.days ?? Infinity)); // never-inspected first
 
-  const points: MapPoint[] = nearby.map((tx) => ({
-    id: tx.id,
-    gNumber: tx.gNumber,
-    serialNumber: tx.serialNumber,
-    ratingKva: tx.ratingKva,
-    status: tx.status,
-    lat: tx.currentLat!,
-    lng: tx.currentLng!,
-    siteName: tx.currentSiteName,
-    feeder: tx.feeder,
-  }));
+  const points: MapPoint[] = toMapPoints(nearby);
 
   const taskCount =
     awaitingReceipt.length + pendingInstall.length + inspectionsDue.length;

@@ -182,6 +182,12 @@ export function LoadAnalysisActions({
         >
           Export PDF
         </a>
+        <a
+          href={`/api/xlsx/load-analysis/${datasetId}`}
+          className="rounded-lg border border-line bg-white px-4 py-2 text-xs font-bold text-navy hover:border-kplc"
+        >
+          Export XLSX
+        </a>
         <Link
           href={`/kplc-control?dataset=${datasetId}`}
           className="rounded-lg border border-line bg-white px-4 py-2 text-xs font-bold text-navy hover:border-kplc"

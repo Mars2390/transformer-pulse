@@ -1,3 +1,10 @@
+import { PHASE_META, type PhaseKey } from "@/lib/phase-colors";
+
+/** "L1" → "L1 (Red Phase)" — every bar carries both names, per KPLC convention. */
+function kplcLabel(name: string): string {
+  return PHASE_META[name as PhaseKey]?.label ?? name;
+}
+
 /**
  * Three phases against their rated current.
  *
@@ -31,7 +38,7 @@ export function PhaseBars({
         <div key={p.name}>
           <div className="flex items-baseline justify-between text-[11px]">
             <span className="font-bold tracking-wide" style={{ color: colour(p.pctRated) }}>
-              {p.name}
+              {kplcLabel(p.name)}
             </span>
             <span className="font-mono tabular-nums">
               <span className="font-bold" style={{ color: colour(p.pctRated) }}>
