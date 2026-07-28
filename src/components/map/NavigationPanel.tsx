@@ -3,68 +3,74 @@
 import { useEffect, useState } from "react";
 import { CircleMarker, Polyline, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
+import { fetchRoute, type RouteResult } from "@/lib/routing-client";
 
-export type NavTarget = { lat: number; lng: number; label: string };
+export type NavTarget = { lat: number; lng: number; label: string; subtitle?: string | null };
 
-/** A conservative mixed urban/rural driving average for Kenyan roads. */
-const AVG_SPEED_KMH = 28;
+type Phase = "locating" | "need-input" | "searching" | "routing" | "ready";
 
-/** Great-circle distance between two points, in kilometres. No API, no key. */
-function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.asin(Math.sqrt(h));
+function fmtDist(m: number): string {
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
 /**
- * In-map navigation — the Bolt/Uber-style "where am I, where is it, how far"
- * view, built entirely on the free stack: the browser's own GPS, Nominatim for
- * a typed starting point, and a straight-line Haversine distance drawn as a
- * polyline. Nothing here calls out to Google Maps; the whole thing lives on
- * this Leaflet instance.
- *
- * Straight-line distance rather than a routed distance is an honest
- * simplification: with no turn-by-turn OSRM server to call, quoting a road
- * distance we did not actually compute would be a fabricated figure with a
- * confident decimal point. The travel-time estimate is scaled up from the
- * straight-line figure precisely because real roads are never straight.
+ * In-map, Bolt/Uber-style navigation: real road routing via our OpenRouteService
+ * proxy (turn-by-turn, road-following polyline), with a transparent straight-line
+ * fallback the moment the routing API is unavailable or rate-limited. Nothing
+ * here calls out to Google Maps; the whole thing lives on this Leaflet instance.
  */
-export function NavigationPanel({ target, onClose }: { target: NavTarget; onClose: () => void }) {
+export function NavigationPanel({
+  target,
+  onClose,
+  onSatellite,
+}: {
+  target: NavTarget;
+  onClose: () => void;
+  onSatellite?: () => void;
+}) {
   const map = useMap();
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
-  const [status, setStatus] = useState<"locating" | "need-input" | "searching" | "ready">("locating");
+  const [phase, setPhase] = useState<Phase>("locating");
+  const [route, setRoute] = useState<RouteResult | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  async function routeFrom(o: { lat: number; lng: number }, force = false) {
+    setPhase("routing");
+    const outcome = await fetchRoute(o, { lat: target.lat, lng: target.lng }, { force });
+    setRoute(outcome.route);
+    setRouteError(outcome.error);
+    setPhase("ready");
+    const bounds = L.latLngBounds(outcome.route.path.length > 1 ? outcome.route.path : [[o.lat, o.lng], [target.lat, target.lng]]);
+    map.flyToBounds(bounds, { padding: [48, 48] });
+  }
 
   useEffect(() => {
     if (!("geolocation" in navigator)) {
-      setStatus("need-input");
+      setPhase("need-input");
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const o = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setOrigin(o);
-        setStatus("ready");
-        map.flyToBounds(L.latLngBounds([[o.lat, o.lng], [target.lat, target.lng]]), { padding: [48, 48] });
+        void routeFrom(o);
       },
-      () => setStatus("need-input"),
+      () => setPhase("need-input"),
       { enableHighAccuracy: true, timeout: 8000 },
       // eslint-disable-next-line react-hooks/exhaustive-deps
     );
-  }, [map, target.lat, target.lng]);
+  }, [target.lat, target.lng]);
 
   async function searchOrigin(e: React.FormEvent) {
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
-    setStatus("searching");
-    setError(null);
+    setPhase("searching");
+    setSearchError(null);
     try {
       const url = new URL("https://nominatim.openstreetmap.org/search");
       url.searchParams.set("q", `${q}, Kenya`);
@@ -73,123 +79,195 @@ export function NavigationPanel({ target, onClose }: { target: NavTarget; onClos
       const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
       const hits = (await res.json()) as { lat: string; lon: string }[];
       if (!hits.length) {
-        setError(`Nothing found for "${q}".`);
-        setStatus("need-input");
+        setSearchError(`Nothing found for "${q}".`);
+        setPhase("need-input");
         return;
       }
       const o = { lat: Number(hits[0].lat), lng: Number(hits[0].lon) };
       setOrigin(o);
-      setStatus("ready");
-      map.flyToBounds(L.latLngBounds([[o.lat, o.lng], [target.lat, target.lng]]), { padding: [48, 48] });
+      await routeFrom(o);
     } catch {
-      setError("Search is unavailable right now — try again.");
-      setStatus("need-input");
+      setSearchError("Search is unavailable right now — try again.");
+      setPhase("need-input");
     }
   }
 
-  const distanceKm = origin ? haversineKm(origin, target) : null;
-  // +35% over the straight line for real road wander, then at the average
-  // speed above — a rough but honest planning figure, not a routed ETA.
-  const minutes = distanceKm != null ? Math.round(((distanceKm * 1.35) / AVG_SPEED_KMH) * 60) : null;
+  async function retry() {
+    if (!origin) return;
+    setRetrying(true);
+    await routeFrom(origin, true);
+    setRetrying(false);
+  }
+
+  const visibleSteps = route && expanded ? route.steps : route?.steps.slice(0, 4) ?? [];
+  const roadRoute = route?.source === "road";
 
   return (
     <>
       {origin && (
-        <>
-          <CircleMarker
-            center={[origin.lat, origin.lng]}
-            radius={9}
-            pathOptions={{ color: "#ffffff", weight: 2, fillColor: "#2563eb", fillOpacity: 0.95 }}
-          >
-            <Tooltip permanent direction="top" offset={[0, -8]}>
-              You are here
-            </Tooltip>
-          </CircleMarker>
-          <Polyline
-            positions={[[origin.lat, origin.lng], [target.lat, target.lng]]}
-            pathOptions={{ color: "#2563eb", weight: 4, opacity: 0.85 }}
-          />
-          <CircleMarker
-            center={[target.lat, target.lng]}
-            radius={9}
-            pathOptions={{ color: "#ffffff", weight: 2, fillColor: "#c02626", fillOpacity: 0.95 }}
-          >
-            <Tooltip permanent direction="top" offset={[0, -8]}>
-              {target.label}
-            </Tooltip>
-          </CircleMarker>
-        </>
+        <CircleMarker
+          center={[origin.lat, origin.lng]}
+          radius={9}
+          pathOptions={{ color: "#ffffff", weight: 2, fillColor: "#0e8a4f", fillOpacity: 0.95 }}
+        >
+          <Tooltip permanent direction="top" offset={[0, -8]}>Start</Tooltip>
+        </CircleMarker>
       )}
 
-      <div className="leaflet-top leaflet-left" style={{ marginTop: 70 }}>
-        <div className="leaflet-control m-3 w-72 rounded-xl border border-line bg-white/97 p-3.5 shadow-xl backdrop-blur">
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-extrabold tracking-[0.08em] text-[#0a1a4f]">
-              📍 NAVIGATE TO {target.label}
-            </p>
+      {route && (
+        <Polyline
+          positions={route.path}
+          pathOptions={
+            roadRoute
+              ? { color: "#2563eb", weight: 5, opacity: 0.9 }
+              : { color: "#2563eb", weight: 4, opacity: 0.7, dashArray: "2 10" }
+          }
+        >
+          <Tooltip
+            permanent
+            direction="center"
+            className="!rounded-full !border-0 !bg-[#2563eb] !px-2 !py-0.5 !text-[10px] !font-bold !text-white !shadow-md"
+          >
+            {route.distanceKm.toFixed(1)} km
+          </Tooltip>
+        </Polyline>
+      )}
+
+      <CircleMarker
+        center={[target.lat, target.lng]}
+        radius={9}
+        pathOptions={{ color: "#ffffff", weight: 2, fillColor: "#c02626", fillOpacity: 0.95 }}
+      >
+        <Tooltip permanent direction="top" offset={[0, -8]}>{target.label}</Tooltip>
+      </CircleMarker>
+
+      <div className="leaflet-bottom leaflet-left">
+        <div className="leaflet-control m-3 flex max-h-[70vh] w-[min(92vw,320px)] flex-col overflow-hidden rounded-2xl border border-line bg-white/97 shadow-2xl backdrop-blur">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <div className="min-w-0">
+              <p className="truncate text-[12px] font-extrabold tracking-[0.04em] text-[#0a1a4f]">
+                📍 NAVIGATION TO {target.label}
+              </p>
+              {target.subtitle && (
+                <p className="truncate text-[10px] text-[#5b6480]">{target.subtitle}</p>
+              )}
+            </div>
             <button
               onClick={onClose}
-              className="rounded px-1.5 py-0.5 text-xs font-bold text-[#5b6480] hover:bg-black/5"
+              className="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-[#5b6480] hover:bg-black/5"
               aria-label="Close navigation"
             >
               ✕
             </button>
           </div>
 
-          {status === "locating" && (
-            <p className="mt-2 text-xs text-[#5b6480]">Finding your location…</p>
-          )}
-
-          {status === "ready" && distanceKm != null && (
-            <div className="mt-2 rounded-lg bg-[#eff6ff] px-3 py-2.5">
-              <p className="text-sm font-extrabold text-[#1d4ed8]">
-                Distance: {distanceKm.toFixed(1)} km
-              </p>
-              <p className="text-xs font-semibold text-[#1d4ed8]">
-                Estimated travel: ~{minutes} minutes
-              </p>
-              <p className="mt-1 text-[10px] text-[#5b6480]">
-                Straight-line distance with a road-wander allowance — no live routing service is
-                connected, so treat this as a planning figure, not turn-by-turn directions.
-              </p>
-            </div>
-          )}
-
-          {status === "need-input" && (
-            <div className="mt-2">
+          <div className="overflow-y-auto px-4 py-3">
+            {(phase === "locating" || phase === "routing") && (
               <p className="text-xs text-[#5b6480]">
-                {error ?? "Location wasn't shared. Enter a starting point instead."}
+                {phase === "locating" ? "Finding your location…" : "Calculating route…"}
               </p>
-              <form onSubmit={searchOrigin} className="mt-2 flex gap-1.5">
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Enter starting location…"
-                  className="min-w-0 flex-1 rounded-lg border border-[#e3e6ec] px-2 py-1.5 text-xs outline-none focus:border-[#0e8a4f]"
-                />
+            )}
+
+            {phase === "ready" && route && (
+              <>
+                <div className={`rounded-xl px-3 py-2.5 ${roadRoute ? "bg-[#eff6ff]" : "bg-amber-50"}`}>
+                  <p className={`text-sm font-extrabold ${roadRoute ? "text-[#1d4ed8]" : "text-amber-800"}`}>
+                    🚗 {route.distanceKm.toFixed(1)} km · ⏱️ {Math.round(route.durationMin)} minutes
+                  </p>
+                  {!roadRoute && (
+                    <>
+                      <p className="mt-1 text-[10px] leading-snug text-amber-800">
+                        ~{route.distanceKm.toFixed(1)} km estimated — road routing unavailable
+                        {routeError ? ` (${routeError})` : ""}.
+                      </p>
+                      <button
+                        onClick={retry}
+                        disabled={retrying}
+                        className="mt-1.5 rounded-lg bg-amber-600 px-2.5 py-1 text-[10px] font-bold text-white disabled:opacity-50"
+                      >
+                        {retrying ? "Retrying…" : "Try again"}
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {roadRoute && route.steps.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-extrabold tracking-[0.08em] text-[#5b6480]">TURN-BY-TURN</p>
+                    <ol className="mt-1.5 space-y-1.5">
+                      {visibleSteps.map((s, i) => (
+                        <li key={i} className="flex gap-2 text-[11px] leading-snug text-[#1c1f1f]">
+                          <span className="shrink-0 font-bold text-[#2563eb]">{i + 1}.</span>
+                          <span>
+                            {s.instruction}
+                            {s.distanceM > 0 ? ` (${fmtDist(s.distanceM)})` : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                    {route.steps.length > 4 && (
+                      <button
+                        onClick={() => setExpanded((v) => !v)}
+                        className="mt-2 text-[10px] font-bold text-[#2563eb] underline"
+                      >
+                        {expanded ? "Show less" : `Show all ${route.steps.length} steps`}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-3 flex gap-1.5 border-t border-line pt-3">
+                  {onSatellite && (
+                    <button
+                      onClick={onSatellite}
+                      className="flex-1 rounded-lg border border-[#e3e6ec] px-2 py-2 text-[11px] font-bold text-[#0a1a4f]"
+                    >
+                      🛰️ Satellite View
+                    </button>
+                  )}
+                  {roadRoute && route.steps.length > 4 && (
+                    <button
+                      onClick={() => setExpanded((v) => !v)}
+                      className="flex-1 rounded-lg border border-[#e3e6ec] px-2 py-2 text-[11px] font-bold text-[#0a1a4f]"
+                    >
+                      📋 {expanded ? "Less" : "View Details"}
+                    </button>
+                  )}
+                </div>
+
                 <button
-                  type="submit"
-                  className="shrink-0 rounded-lg bg-[#0a1a4f] px-2.5 py-1.5 text-xs font-bold text-white"
+                  onClick={() => { setOrigin(null); setRoute(null); setPhase("need-input"); }}
+                  className="mt-2 text-[10px] font-bold text-[#5b6480] underline"
                 >
-                  Go
+                  Use a different starting point
                 </button>
-              </form>
-            </div>
-          )}
+              </>
+            )}
 
-          {status === "searching" && <p className="mt-2 text-xs text-[#5b6480]">Searching…</p>}
+            {phase === "need-input" && (
+              <div>
+                <p className="text-xs text-[#5b6480]">
+                  {searchError ?? "Location wasn't shared. Enter a starting point instead."}
+                </p>
+                <form onSubmit={searchOrigin} className="mt-2 flex gap-1.5">
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Enter starting location…"
+                    className="min-w-0 flex-1 rounded-lg border border-[#e3e6ec] px-2 py-2 text-xs outline-none focus:border-[#0e8a4f]"
+                  />
+                  <button
+                    type="submit"
+                    className="shrink-0 rounded-lg bg-[#0a1a4f] px-3 py-2 text-xs font-bold text-white"
+                  >
+                    Go
+                  </button>
+                </form>
+              </div>
+            )}
 
-          {origin && status === "ready" && (
-            <button
-              onClick={() => {
-                setOrigin(null);
-                setStatus("need-input");
-              }}
-              className="mt-2 text-[10px] font-bold text-[#5b6480] underline"
-            >
-              Use a different starting point
-            </button>
-          )}
+            {phase === "searching" && <p className="text-xs text-[#5b6480]">Searching…</p>}
+          </div>
         </div>
       </div>
     </>

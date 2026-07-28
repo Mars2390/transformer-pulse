@@ -153,6 +153,7 @@ export default function TransformerMapInner({
       lat: point.lat,
       lng: point.lng,
       label: point.gNumber ? `G-${point.gNumber}` : point.serialNumber,
+      subtitle: [point.substationName, point.siteName].filter(Boolean).join(", ") || null,
     });
   }
 
@@ -194,7 +195,16 @@ export default function TransformerMapInner({
         );
       })}
 
-      {navTarget && <NavigationPanel target={navTarget} onClose={() => setNavTarget(null)} />}
+      {navTarget && (
+        <NavigationPanel
+          target={navTarget}
+          onClose={() => setNavTarget(null)}
+          onSatellite={() => {
+            setLayer("satellite");
+            mapRef.current?.flyTo([navTarget.lat, navTarget.lng], 19, { duration: 0.8 });
+          }}
+        />
+      )}
 
       <Legend showEstimated={anyGeocoded} points={points} />
     </MapContainer>

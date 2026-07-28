@@ -3,22 +3,9 @@
 import { useState } from "react";
 import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { fetchRoute, type RouteResult } from "@/lib/routing-client";
 
 const ESRI_IMAGERY = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
-
-/** A conservative mixed urban/rural driving average for Kenyan roads. */
-const AVG_SPEED_KMH = 28;
-
-function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.asin(Math.sqrt(h));
-}
 
 /**
  * The story page's own small map + navigate panel. Deliberately self-contained
@@ -26,7 +13,8 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
  * can be any role, and the mini map should not have to guess which full map
  * they are allowed to open. Distance/time are shown as plain text under the
  * map rather than drawn as an overlay control, because 300x200 has no room for
- * a floating panel.
+ * a floating panel; the road route itself is not drawn here for the same
+ * reason — see the full map for the turn-by-turn view.
  */
 export default function StoryLocationMapInner({
   lat,
@@ -40,9 +28,20 @@ export default function StoryLocationMapInner({
   const [satellite, setSatellite] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
-  const [status, setStatus] = useState<"idle" | "locating" | "need-input" | "searching" | "ready">("idle");
+  const [status, setStatus] = useState<"idle" | "locating" | "routing" | "need-input" | "searching" | "ready">("idle");
+  const [route, setRoute] = useState<RouteResult | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  async function routeFrom(o: { lat: number; lng: number }, force = false) {
+    setStatus("routing");
+    const outcome = await fetchRoute(o, { lat, lng }, { force });
+    setRoute(outcome.route);
+    setRouteError(outcome.error);
+    setStatus("ready");
+  }
 
   function locate() {
     setNavOpen(true);
@@ -54,8 +53,9 @@ export default function StoryLocationMapInner({
     setStatus("locating");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setStatus("ready");
+        const o = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setOrigin(o);
+        void routeFrom(o);
       },
       () => setStatus("need-input"),
       { enableHighAccuracy: true, timeout: 8000 },
@@ -80,16 +80,23 @@ export default function StoryLocationMapInner({
         setStatus("need-input");
         return;
       }
-      setOrigin({ lat: Number(hits[0].lat), lng: Number(hits[0].lon) });
-      setStatus("ready");
+      const o = { lat: Number(hits[0].lat), lng: Number(hits[0].lon) };
+      setOrigin(o);
+      await routeFrom(o);
     } catch {
       setError("Search is unavailable right now — try again.");
       setStatus("need-input");
     }
   }
 
-  const distanceKm = origin ? haversineKm(origin, { lat, lng }) : null;
-  const minutes = distanceKm != null ? Math.round(((distanceKm * 1.35) / AVG_SPEED_KMH) * 60) : null;
+  async function retry() {
+    if (!origin) return;
+    setRetrying(true);
+    await routeFrom(origin, true);
+    setRetrying(false);
+  }
+
+  const roadRoute = route?.source === "road";
 
   return (
     <div>
@@ -141,19 +148,33 @@ export default function StoryLocationMapInner({
 
       {navOpen && (
         <div className="mt-2 w-[300px] max-w-full rounded-lg border border-line bg-surface-2 p-3 text-xs">
-          {status === "locating" && <p className="text-ink-soft">Finding your location…</p>}
-          {status === "ready" && distanceKm != null && (
+          {(status === "locating" || status === "routing") && (
+            <p className="text-ink-soft">
+              {status === "locating" ? "Finding your location…" : "Calculating route…"}
+            </p>
+          )}
+          {status === "ready" && route && (
             <>
-              <p className="font-extrabold text-navy">
-                Distance: {distanceKm.toFixed(1)} km · Estimated travel: ~{minutes} minutes
+              <p className={`font-extrabold ${roadRoute ? "text-navy" : "text-amber-800"}`}>
+                🚗 {route.distanceKm.toFixed(1)} km · ⏱️ ~{Math.round(route.durationMin)} minutes
               </p>
               <p className="mt-1 text-[10px] leading-snug text-ink-soft">
-                Straight-line distance with a road-wander allowance — a planning figure, no live
-                routing service is connected.
+                {roadRoute
+                  ? "Real road-routed distance and time."
+                  : `Straight-line estimate with a road-wander allowance — road routing unavailable${routeError ? ` (${routeError})` : ""}.`}
               </p>
+              {!roadRoute && (
+                <button
+                  onClick={retry}
+                  disabled={retrying}
+                  className="mt-1.5 rounded-lg bg-amber-600 px-2.5 py-1 text-[10px] font-bold text-white disabled:opacity-50"
+                >
+                  {retrying ? "Retrying…" : "Try again"}
+                </button>
+              )}
               <button
-                onClick={() => { setOrigin(null); setStatus("need-input"); }}
-                className="mt-1 text-[10px] font-bold text-ink-soft underline"
+                onClick={() => { setOrigin(null); setRoute(null); setStatus("need-input"); }}
+                className="mt-1.5 block text-[10px] font-bold text-ink-soft underline"
               >
                 Use a different starting point
               </button>
