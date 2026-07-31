@@ -31,6 +31,7 @@ export async function GET() {
         tool: e.tool,
         success: e.success,
         errorMessage: e.errorMessage,
+        argsSummary: e.argsSummary,
         authMethod: e.authMethod,
         occurredAt: e.occurredAt.toISOString(),
       })),

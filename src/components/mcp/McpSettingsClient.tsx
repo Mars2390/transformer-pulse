@@ -29,6 +29,7 @@ type LogRow = {
   tool: string;
   success: boolean;
   errorMessage: string | null;
+  argsSummary: string | null;
   authMethod: string | null;
   occurredAt: string;
 };
@@ -337,7 +338,11 @@ export function McpSettingsClient({
                     {e.success ? (
                       <span className="font-bold text-kplc">OK</span>
                     ) : (
-                      <span className="font-bold text-red-700" title={e.errorMessage ?? undefined}>Failed</span>
+                      <div>
+                        <span className="font-bold text-red-700">Failed</span>
+                        {e.errorMessage && <div className="mt-0.5 text-[11px] text-red-700">{e.errorMessage}</div>}
+                        {e.argsSummary && <div className="mt-0.5 max-w-xs truncate font-mono text-[10px] text-ink-soft" title={e.argsSummary}>{e.argsSummary}</div>}
+                      </div>
                     )}
                   </td>
                 </tr>

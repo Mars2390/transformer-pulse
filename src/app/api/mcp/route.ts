@@ -184,7 +184,32 @@ export async function POST(request: Request) {
 
   // --- Auth ------------------------------------------------------------------
   const credential = extractCredential(request, url);
-  if (!credential) return unauthorized(origin, "Sign-in required. Connect via OAuth or provide an API key.");
+  if (!credential) {
+    // Every client's very first contact looks like this — no token yet. Log
+    // it (unlike the branches below, this one previously vanished silently),
+    // so a real connection attempt that fails here is actually visible in
+    // the access log rather than leaving no trace at all.
+    let body: unknown = null;
+    try {
+      body = await request.clone().json();
+    } catch {
+      // Not JSON, or empty — fine, this is diagnostic only.
+    }
+    await logMcpAccess({
+      userId: null,
+      tokenId: null,
+      tool: "auth",
+      argsSummary: JSON.stringify({
+        method: (body as JsonRpcRequest | null)?.method ?? null,
+        userAgent: request.headers.get("user-agent"),
+        accept: request.headers.get("accept"),
+      }).slice(0, 300),
+      success: false,
+      errorMessage: "no_credential",
+      authMethod: "NONE",
+    });
+    return unauthorized(origin, "Sign-in required. Connect via OAuth or provide an API key.");
+  }
 
   const verified = await verifyAccessToken(credential.token);
   if (!verified.ok) {
