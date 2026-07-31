@@ -77,7 +77,6 @@ enum SupplyRequestStatus {
 /**
  * Where a transformer's COORDINATES came from — a different question from where
  * its record came from.
- *
  * A pin placed by someone standing under the transformer and a pin derived from
  * the words "Wanyee rd" are both dots on a map, and a map that draws them
  * identically is lying by omission. Every view colours by this.
@@ -148,7 +147,6 @@ enum TestStage {
 
 /**
  * How a measurement that should be a number came back.
- *
  * An earth tester reading "OL" is NOT missing data. KPLC confirm it means OVER
  * RANGE: the resistance is beyond what the instrument can measure, which in
  * practice means there is no effective earth. Storing that as null loses a
@@ -179,7 +177,9 @@ enum FuseBarType {
   PLASTIC // the file spells this "plasctic"
 }
 
-/** What the inspector prescribed when loading was not okay. */
+/**
+ * What the inspector prescribed when loading was not okay.
+ */
 enum LoadAction {
   PHASE_BALANCING
   RELIEVE
@@ -188,7 +188,9 @@ enum LoadAction {
   DERATE
 }
 
-/** How an imported row found its transformer — recorded so the join is auditable. */
+/**
+ * How an imported row found its transformer — recorded so the join is auditable.
+ */
 enum MatchMethod {
   G_NUMBER
   SERIAL
@@ -200,6 +202,17 @@ enum MatchMethod {
 enum ImportKind {
   INSPECTION
   EMDIS
+}
+
+enum McpTokenKind {
+  OAUTH // issued through the browser consent flow
+  MANUAL // generated directly from the settings page
+}
+
+enum McpAuthMethod {
+  OAUTH
+  API_KEY
+  NONE
 }
 
 enum ConflictStatus {
@@ -263,10 +276,10 @@ enum AlertSeverity {
 // ============================== People =====================================
 
 model User {
-  id     String @id @default(cuid())
-  name   String
-  email  String @unique
-  phone  String?
+  id          String  @id @default(cuid())
+  name        String
+  email       String  @unique
+  phone       String?
   staffNumber String? @unique
 
   // A 6-digit PIN, bcrypt-hashed. We never store the PIN itself, so a database
@@ -286,18 +299,18 @@ model User {
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
 
-  active    Boolean  @default(true)
+  active        Boolean   @default(true)
   // Set true after an admin resets the PIN, so the user is nudged to change it.
-  mustChangePin Boolean @default(false)
+  mustChangePin Boolean   @default(false)
   lastLoginAt   DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  events            LifecycleEvent[]
-  tests             TestRecord[]
-  claimsRaised      WarrantyClaim[]  @relation("ClaimRaisedBy")
-  alertsAcknowledged Alert[]         @relation("AlertAcknowledgedBy")
-  auditEntries      AuditLog[]       @relation("AuditActor")
+  events             LifecycleEvent[]
+  tests              TestRecord[]
+  claimsRaised       WarrantyClaim[]  @relation("ClaimRaisedBy")
+  alertsAcknowledged Alert[]          @relation("AlertAcknowledgedBy")
+  auditEntries       AuditLog[]       @relation("AuditActor")
 
   // KPLC data operations
   inspectionsCarriedOut SubstationInspection[] @relation("InspectionInspector")
@@ -307,6 +320,10 @@ model User {
   supplyRequestsRaised   SupplyRequest[] @relation("SupplyRaisedBy")
   supplyRequestsApproved SupplyRequest[] @relation("SupplyApprovedBy")
   allocationsMade        Allocation[]    @relation("AllocatedBy")
+
+  mcpSettingsUpdates McpSettings[]  @relation("McpSettingsUpdatedBy")
+  mcpTokensIssued    McpToken[]     @relation("McpTokenIssuedTo")
+  mcpAccessLogs      McpAccessLog[] @relation("McpAccessLogUser")
 
   @@index([role])
   @@index([region])
@@ -319,16 +336,16 @@ model User {
 // answers "who changed this account, and when", not "what happened to a
 // transformer".
 model AuditLog {
-  id       String   @id @default(cuid())
-  actorId  String
-  actor    User     @relation("AuditActor", fields: [actorId], references: [id])
+  id      String @id @default(cuid())
+  actorId String
+  actor   User   @relation("AuditActor", fields: [actorId], references: [id])
 
-  action     String // CREATE | EDIT | DISABLE | ENABLE | UNLOCK | RESET_PIN | DELETE
-  targetType String // User | Manufacturer | Store
-  targetId   String
+  action      String // CREATE | EDIT | DISABLE | ENABLE | UNLOCK | RESET_PIN | DELETE
+  targetType  String // User | Manufacturer | Store
+  targetId    String
   targetLabel String // human-readable name at the time, so it survives deletion
-  details    String? // "Changed role from FIELD_ENGINEER to MANAGER"
-  reason     String?
+  details     String? // "Changed role from FIELD_ENGINEER to MANAGER"
+  reason      String?
 
   createdAt DateTime @default(now())
 
@@ -338,13 +355,13 @@ model AuditLog {
 }
 
 model Store {
-  id      String  @id @default(cuid())
-  name    String
-  code    String  @unique
-  region  String
-  county  String
-  lat     Float?
-  lng     Float?
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  region    String
+  county    String
+  lat       Float?
+  lng       Float?
   createdAt DateTime @default(now())
 
   users        User[]
@@ -388,10 +405,10 @@ model Transformer {
 
   // --- Nameplate ----------------------------------------------------------
   ratingKva         Int // 50, 100, 200, 315, 500 ...
-  primaryKv         Float  @default(11)
-  secondaryKv       Float  @default(0.415)
-  phases            Int    @default(3)
-  coolingType       String @default("ONAN")
+  primaryKv         Float   @default(11)
+  secondaryKv       Float   @default(0.415)
+  phases            Int     @default(3)
+  coolingType       String  @default("ONAN")
   impedancePct      Float?
   vectorGroup       String? // e.g. Dyn11
   oilVolumeLitres   Int?
@@ -455,11 +472,17 @@ model Transformer {
   // it, and the map legend says so.
   verifiedAt DateTime?
 
-  /** How the coordinates above were obtained. Drives the map pin. */
-  positionSource PositionSource?
-  /** Best-case accuracy in metres, for the popup. Geocoding is 50-200 m. */
-  positionAccuracyM Int?
-  /** The text a geocode was derived from, so a wrong pin can be traced. */
+  /**
+   * How the coordinates above were obtained. Drives the map pin.
+   */
+  positionSource     PositionSource?
+  /**
+   * Best-case accuracy in metres, for the popup. Geocoding is 50-200 m.
+   */
+  positionAccuracyM  Int?
+  /**
+   * The text a geocode was derived from, so a wrong pin can be traced.
+   */
   positionSourceText String?
 
   // --- KPLC's own identifier ----------------------------------------------
@@ -484,17 +507,19 @@ model Transformer {
   // Drives the repair list. Recomputed whenever either score changes.
   priorityRank Int?
 
-  inspections    SubstationInspection[]
-  emdisDatasets  EmdisDataset[]
-  emdisHourly    EmdisHourly[]
-  conflicts      RecordConflict[]
+  inspections   SubstationInspection[]
+  emdisDatasets EmdisDataset[]
+  emdisHourly   EmdisHourly[]
+  conflicts     RecordConflict[]
 
   repairs             RepairRecord[]
   allocations         Allocation[]
   replacementRequests SupplyRequest[] @relation("ReplacementFor")
 
-  /** How many times this unit has been through a workshop. A transformer on
-   *  its third repair is telling you something a single record cannot. */
+  /**
+   * How many times this unit has been through a workshop. A transformer on
+   * its third repair is telling you something a single record cannot.
+   */
   repairCount Int @default(0)
 
   // Hash of the most recent event. The chain's head — see lib/chain.ts.
@@ -574,9 +599,9 @@ model LifecycleEvent {
   // When a faulty unit is swapped, the old unit's RECOVERED event and the new
   // unit's INSTALLED event point at each other. That is how the manager sees
   // "this replaced that" without a separate table.
-  linkedEventId String?          @unique
-  linkedEvent   LifecycleEvent?  @relation("EventLink", fields: [linkedEventId], references: [id])
-  linkedBy      LifecycleEvent?  @relation("EventLink")
+  linkedEventId String?         @unique
+  linkedEvent   LifecycleEvent? @relation("EventLink", fields: [linkedEventId], references: [id])
+  linkedBy      LifecycleEvent? @relation("EventLink")
 
   tests TestRecord[]
 
@@ -702,7 +727,7 @@ model MeterReading {
   // An Int identity, not a cuid: a single upload is ~96,000 rows and a 25-byte
   // random id on every one of them is pure overhead for data we only ever read
   // back by (dataset, interval, batch).
-  id        Int    @id @default(autoincrement())
+  id        Int          @id @default(autoincrement())
   datasetId String
   dataset   MeterDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
 
@@ -761,7 +786,6 @@ model Alert {
 /**
  * One inspection visit. APPEND-ONLY: a later visit never overwrites an earlier
  * one, because the disagreements between visits are themselves the finding.
- *
  * In the first 1,536 real records, 266 transformers were inspected more than
  * once and 82 of those visits disagree about the make or the rating — twice on
  * the same day by different inspectors. Paper cannot disagree with itself, so
@@ -913,7 +937,6 @@ model EmdisDataset {
 
 /**
  * One instant of three-phase measurement.
- *
  * An Int identity, not a cuid: one transformer at 1-minute resolution is about
  * 525,000 rows a year. Raw readings are kept for a rolling window; dashboards
  * read EmdisHourly instead.
@@ -1021,7 +1044,6 @@ model EmdisHourly {
 
 /**
  * Two records of the same transformer that cannot both be true.
- *
  * Raised by the importer, never resolved by it. Import does not get to decide
  * which inspector was right — it surfaces the disagreement, and a named human
  * settles it with a stated reason.
@@ -1056,7 +1078,9 @@ model RecordConflict {
   @@index([status])
 }
 
-/** One upload. Makes every import reviewable, attributable and reversible. */
+/**
+ * One upload. Makes every import reviewable, attributable and reversible.
+ */
 model ImportBatch {
   id   String     @id @default(cuid())
   kind ImportKind
@@ -1085,7 +1109,6 @@ model ImportBatch {
 
 /**
  * A saved column-mapping profile.
- *
  * The universal recognizer places most headers on its own, but the first time a
  * new vendor's export arrives an engineer may confirm or correct a column or
  * two. Saving that decision as a named profile means the next file with the same
@@ -1128,7 +1151,6 @@ model ColumnMappingProfile {
 
 /**
  * One visit to the workshop.
- *
  * Separate from LifecycleEvent because a repair is a PROCESS with a beginning,
  * a middle and an outcome, while an event is an instant. The events record that
  * it arrived and that it left; this records what happened in between, what it
@@ -1140,7 +1162,9 @@ model RepairRecord {
   transformerId String
   transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
 
-  /** The RECEIVED_AT_WORKSHOP event that opened this repair. */
+  /**
+   * The RECEIVED_AT_WORKSHOP event that opened this repair.
+   */
   lifecycleEventId String?
   lifecycleEvent   LifecycleEvent? @relation("RepairOpenedBy", fields: [lifecycleEventId], references: [id])
 
@@ -1159,8 +1183,10 @@ model RepairRecord {
   repairActions String? // what was done
   partsReplaced String? // bushings, gaskets, oil, windings
 
-  repairCostKes    Float?
-  /** Set when the workshop finishes, successfully or not. */
+  repairCostKes     Float?
+  /**
+   * Set when the workshop finishes, successfully or not.
+   */
   repairCompletedAt DateTime?
 
   /**
@@ -1170,7 +1196,9 @@ model RepairRecord {
    */
   repairWarrantyMonths Int? @default(3)
 
-  /** IR, WR, oil BDV and ratio measured after the work. */
+  /**
+   * IR, WR, oil BDV and ratio measured after the work.
+   */
   postRepairTestId String?
   postRepairTest   TestRecord? @relation("PostRepairTest", fields: [postRepairTestId], references: [id])
 
@@ -1190,19 +1218,19 @@ model RepairRecord {
 
 /**
  * A site that needs a transformer and does not have one.
- *
  * This is the part of the cycle paper loses completely. A transformer fails, is
  * carried away, and the site waits — but nothing anywhere holds the fact that
  * customers are off supply, how long they have been off, or who is accountable
  * for ending it. A fault is closed when the unit is recovered; the OUTAGE is
  * not over until something is energised in its place.
- *
  * Raised by a field engineer, approved by a manager, satisfied by an allocation.
  */
 model SupplyRequest {
   id String @id @default(cuid())
 
-  /** Short human reference, e.g. SR-2026-0041, for radio and WhatsApp. */
+  /**
+   * Short human reference, e.g. SR-2026-0041, for radio and WhatsApp.
+   */
   reference String @unique
 
   // --- Where -------------------------------------------------------------
@@ -1215,11 +1243,13 @@ model SupplyRequest {
   landmark       String?
 
   // --- What is needed ----------------------------------------------------
-  ratingKvaNeeded Int
-  reason          SupplyRequestReason
-  /** The unit that failed, when this request replaces one. */
+  ratingKvaNeeded     Int
+  reason              SupplyRequestReason
+  /**
+   * The unit that failed, when this request replaces one.
+   */
   failedTransformerId String?
-  failedTransformer   Transformer? @relation("ReplacementFor", fields: [failedTransformerId], references: [id])
+  failedTransformer   Transformer?        @relation("ReplacementFor", fields: [failedTransformerId], references: [id])
 
   /**
    * How many customers are off supply. The number that turns an engineering
@@ -1230,7 +1260,7 @@ model SupplyRequest {
 
   // --- Who ---------------------------------------------------------------
   raisedById String
-  raisedBy   User   @relation("SupplyRaisedBy", fields: [raisedById], references: [id])
+  raisedBy   User     @relation("SupplyRaisedBy", fields: [raisedById], references: [id])
   raisedAt   DateTime @default(now())
   notes      String?
 
@@ -1240,10 +1270,10 @@ model SupplyRequest {
   // A field engineer reports the need; a manager authorises spending an asset
   // on it. Keeping those separate is what stops the store being emptied by
   // whoever shouts loudest.
-  approvedById   String?
-  approvedBy     User?     @relation("SupplyApprovedBy", fields: [approvedById], references: [id])
-  approvedAt     DateTime?
-  approvalNotes  String?
+  approvedById    String?
+  approvedBy      User?     @relation("SupplyApprovedBy", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  approvalNotes   String?
   rejectionReason String?
 
   allocations Allocation[]
@@ -1258,7 +1288,6 @@ model SupplyRequest {
 
 /**
  * A specific transformer, reserved for a specific site, on a specific date.
- *
  * The reservation is the point. Without it two engineers can be promised the
  * same unit by two different people, and the second one discovers it at the
  * roadside with a crane hired. A transformer is either free or it is spoken
@@ -1274,10 +1303,12 @@ model Allocation {
   transformer   Transformer @relation(fields: [transformerId], references: [id])
 
   allocatedById String
-  allocatedBy   User   @relation("AllocatedBy", fields: [allocatedById], references: [id])
+  allocatedBy   User     @relation("AllocatedBy", fields: [allocatedById], references: [id])
   allocatedAt   DateTime @default(now())
 
-  /** When the crew intends to energise it. */
+  /**
+   * When the crew intends to energise it.
+   */
   plannedInstallDate DateTime?
 
   status AllocationStatus @default(RESERVED)
@@ -1285,7 +1316,9 @@ model Allocation {
   releasedAt    DateTime?
   releaseReason String?
 
-  /** The INSTALLED event that closed this allocation. */
+  /**
+   * The INSTALLED event that closed this allocation.
+   */
   fulfilledEventId String?
   fulfilledAt      DateTime?
 
@@ -1300,4 +1333,92 @@ model Allocation {
   @@index([transformerId, status])
   @@index([requestId])
   @@index([status, plannedInstallDate])
+}
+
+// ============================================================================
+// MCP (Model Context Protocol) — read-only analytics access for Claude
+// ============================================================================
+// Lets an authorised engineer or manager ask Claude natural-language questions
+// about the fleet — health, load, warranty, defects — over a small set of
+// read-only tools. Three concerns, three tables: who is ALLOWED to connect
+// (McpOAuthClient, registered once per client app such as Claude Desktop), who
+// HAS connected (McpToken — revocable, and never a bare secret at rest; only
+// its id and metadata are stored, the bearer credential itself is a signed
+// JWT carrying that id), and what they actually asked (McpAccessLog, the audit
+// trail an admin reviews).
+
+/**
+ * Singleton row — read via getMcpSettings(), which creates it on first read.
+ */
+model McpSettings {
+  id String @id @default(cuid())
+
+  enabled          Boolean @default(true)
+  rateLimitPerHour Int     @default(400)
+
+  // Admin can lock any other role out independently. Admin itself is never
+  // gated here — whoever can turn MCP off must always be able to turn it back on.
+  managerEnabled       Boolean @default(true)
+  storeKeeperEnabled   Boolean @default(true)
+  fieldEngineerEnabled Boolean @default(false)
+
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation("McpSettingsUpdatedBy", fields: [updatedById], references: [id])
+}
+
+/**
+ * A client app that registered itself via Dynamic Client Registration (RFC 7591) — e.g. Claude Desktop.
+ */
+model McpOAuthClient {
+  id           String   @id @default(cuid()) // this IS the client_id
+  clientName   String?
+  redirectUris String[] // exact match required at /authorize and /token — the open-redirect guard
+  createdAt    DateTime @default(now())
+
+  tokens McpToken[]
+}
+
+/**
+ * A live access grant. The bearer token handed to the client is a signed JWT
+ * embedding this row's id as `jti` — the JWT signature is the actual secret;
+ * this row is never a credential by itself, only a revocation and audit handle.
+ */
+model McpToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("McpTokenIssuedTo", fields: [userId], references: [id])
+
+  clientId String?
+  client   McpOAuthClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  kind       McpTokenKind @default(OAUTH)
+  label      String?
+  expiresAt  DateTime
+  revoked    Boolean      @default(false)
+  lastUsedAt DateTime?
+  createdAt  DateTime     @default(now())
+
+  accessLogs McpAccessLog[]
+
+  @@index([userId])
+}
+
+model McpAccessLog {
+  id      String    @id @default(cuid())
+  userId  String?
+  user    User?     @relation("McpAccessLogUser", fields: [userId], references: [id])
+  tokenId String?
+  token   McpToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+
+  tool         String
+  argsSummary  String?
+  success      Boolean
+  errorMessage String?
+  authMethod   McpAuthMethod?
+
+  occurredAt DateTime @default(now())
+
+  @@index([occurredAt])
+  @@index([userId])
 }

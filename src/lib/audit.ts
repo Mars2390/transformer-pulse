@@ -18,7 +18,7 @@ export async function writeAudit(
   entry: {
     actorId: string;
     action: "CREATE" | "EDIT" | "DISABLE" | "ENABLE" | "UNLOCK" | "RESET_PIN" | "DELETE";
-    targetType: "User" | "Manufacturer" | "Store" | "Transformer";
+    targetType: "User" | "Manufacturer" | "Store" | "Transformer" | "McpSettings" | "McpToken";
     targetId: string;
     targetLabel: string;
     details?: string;

@@ -110,9 +110,9 @@ export function roleHome(role: Role): string {
 
 /** Which URL prefixes each role may enter. */
 export const ROLE_AREAS: Record<Role, string[]> = {
-  ADMIN: ["/admin", "/transformers", "/manager", "/store", "/field", "/kplc-control"],
-  MANAGER: ["/manager", "/transformers", "/kplc-control"],
-  STORE_KEEPER: ["/store", "/transformers"],
+  ADMIN: ["/admin", "/transformers", "/manager", "/store", "/field", "/kplc-control", "/mcp"],
+  MANAGER: ["/manager", "/transformers", "/kplc-control", "/mcp"],
+  STORE_KEEPER: ["/store", "/transformers", "/mcp"],
   FIELD_ENGINEER: ["/field", "/transformers"],
 };
 

@@ -24,6 +24,7 @@ const NAV: Record<Role, { href: string; label: string }[]> = {
     { href: "/admin/stores", label: "Stores" },
     { href: "/admin/audit", label: "Audit" },
     { href: "/admin/chain", label: "Chain" },
+    { href: "/mcp", label: "MCP" },
   ],
   MANAGER: [
     { href: "/manager/dashboard", label: "Dashboard" },
@@ -31,10 +32,12 @@ const NAV: Record<Role, { href: string; label: string }[]> = {
     { href: "/manager/warranty", label: "Warranty" },
     { href: "/manager/reports", label: "Reports" },
     { href: "/manager/search", label: "Search" },
+    { href: "/mcp", label: "MCP" },
   ],
   STORE_KEEPER: [
     { href: "/store/dashboard", label: "Store" },
     { href: "/transformers", label: "Transformers" },
+    { href: "/mcp", label: "MCP" },
   ],
   FIELD_ENGINEER: [
     { href: "/field/dashboard", label: "My work" },

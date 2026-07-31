@@ -39,6 +39,8 @@ export type PriorityRow = {
   substationCode: string | null;
   siteName: string | null;
   status: string;
+  manufacturerId: string;
+  manufacturerName: string;
 
   electrical: number | null;
   physical: number | null;
@@ -83,6 +85,7 @@ export async function buildPriorityList(opts?: {
       id: true, gNumber: true, serialNumber: true, ratingKva: true, region: true,
       substationCode: true, currentSiteName: true, status: true,
       lastInspectionAt: true, structureCondition: true, yearOfManufacture: true,
+      manufacturerId: true, manufacturer: { select: { name: true } },
     },
   });
   if (!transformers.length) return [];
@@ -218,6 +221,7 @@ export async function buildPriorityList(opts?: {
     rows.push({
       id: t.id, gNumber: t.gNumber, serialNumber: t.serialNumber, ratingKva: t.ratingKva,
       region: t.region, substationCode: t.substationCode, siteName: t.currentSiteName, status: t.status,
+      manufacturerId: t.manufacturerId, manufacturerName: t.manufacturer.name,
       electrical, physical, priority,
       topReason: reasons[0] ?? "No defect recorded",
       reasons,
