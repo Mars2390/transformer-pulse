@@ -1,4 +1,4 @@
-import "server-only";
+import "./server-guard";
 import { prisma } from "./prisma";
 import { LIMITS } from "./load-analysis";
 import { bandOf, correctIrTo20C, wrDeviationPct, IR_LIMITS, EARTH_LIMIT_OHM, EARTH_CRITICAL_OHM } from "./insulation";

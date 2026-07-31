@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-guard";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@/generated/prisma/enums";
 import type { McpSettings } from "@/generated/prisma/client";

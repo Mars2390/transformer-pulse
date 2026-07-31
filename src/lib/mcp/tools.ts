@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-guard";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { buildPriorityList } from "@/lib/combined-health";

@@ -1,4 +1,4 @@
-import "server-only";
+import "./server-guard";
 import { prisma } from "./prisma";
 
 /**
