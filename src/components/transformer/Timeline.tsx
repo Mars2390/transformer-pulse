@@ -6,6 +6,8 @@ import { MiniMap } from "@/components/map/MiniMap";
 import { Badge } from "@/components/ui";
 import { Lightbox, type LightboxPhoto } from "./Lightbox";
 import type { StoryEvent } from "./story-types";
+import type { RepairView } from "./RepairsTab";
+import { formatKes } from "@/lib/format";
 import {
   EVENT_META,
   ROLE_LABELS,
@@ -29,14 +31,26 @@ const EVENT_DOT: Record<string, string> = {
  * what happened LAST. "Start of story" sits at the very bottom so the whole
  * life reads as one thread from birth to now.
  */
-export function Timeline({ events }: { events: StoryEvent[] }) {
+export function Timeline({
+  events,
+  year = "ALL",
+  compareYear = null,
+  repairs = [],
+}: {
+  events: StoryEvent[];
+  year?: number | "ALL";
+  compareYear?: number | null;
+  repairs?: RepairView[];
+}) {
   const [lightbox, setLightbox] = useState<number | null>(null);
 
-  // A flat list of every photo across every event, for the lightbox to page
-  // through — with a caption that says which event it came from.
+  const shown = year === "ALL" ? events : events.filter((e) => new Date(e.occurredAt).getFullYear() === year);
+
+  // A flat list of every photo across every SHOWN event, for the lightbox to
+  // page through — with a caption that says which event it came from.
   const allPhotos: LightboxPhoto[] = [];
   const photoIndexByUrl = new Map<string, number>();
-  for (const event of events) {
+  for (const event of shown) {
     for (const url of event.photoUrls) {
       photoIndexByUrl.set(url, allPhotos.length);
       allPhotos.push({
@@ -48,11 +62,25 @@ export function Timeline({ events }: { events: StoryEvent[] }) {
 
   return (
     <div className="relative">
+      {/* --- Year summary ---------------------------------------------------- */}
+      {year !== "ALL" && (
+        <div className="mb-5 rounded-xl border border-line bg-surface-2 px-4 py-3">
+          {compareYear != null ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <YearSummaryLine year={year} events={events} repairs={repairs} />
+              <YearSummaryLine year={compareYear} events={events} repairs={repairs} />
+            </div>
+          ) : (
+            <YearSummaryLine year={year} events={events} repairs={repairs} />
+          )}
+        </div>
+      )}
+
       {/* The spine. */}
       <div className="absolute bottom-4 left-[19px] top-4 w-px bg-line sm:left-[23px]" aria-hidden="true" />
 
       <ol className="space-y-5">
-        {events.map((event) => {
+        {shown.map((event) => {
           const meta = EVENT_META[event.type];
           const dot = EVENT_DOT[meta.tone] ?? EVENT_DOT.neutral;
 
@@ -197,5 +225,25 @@ export function Timeline({ events }: { events: StoryEvent[] }) {
         onNavigate={setLightbox}
       />
     </div>
+  );
+}
+
+/** "2025: 2 inspections, 1 load check, 1 fault reported, KES 0 in repairs" */
+function YearSummaryLine({ year, events, repairs }: { year: number; events: StoryEvent[]; repairs: RepairView[] }) {
+  const yearEvents = events.filter((e) => new Date(e.occurredAt).getFullYear() === year);
+  const inspections = yearEvents.filter((e) => e.type === "INSPECTED").length;
+  const loadChecks = yearEvents.filter((e) => e.type === "LOAD_CHECK_RECORDED").length;
+  const faults = yearEvents.filter((e) => e.type === "FAULT_REPORTED").length;
+  const repairCost = repairs
+    .filter((r) => new Date(r.receivedAtWorkshop).getFullYear() === year)
+    .reduce((s, r) => s + (r.repairCostKes ?? 0), 0);
+
+  return (
+    <p className="text-xs font-semibold text-navy">
+      <span className="font-extrabold">{year}:</span>{" "}
+      {yearEvents.length} event{yearEvents.length === 1 ? "" : "s"} · {inspections} inspection{inspections === 1 ? "" : "s"},{" "}
+      {loadChecks} load check{loadChecks === 1 ? "" : "s"}, {faults} fault{faults === 1 ? "" : "s"} reported,{" "}
+      {formatKes(repairCost)} in repairs
+    </p>
   );
 }

@@ -63,11 +63,22 @@ export type PriorityRow = {
  * the register is a thousand units and climbing, and a scoring pass that issues
  * a query per asset stops being usable at exactly the point it becomes useful.
  */
-export async function buildPriorityList(opts?: { region?: string | null }): Promise<PriorityRow[]> {
-  const where = opts?.region ? { region: opts.region } : {};
+export async function buildPriorityList(opts?: {
+  region?: string | null;
+  /** Score only these transformers — used for a single-unit lookup or a targeted cache refresh after an upload. */
+  transformerIds?: string[];
+  /** Score every status, not just IN_FIELD/FAULTY. The repair queue only wants units still in service; a cache
+   *  refresh or a story-page lookup wants a score regardless of where the unit currently sits. */
+  allStatuses?: boolean;
+}): Promise<PriorityRow[]> {
+  const where = {
+    ...(opts?.region ? { region: opts.region } : {}),
+    ...(opts?.allStatuses ? {} : { status: { in: ["IN_FIELD", "FAULTY"] as ("IN_FIELD" | "FAULTY")[] } }),
+    ...(opts?.transformerIds ? { id: { in: opts.transformerIds } } : {}),
+  };
 
   const transformers = await prisma.transformer.findMany({
-    where: { ...where, status: { in: ["IN_FIELD", "FAULTY"] } },
+    where,
     select: {
       id: true, gNumber: true, serialNumber: true, ratingKva: true, region: true,
       substationCode: true, currentSiteName: true, status: true,
@@ -230,10 +241,16 @@ export async function buildPriorityList(opts?: { region?: string | null }): Prom
   return rows;
 }
 
-/** Persist the cached scores so lists and maps do not recompute. */
-export async function refreshCachedScores(): Promise<number> {
-  const rows = await buildPriorityList();
-  let n = 0;
+/**
+ * Persist the cached scores so lists and maps do not recompute.
+ *
+ * Pass `transformerIds` to rescore only the units an upload just touched —
+ * called after every EMDis/inspection commit — rather than the whole fleet on
+ * every single file. Called with no arguments it refreshes everyone, which is
+ * what a scheduled/manual full resync would want.
+ */
+export async function refreshCachedScores(opts?: { transformerIds?: string[] }): Promise<PriorityRow[]> {
+  const rows = await buildPriorityList({ transformerIds: opts?.transformerIds, allStatuses: true });
   for (const r of rows) {
     await prisma.transformer.update({
       where: { id: r.id },
@@ -243,7 +260,6 @@ export async function refreshCachedScores(): Promise<number> {
         priorityRank: r.priority,
       },
     });
-    n++;
   }
-  return n;
+  return rows;
 }

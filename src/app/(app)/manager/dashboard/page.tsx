@@ -182,6 +182,7 @@ export default async function ManagerDashboard() {
             <ActionLink href="/manager/map" variant="primary">View full map</ActionLink>
             <ActionLink href="/manager/search" variant="secondary">Search transformers</ActionLink>
             <ActionLink href="/manager/warranty" variant="secondary">Warranty claims</ActionLink>
+            <ActionLink href="/manager/manufacturers" variant="secondary">Manufacturer performance</ActionLink>
             <ActionLink href="/manager/reports" variant="secondary">Reports</ActionLink>
           </div>
 

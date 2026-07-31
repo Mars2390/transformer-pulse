@@ -22,7 +22,15 @@ const STAGE_LABEL: Record<string, string> = {
  * is the story of a unit weeks from a fault, and the sparklines make that
  * visible at a glance.
  */
-export function TestsTab({ tests }: { tests: StoryTest[] }) {
+export function TestsTab({
+  tests,
+  year = "ALL",
+  compareYear = null,
+}: {
+  tests: StoryTest[];
+  year?: number | "ALL";
+  compareYear?: number | null;
+}) {
   if (tests.length === 0) {
     return <EmptyState message="No tests have been recorded for this transformer yet." />;
   }
@@ -32,6 +40,7 @@ export function TestsTab({ tests }: { tests: StoryTest[] }) {
     (a, b) => new Date(a.testedAt).getTime() - new Date(b.testedAt).getTime(),
   );
   const newestFirst = [...chronological].reverse();
+  const shown = year === "ALL" ? newestFirst : newestFirst.filter((t) => new Date(t.testedAt).getFullYear() === year);
 
   const series = (key: keyof StoryTest) =>
     chronological
@@ -40,6 +49,20 @@ export function TestsTab({ tests }: { tests: StoryTest[] }) {
 
   return (
     <div className="space-y-6">
+      {/* --- Year min/max/avg ----------------------------------------------- */}
+      {year !== "ALL" && (
+        <div className="rounded-2xl border border-line bg-surface-2 p-4">
+          {compareYear != null ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <YearStatBlock label={String(year)} tests={tests} year={year} />
+              <YearStatBlock label={String(compareYear)} tests={tests} year={compareYear} />
+            </div>
+          ) : (
+            <YearStatBlock label={String(year)} tests={tests} year={year} />
+          )}
+        </div>
+      )}
+
       {/* --- Trends ------------------------------------------------------- */}
       <div className="grid gap-4 sm:grid-cols-3">
         <TrendCard title="Oil breakdown voltage" note={`fault below ${OIL_BDV_MIN_KV} kV`}>
@@ -68,7 +91,7 @@ export function TestsTab({ tests }: { tests: StoryTest[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {newestFirst.map((test) => (
+            {shown.map((test) => (
               <tr key={test.id} className="hover:bg-surface">
                 <td className="px-4 py-3 text-ink-soft">{formatDate(test.testedAt)}</td>
                 <td className="px-4 py-3 font-medium text-navy">
@@ -126,5 +149,44 @@ function Cell({
       {value}
       <span className="ml-0.5 text-[10px] font-normal text-ink-soft">{unit}</span>
     </td>
+  );
+}
+
+function statOf(tests: StoryTest[], year: number, key: keyof StoryTest) {
+  const vals = tests
+    .filter((t) => new Date(t.testedAt).getFullYear() === year)
+    .map((t) => t[key])
+    .filter((v): v is number => typeof v === "number");
+  if (!vals.length) return null;
+  return { min: Math.min(...vals), max: Math.max(...vals), avg: vals.reduce((s, v) => s + v, 0) / vals.length };
+}
+
+/** Min / max / avg for every test value recorded in one year. */
+function YearStatBlock({ label, tests, year }: { label: string; tests: StoryTest[]; year: number }) {
+  const count = tests.filter((t) => new Date(t.testedAt).getFullYear() === year).length;
+  const irHv = statOf(tests, year, "insulationResistanceHvMohm");
+  const irLv = statOf(tests, year, "insulationResistanceLvMohm");
+  const bdv = statOf(tests, year, "oilBdvKv");
+
+  return (
+    <div>
+      <p className="text-xs font-extrabold text-navy">{label} — {count} test{count === 1 ? "" : "s"}</p>
+      <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+        <StatCell label="IR HV (MΩ)" s={irHv} />
+        <StatCell label="IR LV (MΩ)" s={irLv} />
+        <StatCell label="Oil BDV (kV)" s={bdv} />
+      </dl>
+    </div>
+  );
+}
+
+function StatCell({ label, s }: { label: string; s: { min: number; max: number; avg: number } | null }) {
+  return (
+    <div>
+      <dt className="text-ink-soft">{label}</dt>
+      <dd className="font-bold text-navy">
+        {s ? `${s.min.toFixed(1)}–${s.max.toFixed(1)} (avg ${s.avg.toFixed(1)})` : "—"}
+      </dd>
+    </div>
   );
 }

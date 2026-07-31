@@ -9,6 +9,7 @@ import type { TransformerStatus } from "@/generated/prisma/enums";
 import { formatRating, STATUS_META } from "@/lib/format";
 import type { PhaseKey } from "@/lib/phase-colors";
 import { NavigationPanel, type NavTarget } from "@/components/map/NavigationPanel";
+import { HEALTH_STATUS_META, type HealthStatusLevel } from "@/lib/health-status";
 
 export type MapPoint = {
   id: string;
@@ -37,6 +38,8 @@ export type MapPoint = {
   phasePct?: { l1: number; l2: number; l3: number } | null;
   /** 0-100 cached condition band, or null when not yet measured. */
   healthScore?: number | null;
+  /** The 5-level status shown on the badge — Healthy/Breathing/Surviving/Critical/Deceased. */
+  healthStatus?: { level: HealthStatusLevel; explanation: string } | null;
   /** Most recent EMDis dataset for this unit, so the popup can link to it. */
   latestDatasetId?: string | null;
 };
@@ -263,6 +266,17 @@ function PinPopup({
           {status.label}
         </span>
       </div>
+
+      {point.healthStatus && (
+        <p
+          className="mt-1 text-[10px] font-bold"
+          style={{ color: HEALTH_STATUS_META[point.healthStatus.level].colour }}
+          title={point.healthStatus.explanation}
+        >
+          {HEALTH_STATUS_META[point.healthStatus.level].emoji} {HEALTH_STATUS_META[point.healthStatus.level].label.toUpperCase()}
+          <span className="ml-1 font-semibold text-[#5b6480]">— {point.healthStatus.explanation}</span>
+        </p>
+      )}
 
       <p className="mt-1 text-[11px] text-[#5b6480]">
         {[point.make, formatRating(point.ratingKva)].filter(Boolean).join(" · ")}

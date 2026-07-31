@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { buildPriorityList, bandOf } from "@/lib/combined-health";
+import { deriveHealthStatus, HEALTH_STATUS_META } from "@/lib/health-status";
 import { formatNumber } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Repair priority" };
@@ -130,6 +131,7 @@ export default async function PriorityPage({
               <th className="px-3 py-2">Rank</th>
               <th className="px-3 py-2">Transformer</th>
               <th className="px-3 py-2">Site</th>
+              <th className="px-3 py-2">Health status</th>
               <th className="px-3 py-2">Electrical</th>
               <th className="px-3 py-2">Physical</th>
               <th className="px-3 py-2">Priority</th>
@@ -149,6 +151,17 @@ export default async function PriorityPage({
                 </td>
                 <td className="max-w-[190px] truncate px-3 py-2 text-ink-soft">
                   {r.siteName ?? r.substationCode ?? "—"}
+                </td>
+                <td className="px-3 py-2">
+                  {(() => {
+                    const hs = deriveHealthStatus({ electrical: r.electrical, physical: r.physical, status: r.status, reasons: r.reasons });
+                    const meta = HEALTH_STATUS_META[hs.level];
+                    return (
+                      <span className="whitespace-nowrap text-[11px] font-extrabold" style={{ color: meta.colour }} title={hs.explanation}>
+                        {meta.emoji} {meta.label}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-3 py-2"><Score s={r.electrical} /></td>
                 <td className="px-3 py-2"><Score s={r.physical} /></td>

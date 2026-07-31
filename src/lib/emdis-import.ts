@@ -8,6 +8,8 @@ import { parseFlatTable, headerSignature } from "./flat-import";
 import { mapColumns, detectFormat, type CanonField, type ColumnMapping, type FormatDetection } from "./universal-columns";
 import { analyseReading, ratedPhaseCurrent, NOMINAL_VLL, LIMITS } from "./load-analysis";
 import { computeEventHash } from "./chain";
+import { refreshCachedScores } from "./combined-health";
+import { deriveHealthStatus } from "./health-status";
 
 /**
  * Ingesting EMDis load telemetry.
@@ -313,6 +315,14 @@ export type EmdisCommitResult = {
     alertsRaised: number;
   }[];
   totalReadings: number;
+  /** Auto-status: for every transformer this upload touched, its health after rescoring. */
+  healthUpdates: {
+    transformerId: string;
+    label: string;
+    level: string;
+    explanation: string;
+    alertsRaised: number;
+  }[];
 };
 
 export type CommitOptions = {
@@ -354,6 +364,9 @@ export async function commitEmdis(
 
   const datasets: EmdisCommitResult["datasets"] = [];
   let imported = 0;
+  // Auto-status: every transformer this file actually touched, and how many
+  // alerts each one raised — rescored once after the loop, not per block.
+  const alertsByTransformer = new Map<string, { label: string; alerts: number }>();
 
   for (const block of blocks) {
     let m = await matchBlock(block);
@@ -466,9 +479,10 @@ export async function commitEmdis(
 
     // --- Chain event and alerts, only for a matched transformer -------------
     let alertsRaised = 0;
-    if (m.transformerId) {
-      alertsRaised = await raiseLoadAlerts(m.transformerId, dataset.id, rows, iRated, ratingKva);
-      await writeLoadCheckEvent(m.transformerId, actor.id, {
+    const matchedTransformerId = m.transformerId;
+    if (matchedTransformerId) {
+      alertsRaised = await raiseLoadAlerts(matchedTransformerId, dataset.id, rows, iRated, ratingKva);
+      await writeLoadCheckEvent(matchedTransformerId, actor.id, {
         fileName,
         readings: rows.length,
         from: sorted[0].recordedAt,
@@ -476,6 +490,9 @@ export async function commitEmdis(
         peakPhasePct: Math.max(...rows.map((r) => r.maxPhasePctRated ?? 0)),
         ratingKva,
       });
+      const acc = alertsByTransformer.get(matchedTransformerId) ?? { label: m.label ?? matchedTransformerId, alerts: 0 };
+      acc.alerts += alertsRaised;
+      alertsByTransformer.set(matchedTransformerId, acc);
     }
 
     datasets.push({
@@ -497,7 +514,21 @@ export async function commitEmdis(
     },
   });
 
-  return { batchId: batch.id, datasets, totalReadings: imported };
+  // --- Auto-status: rescore every transformer this upload touched -----------
+  const healthUpdates: EmdisCommitResult["healthUpdates"] = [];
+  if (alertsByTransformer.size) {
+    const scored = await refreshCachedScores({ transformerIds: [...alertsByTransformer.keys()] });
+    for (const row of scored) {
+      const acc = alertsByTransformer.get(row.id);
+      if (!acc) continue;
+      const { level, explanation } = deriveHealthStatus({
+        electrical: row.electrical, physical: row.physical, status: row.status, reasons: row.reasons,
+      });
+      healthUpdates.push({ transformerId: row.id, label: acc.label, level, explanation, alertsRaised: acc.alerts });
+    }
+  }
+
+  return { batchId: batch.id, datasets, totalReadings: imported, healthUpdates };
 }
 
 /**

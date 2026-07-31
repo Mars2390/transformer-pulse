@@ -32,6 +32,26 @@ type Preview = {
   unmappedColumns: string[];
 };
 
+type HealthUpdate = { transformerId: string; label: string; level: string; explanation: string };
+
+const LEVEL_EMOJI: Record<string, string> = {
+  HEALTHY: "🔵", BREATHING: "🟢", SURVIVING: "🟡", CRITICAL: "🔴", DECEASED: "⚫",
+};
+
+/** "✅ G-153457 analyzed. Health: CRITICAL. Phase L3 at 121%..." */
+function healthToast(updates: HealthUpdate[]): string | null {
+  if (!updates.length) return null;
+  if (updates.length === 1) {
+    const u = updates[0];
+    return `${LEVEL_EMOJI[u.level] ?? ""} ${u.label} analyzed. Health: ${u.level}. ${u.explanation}`;
+  }
+  const critical = updates.filter((u) => u.level === "CRITICAL" || u.level === "SURVIVING").length;
+  return (
+    `${updates.length} transformers analyzed` +
+    (critical ? ` — ${critical} need attention (Surviving or Critical).` : " — all Healthy or Breathing.")
+  );
+}
+
 export function InspectionImport() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -40,6 +60,7 @@ export function InspectionImport() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [healthMsg, setHealthMsg] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "MATCHED" | "STAGED" | "DUPLICATE" | "flagged">("all");
 
   async function runPreview(f: File) {
@@ -66,6 +87,7 @@ export function InspectionImport() {
       `${data.imported} inspection${data.imported === 1 ? "" : "s"} matched to transformers, ` +
       `${data.staged} staged, ${data.duplicate} already present, ${data.conflictsRaised} conflict${data.conflictsRaised === 1 ? "" : "s"} raised.`,
     );
+    setHealthMsg(healthToast((data.healthUpdates ?? []) as HealthUpdate[]));
     setPreview(null); setFile(null);
     router.refresh();
   }
@@ -115,6 +137,9 @@ export function InspectionImport() {
         <div className="rounded-2xl border border-kplc/30 bg-kplc/5 p-6">
           <p className="text-sm font-bold text-navy">✅ Register imported</p>
           <p className="mt-1 text-sm text-ink-soft">{done}</p>
+          {healthMsg && (
+            <p className="mt-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-navy">{healthMsg}</p>
+          )}
           <div className="mt-4 flex flex-wrap gap-2">
             <Link href="/manager/inspections" className="rounded-lg bg-kplc px-4 py-2 text-xs font-bold text-white">
               View inspections

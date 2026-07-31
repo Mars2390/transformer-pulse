@@ -75,6 +75,14 @@ const REPORTS = [
     body: "A clean coordinate CSV for import into QGIS, Google My Maps or any GIS tool.",
     formats: [{ label: "CSV", href: "/api/reports/locations" }],
   },
+  {
+    title: "Manufacturer Performance",
+    body: "Failure rate, service life, warranty recovery and IR/BDV decline by manufacturer, worst first. The interactive comparison and drill-down live under Manufacturers in the sidebar.",
+    formats: [
+      { label: "PDF", href: "/api/pdf/manufacturer-performance" },
+      { label: "XLSX", href: "/api/reports/manufacturer-performance?format=xlsx" },
+    ],
+  },
 ];
 
 export default async function ReportsPage() {

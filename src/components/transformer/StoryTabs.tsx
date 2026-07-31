@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Timeline } from "./Timeline";
 import { TestsTab } from "./TestsTab";
 import { PhotosTab } from "./PhotosTab";
@@ -37,6 +37,8 @@ export function StoryTabs({
   repairCount: number;
 }) {
   const [tab, setTab] = useState<Tab>("Timeline");
+  const [year, setYear] = useState<number | "ALL">("ALL");
+  const [compare, setCompare] = useState(false);
 
   const photoCount = story.events.reduce((sum, e) => sum + e.photoUrls.length, 0);
   const counts: Record<Tab, number | null> = {
@@ -48,8 +50,47 @@ export function StoryTabs({
     Chain: verification.checked,
   };
 
+  // Years actually present in this transformer's history, newest first.
+  const years = useMemo(() => {
+    const set = new Set(story.events.map((e) => new Date(e.occurredAt).getFullYear()));
+    return [...set].sort((a, b) => b - a);
+  }, [story.events]);
+
+  const yearFilterable = tab === "Timeline" || tab === "Tests";
+  const compareYear = typeof year === "number" ? year - 1 : null;
+
   return (
     <div>
+      {/* --- Year filter ---------------------------------------------------- */}
+      {yearFilterable && years.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-ink-soft">View Year:</span>
+          <button
+            onClick={() => { setYear("ALL"); setCompare(false); }}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold ${year === "ALL" ? "bg-navy text-white" : "border border-line bg-white text-ink-soft hover:text-navy"}`}
+          >
+            All Years
+          </button>
+          {years.map((y) => (
+            <button
+              key={y}
+              onClick={() => { setYear(y); setCompare(false); }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold ${year === y ? "bg-navy text-white" : "border border-line bg-white text-ink-soft hover:text-navy"}`}
+            >
+              {y}
+            </button>
+          ))}
+          {typeof year === "number" && years.includes(compareYear!) && (
+            <button
+              onClick={() => setCompare((v) => !v)}
+              className={`ml-auto rounded-lg px-3 py-1.5 text-xs font-bold ${compare ? "bg-kplc text-white" : "border border-kplc/40 bg-white text-kplc"}`}
+            >
+              {compare ? `Comparing with ${compareYear}` : `Compare with ${compareYear}`}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* --- Tab bar ------------------------------------------------------ */}
       <div className="sticky top-16 z-10 -mx-4 mb-6 flex gap-1 overflow-x-auto border-b border-line bg-surface px-4 sm:mx-0 sm:px-0">
         {TABS.map((name) => {
@@ -87,8 +128,10 @@ export function StoryTabs({
       </div>
 
       {/* --- Panels ------------------------------------------------------- */}
-      {tab === "Timeline" && <Timeline events={story.events} />}
-      {tab === "Tests" && <TestsTab tests={tests} />}
+      {tab === "Timeline" && (
+        <Timeline events={story.events} year={year} compareYear={compare ? compareYear : null} repairs={repairs} />
+      )}
+      {tab === "Tests" && <TestsTab tests={tests} year={year} compareYear={compare ? compareYear : null} />}
       {tab === "Repairs" && (
         <RepairsTab repairs={repairs} ratingKva={ratingKva} repairCount={repairCount} />
       )}

@@ -1,5 +1,6 @@
 import type { MapPoint } from "@/components/map/TransformerMapInner";
 import { ratedPhaseCurrent } from "@/lib/load-analysis";
+import { deriveHealthStatus } from "@/lib/health-status";
 
 /**
  * One shape for every map in the system.
@@ -113,6 +114,16 @@ export function toMapPoints(rows: Row[]): MapPoint[] {
       );
       const healthScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
 
+      // The 5-level status (Healthy/Breathing/Surviving/Critical/Deceased) shown
+      // on the pin popup — the same worst-axis-dominates logic as the story
+      // page, just without the detailed reasons list a full priority-list scan
+      // would need for every pin on the map.
+      const healthStatus = deriveHealthStatus({
+        electrical: t.electricalStressScore ?? null,
+        physical: t.physicalConditionScore ?? null,
+        status: t.status as MapPoint["status"],
+      });
+
       return {
         id: t.id,
         gNumber: t.gNumber,
@@ -133,6 +144,7 @@ export function toMapPoints(rows: Row[]): MapPoint[] {
         lastInspectionAt: t.lastInspectionAt ? t.lastInspectionAt.toISOString().slice(0, 10) : null,
         phasePct,
         healthScore,
+        healthStatus,
         latestDatasetId: t.emdisDatasets?.[0]?.id ?? null,
       };
     });

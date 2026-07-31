@@ -6,9 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { verifyChain, type ChainLink } from "@/lib/chain";
 import { computeWarranty } from "@/lib/warranty";
 import { computeHealth, HEALTH_BAND_META } from "@/lib/health";
+import { buildPriorityList } from "@/lib/combined-health";
+import { deriveHealthStatus, HEALTH_STATUS_META } from "@/lib/health-status";
+import { computeServiceSummary } from "@/lib/service-summary";
 import { Badge } from "@/components/ui";
 import { StoryLocationMap } from "@/components/transformer/StoryLocationMap";
 import { StoryTabs } from "@/components/transformer/StoryTabs";
+import { ServiceSummaryCard } from "@/components/transformer/ServiceSummaryCard";
+import { LinkStatusBanner } from "@/components/transformer/LinkStatusBanner";
 import type { WarrantyView } from "@/components/transformer/WarrantyTab";
 import type { StoryData, StoryEvent, StoryTest } from "@/components/transformer/story-types";
 import { STATUS_META, formatRating } from "@/lib/format";
@@ -56,6 +61,17 @@ export default async function StoryPage({
 
   if (!tx) notFound();
 
+  // --- Auto-link status: is EMDis and/or KYN data actually linked here? -----
+  const [emdisAgg, inspectionCount, priorityRows] = await Promise.all([
+    prisma.emdisDataset.aggregate({
+      where: { transformerId: id },
+      _sum: { readingCount: true },
+    }),
+    prisma.substationInspection.count({ where: { transformerId: id } }),
+    buildPriorityList({ transformerIds: [id], allStatuses: true }),
+  ]);
+  const emdisReadingCount = emdisAgg._sum.readingCount ?? 0;
+
   // --- Chain verification (oldest first) ------------------------------------
   const chronological = [...tx.events].reverse();
   const verification = verifyChain(chronological as unknown as ChainLink[]);
@@ -83,6 +99,31 @@ export default async function StoryPage({
     (Date.now() - new Date(tx.yearOfManufacture, 0, 1).getTime()) /
     (1000 * 60 * 60 * 24 * 365.25);
   const health = computeHealth({ latestTest, failureCount, ageYears });
+
+  // --- 5-level health status (electrical/physical, min-dominates, then DECEASED override) ---
+  const priorityRow = priorityRows[0] ?? null;
+  const healthStatus = deriveHealthStatus({
+    electrical: priorityRow?.electrical ?? null,
+    physical: priorityRow?.physical ?? null,
+    status: tx.status,
+    reasons: priorityRow?.reasons ?? [],
+  });
+
+  // --- Service summary — every time/cost metric, derived from the chain ----
+  const serviceSummary = await computeServiceSummary({
+    transformer: {
+      id: tx.id, ratingKva: tx.ratingKva, secondaryKv: tx.secondaryKv,
+      yearOfManufacture: tx.yearOfManufacture, commissionDate: tx.commissionDate,
+    },
+    events: tx.events.map((e) => ({ type: e.type, toStatus: e.toStatus, occurredAt: e.occurredAt })),
+    repairs: tx.repairs.map((r) => ({
+      receivedAtWorkshop: r.receivedAtWorkshop,
+      repairCompletedAt: r.repairCompletedAt,
+      repairCostKes: r.repairCostKes,
+    })),
+    testsCount: tx.tests.length,
+    claimsCount: tx.claims.length,
+  });
 
   // Dates cannot cross into a client component, and the turnaround is worth
   // computing once here rather than in three places in the table.
@@ -200,7 +241,17 @@ export default async function StoryPage({
               <Badge tone={STATUS_META[story.status].tone}>
                 {STATUS_META[story.status].label}
               </Badge>
+              <span
+                className="rounded-full px-2.5 py-1 text-xs font-extrabold"
+                style={{ backgroundColor: HEALTH_STATUS_META[healthStatus.level].colour + "1a", color: HEALTH_STATUS_META[healthStatus.level].colour }}
+                title={healthStatus.explanation}
+              >
+                {HEALTH_STATUS_META[healthStatus.level].emoji} {HEALTH_STATUS_META[healthStatus.level].label.toUpperCase()}
+              </span>
             </div>
+            <p className="mt-1 max-w-xl text-xs font-semibold text-ink-soft">
+              {HEALTH_STATUS_META[healthStatus.level].label.toUpperCase()}: {healthStatus.explanation}
+            </p>
             <p className="mt-1.5 text-sm text-ink-soft">
               {story.gNumber && <span className="font-mono">{story.serialNumber} · </span>}
               {formatRating(story.ratingKva)} · {story.manufacturerName} · {story.yearOfManufacture}
@@ -217,6 +268,12 @@ export default async function StoryPage({
                 className="inline-flex items-center gap-1.5 rounded-lg bg-kplc px-3 py-2 text-xs font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
               >
                 Download PDF
+              </a>
+              <a
+                href={`/api/pdf/dossier/${id}`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-xs font-bold text-navy transition-colors hover:border-kplc hover:text-kplc"
+              >
+                📄 Export Full Dossier
               </a>
               {canEditNameplate && (
                 <Link
@@ -337,6 +394,16 @@ export default async function StoryPage({
           </div>
         </div>
       )}
+
+      {/* --- Link status ---------------------------------------------------- */}
+      <div className="mt-6">
+        <LinkStatusBanner emdisReadingCount={emdisReadingCount} inspectionCount={inspectionCount} />
+      </div>
+
+      {/* --- Service summary ------------------------------------------------ */}
+      <div className="mt-6">
+        <ServiceSummaryCard summary={serviceSummary} />
+      </div>
 
       {/* --- Tabs --------------------------------------------------------- */}
       <div className="mt-6">

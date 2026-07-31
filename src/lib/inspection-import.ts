@@ -8,6 +8,8 @@ import {
   parseInspectionRow,
   type ParsedInspection,
 } from "./inspection-parse";
+import { refreshCachedScores } from "./combined-health";
+import { deriveHealthStatus } from "./health-status";
 
 /**
  * Turning KPLC's inspection register into records the system can reason about.
@@ -264,6 +266,13 @@ export type CommitResult = {
   flagged: number;
   conflictsRaised: number;
   transformersTouched: number;
+  /** Auto-status: for every transformer this register touched, its health after rescoring. */
+  healthUpdates: {
+    transformerId: string;
+    label: string;
+    level: string;
+    explanation: string;
+  }[];
 };
 
 /**
@@ -399,6 +408,24 @@ export async function commitInspections(
     },
   });
 
+  // --- Auto-status: rescore every transformer this register touched ---------
+  const healthUpdates: CommitResult["healthUpdates"] = [];
+  if (newestPerTransformer.size) {
+    const ids = [...newestPerTransformer.keys()];
+    const labelled = await prisma.transformer.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, gNumber: true, serialNumber: true },
+    });
+    const labelOf = new Map(labelled.map((t) => [t.id, t.gNumber ?? t.serialNumber]));
+    const scored = await refreshCachedScores({ transformerIds: ids });
+    for (const row of scored) {
+      const { level, explanation } = deriveHealthStatus({
+        electrical: row.electrical, physical: row.physical, status: row.status, reasons: row.reasons,
+      });
+      healthUpdates.push({ transformerId: row.id, label: labelOf.get(row.id) ?? row.id, level, explanation });
+    }
+  }
+
   return {
     batchId: batch.id,
     imported: rowsData.filter((r) => r.transformerId).length,
@@ -408,6 +435,7 @@ export async function commitInspections(
     flagged: rowsData.filter((r) => r.needsReview).length,
     conflictsRaised: conflicts,
     transformersTouched: newestPerTransformer.size,
+    healthUpdates,
   };
 }
 

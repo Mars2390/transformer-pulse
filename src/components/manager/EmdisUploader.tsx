@@ -57,6 +57,29 @@ type Preview = {
   rejected: number;
 };
 
+type HealthUpdate = { transformerId: string; label: string; level: string; explanation: string; alertsRaised: number };
+
+const LEVEL_EMOJI: Record<string, string> = {
+  HEALTHY: "🔵", BREATHING: "🟢", SURVIVING: "🟡", CRITICAL: "🔴", DECEASED: "⚫",
+};
+
+/** "✅ G-153457 analyzed. Health: CRITICAL. 3 new alerts. Phase L3 at 121%..." */
+function healthToast(updates: HealthUpdate[]): string | null {
+  if (!updates.length) return null;
+  if (updates.length === 1) {
+    const u = updates[0];
+    return (
+      `${LEVEL_EMOJI[u.level] ?? ""} ${u.label} analyzed. Health: ${u.level}. ` +
+      `${u.alertsRaised} new alert${u.alertsRaised === 1 ? "" : "s"}. ${u.explanation}`
+    );
+  }
+  const critical = updates.filter((u) => u.level === "CRITICAL" || u.level === "SURVIVING").length;
+  return (
+    `${updates.length} transformers analyzed` +
+    (critical ? ` — ${critical} need attention (Surviving or Critical).` : " — all Healthy or Breathing.")
+  );
+}
+
 type Hit = { id: string; label: string; detail: string };
 
 const FIELD_OPTIONS = Object.entries(CANON_LABEL) as [CanonField, string][];
@@ -69,6 +92,7 @@ export function EmdisUploader() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [healthMsg, setHealthMsg] = useState<string | null>(null);
 
   // Confirm-screen decisions.
   const [override, setOverride] = useState<Record<string, CanonField>>({});
@@ -80,7 +104,7 @@ export function EmdisUploader() {
   const [profileName, setProfileName] = useState("");
 
   function reset() {
-    setPreview(null); setFile(null); setDone(null); setError(null);
+    setPreview(null); setFile(null); setDone(null); setHealthMsg(null); setError(null);
     setOverride({}); setEditingMap(false); setChosen(null);
     setQuery(""); setHits([]); setSaveProfile(false); setProfileName("");
   }
@@ -158,6 +182,9 @@ export function EmdisUploader() {
     return (
       <div className="rounded-2xl border border-kplc/30 bg-kplc/5 p-6">
         <p className="text-sm font-bold text-navy">✅ {done}</p>
+        {healthMsg && (
+          <p className="mt-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-navy">{healthMsg}</p>
+        )}
         <button onClick={reset} className="mt-3 rounded-lg border border-line bg-white px-4 py-2 text-xs font-bold text-navy">
           Upload another
         </button>
@@ -396,6 +423,7 @@ export function EmdisUploader() {
                 `${d.datasets.filter((x: { matched: boolean }) => x.matched).length} matched · ` +
                 `${d.datasets.reduce((s: number, x: { alertsRaised: number }) => s + x.alertsRaised, 0)} alerts raised`,
               );
+              setHealthMsg(healthToast((d.healthUpdates ?? []) as HealthUpdate[]));
               setPreview(null);
               router.refresh();
             }
