@@ -1,5 +1,5 @@
 import "./server-guard";
-import type { Prisma } from "@/generated/prisma/client";
+import type { Prisma } from "../generated/prisma/client";
 import { prisma } from "./prisma";
 import { verifyChain, type ChainLink } from "./chain";
 import { computeWarranty } from "./warranty";

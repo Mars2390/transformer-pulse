@@ -1,8 +1,17 @@
-import "dotenv/config";
+import path from "node:path";
+import dotenv from "dotenv";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { MCP_TOOLS } from "@/lib/mcp/tools";
-import { getMcpSettings } from "@/lib/mcp/settings";
+import { MCP_TOOLS } from "./src/lib/mcp/tools";
+import { getMcpSettings } from "./src/lib/mcp/settings";
+
+// Load .env from this file's own directory, not process.cwd() — Claude
+// Desktop spawns this process without necessarily setting the working
+// directory to the project root, and plain `dotenv/config` only ever looks
+// in cwd. Same class of bug as the "@/" import aliases: anything resolved
+// relative to cwd is fragile once something other than a person in this
+// directory launches the script.
+dotenv.config({ path: path.join(__dirname, ".env") });
 
 /**
  * Local MCP server for Claude Desktop — stdio transport.

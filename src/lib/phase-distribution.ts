@@ -1,4 +1,4 @@
-import { PHASE_META, distributionStatus, type PhaseKey } from "@/lib/phase-colors";
+import { PHASE_META, distributionStatus, type PhaseKey } from "./phase-colors";
 
 /**
  * Per-phase customer estimates, for the "who is actually on this phase" view.

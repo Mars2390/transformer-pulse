@@ -1,16 +1,16 @@
-import "@/lib/server-guard";
+import "../server-guard";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { buildPriorityList } from "@/lib/combined-health";
-import { deriveHealthStatus, HEALTH_STATUS_META, type HealthStatusLevel } from "@/lib/health-status";
-import { computeThermal } from "@/lib/transformer-thermal";
-import { ambientForMonth, NORMAL_LIFE_YEARS, planBalance } from "@/lib/load-balancing";
-import { ratedPhaseCurrent } from "@/lib/load-analysis";
-import { computePhaseDistribution } from "@/lib/phase-distribution";
-import { PHASE_META } from "@/lib/phase-colors";
-import { buildManufacturerPerformance, fleetAverage } from "@/lib/manufacturer-performance";
-import { computeWarranty } from "@/lib/warranty";
-import { INSPECTION_OVERDUE } from "@/lib/report-data";
+import { prisma } from "../prisma";
+import { buildPriorityList } from "../combined-health";
+import { deriveHealthStatus, HEALTH_STATUS_META, type HealthStatusLevel } from "../health-status";
+import { computeThermal } from "../transformer-thermal";
+import { ambientForMonth, NORMAL_LIFE_YEARS, planBalance } from "../load-balancing";
+import { ratedPhaseCurrent } from "../load-analysis";
+import { computePhaseDistribution } from "../phase-distribution";
+import { PHASE_META } from "../phase-colors";
+import { buildManufacturerPerformance, fleetAverage } from "../manufacturer-performance";
+import { computeWarranty } from "../warranty";
+import { INSPECTION_OVERDUE } from "../report-data";
 
 /**
  * The 8 read-only MCP tools.

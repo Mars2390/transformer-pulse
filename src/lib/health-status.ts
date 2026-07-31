@@ -1,4 +1,4 @@
-import type { TransformerStatus } from "@/generated/prisma/enums";
+import type { TransformerStatus } from "../generated/prisma/enums";
 
 /**
  * The five-level health status shown across the app — story page, map pins,

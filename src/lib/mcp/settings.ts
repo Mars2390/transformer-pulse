@@ -1,7 +1,7 @@
-import "@/lib/server-guard";
-import { prisma } from "@/lib/prisma";
-import type { Role } from "@/generated/prisma/enums";
-import type { McpSettings } from "@/generated/prisma/client";
+import "../server-guard";
+import { prisma } from "../prisma";
+import type { Role } from "../../generated/prisma/enums";
+import type { McpSettings } from "../../generated/prisma/client";
 
 /**
  * MCP is off by default in spirit, on by default in the row: the settings
