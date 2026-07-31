@@ -25,6 +25,7 @@ import { ZodError } from "zod";
  */
 
 const PROTOCOL_VERSION = "2024-11-05";
+const SERVER_VERSION = "1.0.0";
 
 function wwwAuthenticateHeader(origin: string): string {
   return `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`;
@@ -57,6 +58,88 @@ function rpcResult(id: JsonRpcRequest["id"], result: unknown) {
 }
 function rpcError(id: JsonRpcRequest["id"], code: number, message: string) {
   return NextResponse.json({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
+}
+
+function statusHtml(info: {
+  statusLabel: string;
+  message: string;
+  version: string;
+  protocolVersion: string;
+  toolCount: number;
+  settingsUrl: string;
+  docsUrl: string;
+}): string {
+  return `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Transformer Pulse — MCP Server</title>
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;background:#f5f6f8;margin:0;padding:0;color:#1c1f1f}
+  .card{max-width:480px;margin:64px auto;background:#fff;border:1px solid #e3e6ec;border-radius:16px;padding:32px}
+  h1{font-size:18px;color:#0a1a4f;margin:0 0 4px}
+  p{font-size:13px;color:#5b6480;line-height:1.6}
+  .status{display:inline-block;font-weight:700;font-size:13px;background:#f7f8fa;border-radius:10px;padding:8px 14px;margin:12px 0}
+  dl{font-size:13px;margin:16px 0;background:#f7f8fa;border-radius:10px;padding:12px 16px}
+  dt{color:#5b6480;float:left;clear:left;width:110px}
+  dd{margin:0 0 4px 110px;color:#1c1f1f;font-weight:600}
+  .links{margin-top:20px;display:flex;gap:10px}
+  a.btn{flex:1;text-align:center;text-decoration:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700}
+  a.primary{background:#006837;color:#fff}
+  a.secondary{background:#fff;color:#0a1a4f;border:1px solid #e3e6ec}
+</style></head><body><div class="card">
+  <h1>Transformer Pulse MCP Server</h1>
+  <p>${info.message}</p>
+  <div class="status">${info.statusLabel}</div>
+  <dl>
+    <dt>Version</dt><dd>${info.version}</dd>
+    <dt>Protocol</dt><dd>${info.protocolVersion}</dd>
+    <dt>Tools</dt><dd>${info.toolCount} available</dd>
+  </dl>
+  <div class="links">
+    <a class="btn primary" href="${info.settingsUrl}">MCP settings</a>
+    <a class="btn secondary" href="${info.docsUrl}">Documentation</a>
+  </div>
+</div></body></html>`;
+}
+
+/**
+ * GET /api/mcp — a status page, not an MCP method.
+ *
+ * MCP itself is JSON-RPC over POST; a GET here only ever comes from a person
+ * opening the URL in a browser (e.g. testing the link from the settings page)
+ * or a health check hitting it blind. Neither should see a bare "Method Not
+ * Allowed" — this always answers 200, unauthenticated, with enough info to
+ * confirm the server is alive: a browser (Accept: text/html) gets the styled
+ * page, anything else gets the same information as JSON.
+ */
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const origin = url.origin;
+
+  let enabled = true;
+  try {
+    enabled = (await getMcpSettings()).enabled;
+  } catch {
+    // Database unreachable — still answer the health check rather than 500.
+  }
+
+  const info = {
+    status: enabled ? "online" : "disabled",
+    statusLabel: enabled ? "🟢 Online" : "🔴 Disabled",
+    message: "Transformer Pulse MCP Server is running. Connect via Claude Desktop or use POST requests with proper authentication.",
+    server: "transformer-pulse",
+    version: SERVER_VERSION,
+    protocolVersion: PROTOCOL_VERSION,
+    toolCount: MCP_TOOLS.length,
+    endpoint: `${origin}/api/mcp`,
+    settingsUrl: `${origin}/mcp`,
+    docsUrl: `${origin}/api/mcp/docs`,
+  };
+
+  const accept = request.headers.get("accept") ?? "";
+  if (accept.includes("text/html")) {
+    return new NextResponse(statusHtml(info), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
+  return NextResponse.json(info, { status: 200 });
 }
 
 export async function POST(request: Request) {
@@ -101,7 +184,7 @@ export async function POST(request: Request) {
     return rpcResult(id, {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: { tools: {} },
-      serverInfo: { name: "transformer-pulse", version: "1.0.0" },
+      serverInfo: { name: "transformer-pulse", version: SERVER_VERSION },
     });
   }
 
