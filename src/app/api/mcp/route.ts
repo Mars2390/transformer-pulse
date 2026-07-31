@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { MCP_TOOLS, findTool } from "@/lib/mcp/tools";
 import { verifyAccessToken, withinRateLimit, logMcpAccess } from "@/lib/mcp/tokens";
 import { getMcpSettings, roleAllowed } from "@/lib/mcp/settings";
+import { corsPreflight, withCors } from "@/lib/mcp/cors";
 import { ZodError } from "zod";
 
 /**
@@ -32,10 +33,10 @@ function wwwAuthenticateHeader(origin: string): string {
 }
 
 function unauthorized(origin: string, message: string) {
-  return NextResponse.json(
+  return withCors(NextResponse.json(
     { jsonrpc: "2.0", error: { code: -32001, message } },
     { status: 401, headers: { "WWW-Authenticate": wwwAuthenticateHeader(origin) } },
-  );
+  ));
 }
 
 function extractCredential(request: Request, url: URL): { token: string; authMethod: "OAUTH" | "API_KEY" } | null {
@@ -54,10 +55,10 @@ function extractCredential(request: Request, url: URL): { token: string; authMet
 type JsonRpcRequest = { jsonrpc?: string; id?: string | number | null; method?: string; params?: unknown };
 
 function rpcResult(id: JsonRpcRequest["id"], result: unknown) {
-  return NextResponse.json({ jsonrpc: "2.0", id: id ?? null, result });
+  return withCors(NextResponse.json({ jsonrpc: "2.0", id: id ?? null, result }));
 }
 function rpcError(id: JsonRpcRequest["id"], code: number, message: string) {
-  return NextResponse.json({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
+  return withCors(NextResponse.json({ jsonrpc: "2.0", id: id ?? null, error: { code, message } }));
 }
 
 function statusHtml(info: {
@@ -102,18 +103,53 @@ function statusHtml(info: {
 }
 
 /**
- * GET /api/mcp — a status page, not an MCP method.
+ * A real MCP client's GET is a protocol request, not a page visit: the
+ * Streamable HTTP transport lets a client open this method to receive
+ * server-initiated messages over SSE, identified by headers no browser tab
+ * or health check would ever send — an auth credential, an active session,
+ * or an Accept that asks for an event stream. We don't implement that
+ * optional SSE half, and the spec is explicit that responding 405 to it is
+ * correct and something conformant clients already handle gracefully. Only
+ * requests WITHOUT any of these signals are a human or a monitor, and get
+ * the friendly status page instead of a bare 405.
+ */
+function looksLikeMcpClient(request: Request): boolean {
+  const accept = request.headers.get("accept") ?? "";
+  return (
+    accept.includes("text/event-stream") ||
+    request.headers.has("authorization") ||
+    request.headers.has("x-api-key") ||
+    request.headers.has("mcp-session-id") ||
+    request.headers.has("mcp-protocol-version")
+  );
+}
+
+export async function OPTIONS() {
+  return corsPreflight();
+}
+
+/**
+ * GET /api/mcp — a status page for humans and health checks; a spec-correct
+ * 405 for an MCP client probing the optional SSE stream.
  *
- * MCP itself is JSON-RPC over POST; a GET here only ever comes from a person
- * opening the URL in a browser (e.g. testing the link from the settings page)
- * or a health check hitting it blind. Neither should see a bare "Method Not
- * Allowed" — this always answers 200, unauthenticated, with enough info to
- * confirm the server is alive: a browser (Accept: text/html) gets the styled
- * page, anything else gets the same information as JSON.
+ * MCP itself is JSON-RPC over POST. A GET here either comes from a person
+ * opening the URL in a browser (e.g. testing the link from the settings
+ * page), a health check hitting it blind, or a real MCP client checking
+ * whether this endpoint also offers a server-push SSE stream. The first two
+ * should never see a bare "Method Not Allowed" — this answers 200,
+ * unauthenticated, with enough info to confirm the server is alive: a
+ * browser (Accept: text/html) gets the styled page, anything else gets the
+ * same information as JSON. The third gets the actual protocol-correct
+ * answer: we don't offer SSE, so 405 with an Allow header is the right
+ * response, not a made-up 200.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const origin = url.origin;
+
+  if (looksLikeMcpClient(request)) {
+    return withCors(new NextResponse(null, { status: 405, headers: { Allow: "POST" } }));
+  }
 
   let enabled = true;
   try {
@@ -137,9 +173,9 @@ export async function GET(request: Request) {
 
   const accept = request.headers.get("accept") ?? "";
   if (accept.includes("text/html")) {
-    return new NextResponse(statusHtml(info), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+    return withCors(new NextResponse(statusHtml(info), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
   }
-  return NextResponse.json(info, { status: 200 });
+  return withCors(NextResponse.json(info, { status: 200 }));
 }
 
 export async function POST(request: Request) {
@@ -159,15 +195,15 @@ export async function POST(request: Request) {
   const settings = await getMcpSettings();
   if (!roleAllowed(settings, verified.user.role)) {
     await logMcpAccess({ userId: verified.user.id, tokenId: verified.tokenId, tool: "auth", success: false, errorMessage: "role_not_allowed", authMethod: credential.authMethod });
-    return NextResponse.json({ jsonrpc: "2.0", error: { code: -32002, message: "MCP access is disabled for your role." } }, { status: 403 });
+    return withCors(NextResponse.json({ jsonrpc: "2.0", error: { code: -32002, message: "MCP access is disabled for your role." } }, { status: 403 }));
   }
 
   if (!(await withinRateLimit(verified.tokenId, settings.rateLimitPerHour))) {
     await logMcpAccess({ userId: verified.user.id, tokenId: verified.tokenId, tool: "rate_limit", success: false, errorMessage: "rate_limited", authMethod: credential.authMethod });
-    return NextResponse.json(
+    return withCors(NextResponse.json(
       { jsonrpc: "2.0", error: { code: -32003, message: `Rate limit exceeded (${settings.rateLimitPerHour} requests/hour).` } },
       { status: 429 },
-    );
+    ));
   }
 
   // --- JSON-RPC ----------------------------------------------------------------
@@ -189,7 +225,7 @@ export async function POST(request: Request) {
   }
 
   if (method === "notifications/initialized" || method === "ping") {
-    return new NextResponse(null, { status: 202 });
+    return withCors(new NextResponse(null, { status: 202 }));
   }
 
   if (method === "tools/list") {

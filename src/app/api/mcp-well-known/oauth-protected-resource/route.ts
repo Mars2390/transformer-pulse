@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { corsPreflight, withCors } from "@/lib/mcp/cors";
 
 /**
  * OAuth 2.0 Protected Resource Metadata (RFC 9728).
@@ -8,10 +9,14 @@ import { NextResponse } from "next/server";
  * which is the piece that makes Claude Desktop start an OAuth flow instead of
  * giving up after the 401.
  */
+export async function OPTIONS() {
+  return corsPreflight();
+}
+
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
-  return NextResponse.json({
+  return withCors(NextResponse.json({
     resource: `${origin}/api/mcp`,
     authorization_servers: [origin],
-  });
+  }));
 }

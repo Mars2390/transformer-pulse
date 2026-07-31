@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { corsPreflight, withCors } from "@/lib/mcp/cors";
 
 /**
  * POST /api/mcp/oauth/register — Dynamic Client Registration (RFC 7591).
@@ -21,20 +22,24 @@ const RegisterInput = z.object({
   response_types: z.array(z.string()).optional(),
 });
 
+export async function OPTIONS() {
+  return corsPreflight();
+}
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "invalid_client_metadata", error_description: "Body must be JSON." }, { status: 400 });
+    return withCors(NextResponse.json({ error: "invalid_client_metadata", error_description: "Body must be JSON." }, { status: 400 }));
   }
 
   const parsed = RegisterInput.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
+    return withCors(NextResponse.json(
       { error: "invalid_client_metadata", error_description: parsed.error.issues.map((i) => i.message).join("; ") },
       { status: 400 },
-    );
+    ));
   }
 
   const client = await prisma.mcpOAuthClient.create({
@@ -44,7 +49,7 @@ export async function POST(request: Request) {
     },
   });
 
-  return NextResponse.json(
+  return withCors(NextResponse.json(
     {
       client_id: client.id,
       client_name: client.clientName,
@@ -54,5 +59,5 @@ export async function POST(request: Request) {
       response_types: ["code"],
     },
     { status: 201 },
-  );
+  ));
 }
