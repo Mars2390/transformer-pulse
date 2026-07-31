@@ -124,7 +124,30 @@ function looksLikeMcpClient(request: Request): boolean {
   );
 }
 
-export async function OPTIONS() {
+/**
+ * Fire-and-forget trace for any request shape that doesn't reach the normal
+ * auth/JSON-RPC logging below — OPTIONS preflights and any method nobody
+ * should be sending. Not awaited: a CORS preflight must stay fast, and this
+ * is diagnostic only, not something a client should ever wait on.
+ */
+function traceUnhandledRequest(request: Request, tag: string): void {
+  void logMcpAccess({
+    userId: null,
+    tokenId: null,
+    tool: tag,
+    argsSummary: JSON.stringify({
+      method: request.method,
+      userAgent: request.headers.get("user-agent"),
+      accept: request.headers.get("accept"),
+    }).slice(0, 300),
+    success: false,
+    errorMessage: `${request.method}_received`,
+    authMethod: "NONE",
+  }).catch(() => {});
+}
+
+export async function OPTIONS(request: Request) {
+  traceUnhandledRequest(request, "cors_preflight");
   return corsPreflight();
 }
 
@@ -285,3 +308,17 @@ export async function POST(request: Request) {
 
   return rpcError(id, -32601, `Method "${method}" not found.`);
 }
+
+/**
+ * PUT/PATCH/DELETE have no meaning for this endpoint, but a stray request to
+ * one of them would otherwise vanish into Next.js's default, unlogged 405 —
+ * exactly the kind of silent failure that made the original "Method Not
+ * Allowed" report hard to pin down. Trace it instead.
+ */
+async function unhandledMethod(request: Request) {
+  traceUnhandledRequest(request, "unexpected_method");
+  return withCors(new NextResponse(null, { status: 405, headers: { Allow: "GET, POST, OPTIONS" } }));
+}
+export const PUT = unhandledMethod;
+export const PATCH = unhandledMethod;
+export const DELETE = unhandledMethod;
