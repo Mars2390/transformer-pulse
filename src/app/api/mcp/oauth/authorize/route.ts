@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { getMcpSettings, roleAllowed } from "@/lib/mcp/settings";
-import { issueAuthCode } from "@/lib/mcp/tokens";
+import { issueAuthCode, logMcpAccess } from "@/lib/mcp/tokens";
 import { ROLE_LABELS } from "@/lib/format";
 
 /**
@@ -69,25 +69,47 @@ async function validateRequest(p: AuthorizeParams) {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  const userAgent = request.headers.get("user-agent");
   const p = readParams(url);
   const validated = await validateRequest(p);
   if ("error" in validated) {
+    await logMcpAccess({
+      userId: null, tokenId: null, tool: "oauth_authorize_get",
+      argsSummary: JSON.stringify({ userAgent, clientId: p.client_id, redirectUri: p.redirect_uri, hasResource: url.searchParams.has("resource") }).slice(0, 300),
+      success: false, errorMessage: validated.detail ?? validated.error, authMethod: "NONE",
+    });
     return html(`<h1>Can't connect</h1><p>${validated.detail ?? validated.error}</p>`, 400);
   }
 
   const user = await getSession();
   if (!user) {
+    await logMcpAccess({
+      userId: null, tokenId: null, tool: "oauth_authorize_get",
+      argsSummary: JSON.stringify({ userAgent, clientId: p.client_id, redirectUri: p.redirect_uri, hasResource: url.searchParams.has("resource") }).slice(0, 300),
+      success: false, errorMessage: "no_session_redirected_to_login", authMethod: "NONE",
+    });
     const next = `${url.pathname}?${url.searchParams.toString()}`;
     return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, url.origin));
   }
 
   const settings = await getMcpSettings();
   if (!roleAllowed(settings, user.role)) {
+    await logMcpAccess({
+      userId: user.id, tokenId: null, tool: "oauth_authorize_get",
+      argsSummary: JSON.stringify({ userAgent, clientId: p.client_id }).slice(0, 300),
+      success: false, errorMessage: "role_not_allowed", authMethod: "NONE",
+    });
     return html(
       `<h1>MCP access is off for your role</h1><p>Your role (${ROLE_LABELS[user.role]}) does not currently have MCP access enabled. Ask an admin to enable it from the MCP settings page.</p>`,
       403,
     );
   }
+
+  await logMcpAccess({
+    userId: user.id, tokenId: null, tool: "oauth_authorize_get",
+    argsSummary: JSON.stringify({ userAgent, clientId: p.client_id, redirectUri: p.redirect_uri }).slice(0, 300),
+    success: true, authMethod: "NONE",
+  });
 
   return html(`
     <h1>Connect Claude to Transformer Pulse</h1>
@@ -116,6 +138,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const userAgent = request.headers.get("user-agent");
   const form = await request.formData();
   const p: AuthorizeParams = {
     response_type: "code",
@@ -126,9 +149,11 @@ export async function POST(request: Request) {
     code_challenge_method: String(form.get("code_challenge_method") ?? "S256"),
   };
   const decision = String(form.get("decision") ?? "");
+  const summary = () => JSON.stringify({ userAgent, clientId: p.client_id, decision }).slice(0, 300);
 
   const validated = await validateRequest(p);
   if ("error" in validated) {
+    await logMcpAccess({ userId: null, tokenId: null, tool: "oauth_authorize_post", argsSummary: summary(), success: false, errorMessage: validated.detail ?? validated.error, authMethod: "NONE" });
     return html(`<h1>Can't connect</h1><p>${validated.detail ?? validated.error}</p>`, 400);
   }
 
@@ -136,17 +161,24 @@ export async function POST(request: Request) {
   if (p.state) redirectUrl.searchParams.set("state", p.state);
 
   if (decision !== "approve") {
+    await logMcpAccess({ userId: null, tokenId: null, tool: "oauth_authorize_post", argsSummary: summary(), success: false, errorMessage: "user_denied", authMethod: "NONE" });
     redirectUrl.searchParams.set("error", "access_denied");
     return NextResponse.redirect(redirectUrl);
   }
 
   const user = await getSession();
-  if (!user) return html(`<h1>Session expired</h1><p>Please try connecting again.</p>`, 401);
+  if (!user) {
+    await logMcpAccess({ userId: null, tokenId: null, tool: "oauth_authorize_post", argsSummary: summary(), success: false, errorMessage: "session_expired", authMethod: "NONE" });
+    return html(`<h1>Session expired</h1><p>Please try connecting again.</p>`, 401);
+  }
 
   const settings = await getMcpSettings();
   if (!roleAllowed(settings, user.role)) {
+    await logMcpAccess({ userId: user.id, tokenId: null, tool: "oauth_authorize_post", argsSummary: summary(), success: false, errorMessage: "role_not_allowed", authMethod: "NONE" });
     return html(`<h1>MCP access is off for your role</h1><p>Ask an admin to enable it from the MCP settings page.</p>`, 403);
   }
+
+  await logMcpAccess({ userId: user.id, tokenId: null, tool: "oauth_authorize_post", argsSummary: summary(), success: true, authMethod: "NONE" });
 
   const code = await issueAuthCode({
     sub: user.id,

@@ -11,7 +11,13 @@ import { getMcpSettings } from "./src/lib/mcp/settings";
 // in cwd. Same class of bug as the "@/" import aliases: anything resolved
 // relative to cwd is fragile once something other than a person in this
 // directory launches the script.
-dotenv.config({ path: path.join(__dirname, ".env") });
+//
+// `quiet: true` matters here more than it would anywhere else: stdio
+// transport requires stdout to carry ONLY JSON-RPC messages. dotenv's
+// default "◇ injected env" banner prints to stdout, which Claude Desktop's
+// parser then chokes on as invalid JSON before the real protocol messages
+// ever get a chance to flow.
+dotenv.config({ path: path.join(__dirname, ".env"), quiet: true });
 
 /**
  * Local MCP server for Claude Desktop — stdio transport.

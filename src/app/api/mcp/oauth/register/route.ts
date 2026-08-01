@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { corsPreflight, withCors } from "@/lib/mcp/cors";
+import { logMcpAccess } from "@/lib/mcp/tokens";
 
 /**
  * POST /api/mcp/oauth/register — Dynamic Client Registration (RFC 7591).
@@ -27,17 +28,29 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: Request) {
+  const userAgent = request.headers.get("user-agent");
   let body: unknown;
   try {
     body = await request.json();
   } catch {
+    await logMcpAccess({
+      userId: null, tokenId: null, tool: "oauth_register",
+      argsSummary: JSON.stringify({ userAgent }).slice(0, 300),
+      success: false, errorMessage: "body_not_json", authMethod: "NONE",
+    });
     return withCors(NextResponse.json({ error: "invalid_client_metadata", error_description: "Body must be JSON." }, { status: 400 }));
   }
 
   const parsed = RegisterInput.safeParse(body);
   if (!parsed.success) {
+    const errorMessage = parsed.error.issues.map((i) => i.message).join("; ");
+    await logMcpAccess({
+      userId: null, tokenId: null, tool: "oauth_register",
+      argsSummary: JSON.stringify({ userAgent, body }).slice(0, 300),
+      success: false, errorMessage, authMethod: "NONE",
+    });
     return withCors(NextResponse.json(
-      { error: "invalid_client_metadata", error_description: parsed.error.issues.map((i) => i.message).join("; ") },
+      { error: "invalid_client_metadata", error_description: errorMessage },
       { status: 400 },
     ));
   }
@@ -47,6 +60,12 @@ export async function POST(request: Request) {
       clientName: parsed.data.client_name ?? "MCP client",
       redirectUris: parsed.data.redirect_uris,
     },
+  });
+
+  await logMcpAccess({
+    userId: null, tokenId: null, tool: "oauth_register",
+    argsSummary: JSON.stringify({ userAgent, clientId: client.id, redirectUris: client.redirectUris }).slice(0, 300),
+    success: true, authMethod: "NONE",
   });
 
   return withCors(NextResponse.json(

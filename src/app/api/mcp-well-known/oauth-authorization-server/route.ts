@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { corsPreflight, withCors } from "@/lib/mcp/cors";
+import { logMcpAccess } from "@/lib/mcp/tokens";
 
 /**
  * OAuth 2.0 Authorization Server Metadata (RFC 8414).
@@ -15,6 +16,11 @@ export async function OPTIONS() {
 
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
+  await logMcpAccess({
+    userId: null, tokenId: null, tool: "oauth_discovery_authorization_server",
+    argsSummary: JSON.stringify({ userAgent: request.headers.get("user-agent") }).slice(0, 300),
+    success: true, authMethod: "NONE",
+  });
   return withCors(NextResponse.json({
     issuer: origin,
     authorization_endpoint: `${origin}/api/mcp/oauth/authorize`,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyAuthCode, pkceChallengeFromVerifier, issueAccessToken } from "@/lib/mcp/tokens";
+import { verifyAuthCode, pkceChallengeFromVerifier, issueAccessToken, logMcpAccess } from "@/lib/mcp/tokens";
 import { corsPreflight, withCors } from "@/lib/mcp/cors";
 
 /**
@@ -29,29 +29,38 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: Request) {
+  const userAgent = request.headers.get("user-agent");
   const body = await readBody(request);
+  const summary = () => JSON.stringify({ userAgent, grantType: body.grant_type, clientId: body.client_id, hasResource: "resource" in body }).slice(0, 300);
 
   if (body.grant_type !== "authorization_code") {
+    await logMcpAccess({ userId: null, tokenId: null, tool: "oauth_token", argsSummary: summary(), success: false, errorMessage: "unsupported_grant_type", authMethod: "NONE" });
     return withCors(NextResponse.json({ error: "unsupported_grant_type" }, { status: 400 }));
   }
   if (!body.code || !body.redirect_uri || !body.client_id || !body.code_verifier) {
+    await logMcpAccess({ userId: null, tokenId: null, tool: "oauth_token", argsSummary: summary(), success: false, errorMessage: "invalid_request: missing field", authMethod: "NONE" });
     return withCors(NextResponse.json({ error: "invalid_request" }, { status: 400 }));
   }
 
   const payload = await verifyAuthCode(body.code);
   if (!payload) {
+    await logMcpAccess({ userId: null, tokenId: null, tool: "oauth_token", argsSummary: summary(), success: false, errorMessage: "invalid_grant: code invalid or expired", authMethod: "NONE" });
     return withCors(NextResponse.json({ error: "invalid_grant", error_description: "Code is invalid or expired." }, { status: 400 }));
   }
   if (payload.client_id !== body.client_id || payload.redirect_uri !== body.redirect_uri) {
+    await logMcpAccess({ userId: payload.sub, tokenId: null, tool: "oauth_token", argsSummary: summary(), success: false, errorMessage: "invalid_grant: client_id/redirect_uri mismatch", authMethod: "NONE" });
     return withCors(NextResponse.json({ error: "invalid_grant", error_description: "client_id or redirect_uri does not match the authorization request." }, { status: 400 }));
   }
 
   const computedChallenge = await pkceChallengeFromVerifier(body.code_verifier);
   if (computedChallenge !== payload.code_challenge) {
+    await logMcpAccess({ userId: payload.sub, tokenId: null, tool: "oauth_token", argsSummary: summary(), success: false, errorMessage: "invalid_grant: PKCE verification failed", authMethod: "NONE" });
     return withCors(NextResponse.json({ error: "invalid_grant", error_description: "PKCE verification failed." }, { status: 400 }));
   }
 
   const issued = await issueAccessToken({ userId: payload.sub, clientId: payload.client_id, kind: "OAUTH" });
+
+  await logMcpAccess({ userId: payload.sub, tokenId: issued.tokenId, tool: "oauth_token", argsSummary: summary(), success: true, authMethod: "OAUTH" });
 
   return withCors(NextResponse.json({
     access_token: issued.token,
