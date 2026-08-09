@@ -81,6 +81,10 @@ export async function POST(request: Request) {
           // The clock starts the day KPLC takes delivery. Never at manufacture.
           warrantyStart: receivedAt,
 
+          fatReportUrl: input.fatReportUrl || null,
+          fatReportUploadedAt: input.fatReportUrl ? receivedAt : null,
+          fatReportUploadedById: input.fatReportUrl ? actor.id : null,
+
           status: "IN_STORE",
           currentStoreId: store.id,
           region: store.region,

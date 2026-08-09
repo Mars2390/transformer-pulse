@@ -235,7 +235,7 @@ async function KplcFindings({ region }: { region: string | null }) {
     prisma.recordConflict.count({ where: { status: "OPEN" } }),
     prisma.testRecord.count({ where: { stage: "FIELD_DIAGNOSTIC", passed: false } }),
     prisma.substationInspection.count({ where: { transformerId: null } }),
-    prisma.transformer.count({ where: { ...scope, status: "IN_REPAIR" } }),
+    prisma.transformer.count({ where: { ...scope, status: "AT_WORKSHOP" } }),
     prisma.transformer.count({ where: { ...scope, status: "AWAITING_REPLACEMENT" } }),
   ]);
 

@@ -50,7 +50,8 @@ const PIN_COLOUR: Record<TransformerStatus, string> = {
   FAULTY: "#c02626",
   IN_TRANSIT: "#7c3aed",
   IN_STORE: "#1e40af",
-  IN_REPAIR: "#d99e00",
+  AT_WORKSHOP: "#d99e00",
+  IN_REPAIR: "#d99e00", // deprecated, see schema
   REPAIRED: "#0e8a4f",
   BEYOND_REPAIR: "#4b5563",
   AWAITING_REPLACEMENT: "#c02626",
@@ -378,7 +379,7 @@ function Legend({ showEstimated, points }: { showEstimated: boolean; points: Map
           )}
           {has("FAULTY") && <Row colour="#c02626" text="Faulty" />}
           {has("AWAITING_REPLACEMENT") && <Row colour="#c02626" text="Awaiting replacement" />}
-          {has("IN_REPAIR") && <Row colour="#d99e00" text="In repair" />}
+          {has("AT_WORKSHOP") && <Row colour="#d99e00" text="At workshop" />}
           {has("IN_STORE") && <Row colour="#1e40af" text="In store" />}
           {has("IN_TRANSIT") && <Row colour="#7c3aed" text="In transit" />}
           {has("BEYOND_REPAIR") && <Row colour="#4b5563" text="Beyond repair" />}

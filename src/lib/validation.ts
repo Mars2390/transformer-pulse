@@ -137,6 +137,7 @@ export const receiveTransformerSchema = z.object({
   vehiclePlate: vehiclePlateField.optional().or(z.literal("")),
   driverName: z.string().trim().max(80).optional().or(z.literal("")),
   photoUrls: z.array(z.string().url()).max(6).optional(),
+  fatReportUrl: z.string().url().optional().or(z.literal("")),
   ...nameplateFields,
 });
 

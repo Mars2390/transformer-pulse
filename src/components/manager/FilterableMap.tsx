@@ -120,7 +120,7 @@ export function FilterableMap({
           <option value="ALL">All statuses</option>
           <option value="IN_FIELD">In field</option>
           <option value="FAULTY">Faulty</option>
-          <option value="IN_REPAIR">In repair</option>
+          <option value="AT_WORKSHOP">At workshop</option>
           <option value="IN_STORE">In store</option>
           <option value="IN_TRANSIT">In transit</option>
           <option value="RETURNED">Returned</option>

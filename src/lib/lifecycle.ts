@@ -117,28 +117,28 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     // From FAULTY normally; from IN_FIELD when a unit is pulled proactively,
     // which happens after a bad inspection rather than a failure.
     allowedFrom: ["FAULTY", "IN_FIELD"],
-    toStatus: "IN_REPAIR",
+    toStatus: "AT_WORKSHOP",
     label: "Recovered for repair",
     description: "Taken off the pole with a workshop as its destination.",
     // Whoever carried it is who we ask when it does not arrive.
     requires: { vehicle: true },
   },
   RECEIVED_AT_WORKSHOP: {
-    allowedFrom: ["IN_REPAIR", "IN_TRANSIT"],
-    toStatus: "IN_REPAIR",
+    allowedFrom: ["AT_WORKSHOP", "IN_TRANSIT"],
+    toStatus: "AT_WORKSHOP",
     label: "Received at workshop",
     description: "Booked in at the repair workshop.",
     requires: {},
   },
   REPAIR_STARTED: {
-    allowedFrom: ["IN_REPAIR"],
-    toStatus: "IN_REPAIR",
+    allowedFrom: ["AT_WORKSHOP"],
+    toStatus: "AT_WORKSHOP",
     label: "Repair started",
     description: "Work began. The clock on turnaround starts here.",
     requires: {},
   },
   REPAIRED: {
-    allowedFrom: ["IN_REPAIR"],
+    allowedFrom: ["AT_WORKSHOP"],
     toStatus: "REPAIRED",
     label: "Repaired",
     description: "Work complete and proved by test.",
@@ -147,7 +147,7 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     requires: { test: true },
   },
   REPAIR_FAILED: {
-    allowedFrom: ["IN_REPAIR"],
+    allowedFrom: ["AT_WORKSHOP"],
     toStatus: "BEYOND_REPAIR",
     label: "Repair failed",
     description: "Opened, diagnosed, and not economically repairable.",
@@ -204,7 +204,8 @@ export const STATUS_LABELS: Record<TransformerStatus, string> = {
   IN_STORE: "in store",
   IN_TRANSIT: "in transit",
   IN_FIELD: "in the field",
-  IN_REPAIR: "at a workshop",
+  AT_WORKSHOP: "at a workshop",
+  IN_REPAIR: "at a workshop", // deprecated, kept for any historical row — see enum comment
   REPAIRED: "repaired and awaiting return to store",
   BEYOND_REPAIR: "condemned as beyond repair",
   AWAITING_REPLACEMENT: "awaiting a replacement",

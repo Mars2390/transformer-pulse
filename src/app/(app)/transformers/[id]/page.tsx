@@ -16,7 +16,7 @@ import { ServiceSummaryCard } from "@/components/transformer/ServiceSummaryCard"
 import { LinkStatusBanner } from "@/components/transformer/LinkStatusBanner";
 import type { WarrantyView } from "@/components/transformer/WarrantyTab";
 import type { StoryData, StoryEvent, StoryTest } from "@/components/transformer/story-types";
-import { STATUS_META, formatRating } from "@/lib/format";
+import { STATUS_META, formatRating, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +46,7 @@ export default async function StoryPage({
     where: { id },
     include: {
       manufacturer: { select: { name: true } },
+      fatReportUploadedBy: { select: { name: true } },
       events: {
         orderBy: { occurredAt: "desc" },
         include: {
@@ -384,6 +385,40 @@ export default async function StoryPage({
           );
         })()}
       </div>
+
+      {/* --- Documents ------------------------------------------------------ */}
+      {tx.fatReportUrl && (
+        <div className="mt-6 rounded-2xl border border-line bg-white p-6">
+          <p className="text-[11px] font-bold tracking-wide text-ink-soft">📄 DOCUMENTS</p>
+          <ul className="mt-3 divide-y divide-line">
+            <li className="flex items-center gap-3 py-2.5">
+              <span className="text-lg">📄</span>
+              <div className="min-w-0 flex-1">
+                <a
+                  href={tx.fatReportUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-navy hover:text-kplc"
+                >
+                  FAT Report
+                </a>
+                <p className="text-[11px] text-ink-soft">
+                  {tx.fatReportUploadedAt ? `Uploaded ${formatDateTime(tx.fatReportUploadedAt)}` : "Uploaded"}
+                  {tx.fatReportUploadedBy ? ` by ${tx.fatReportUploadedBy.name}` : ""}
+                </p>
+              </div>
+              <a
+                href={tx.fatReportUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 rounded-lg border border-line bg-white px-3 py-1.5 text-[11px] font-bold text-navy hover:border-kplc hover:text-kplc"
+              >
+                Open
+              </a>
+            </li>
+          </ul>
+        </div>
+      )}
 
       {/* --- Location ------------------------------------------------------ */}
       {tx.currentLat != null && tx.currentLng != null && (

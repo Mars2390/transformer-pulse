@@ -94,7 +94,8 @@ export const STATUS_META: Record<
   IN_TRANSIT: { label: "In transit", tone: "warning" },
   IN_FIELD: { label: "In field", tone: "success" },
   FAULTY: { label: "Faulty", tone: "danger" },
-  IN_REPAIR: { label: "In repair", tone: "warning" },
+  AT_WORKSHOP: { label: "At workshop", tone: "warning" },
+  IN_REPAIR: { label: "At workshop", tone: "warning" }, // deprecated, see schema
   REPAIRED: { label: "Repaired", tone: "success" },
   BEYOND_REPAIR: { label: "Beyond repair", tone: "neutral" },
   AWAITING_REPLACEMENT: { label: "Awaiting replacement", tone: "danger" },

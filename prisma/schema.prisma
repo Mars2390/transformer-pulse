@@ -40,7 +40,13 @@ enum TransformerStatus {
   FAULTY // failed in service, still on the pole
 
   // --- The repair loop -----------------------------------------------------
-  IN_REPAIR // recovered from the field, at a workshop
+  // AT_WORKSHOP is the live status — distinct from IN_STORE, matching KPLC's
+  // actual chain of custody (a workshop is a different physical place with a
+  // different custodian than a store). IN_REPAIR is kept, unused, purely so
+  // any historical row still carrying it stays valid; nothing new is ever
+  // written with it after the one-time data migration to AT_WORKSHOP.
+  AT_WORKSHOP // recovered from the field, at a workshop
+  IN_REPAIR // deprecated — superseded by AT_WORKSHOP, see above
   REPAIRED // work complete and tested, ready to go back to a store
   BEYOND_REPAIR // opened, diagnosed, and not economically repairable
 
@@ -321,6 +327,8 @@ model User {
   supplyRequestsApproved SupplyRequest[] @relation("SupplyApprovedBy")
   allocationsMade        Allocation[]    @relation("AllocatedBy")
 
+  fatReportsUploaded Transformer[] @relation("FatReportUploadedBy")
+
   mcpSettingsUpdates McpSettings[]  @relation("McpSettingsUpdatedBy")
   mcpTokensIssued    McpToken[]     @relation("McpTokenIssuedTo")
   mcpAccessLogs      McpAccessLog[] @relation("McpAccessLogUser")
@@ -436,6 +444,14 @@ model Transformer {
   // sat in a container for eight months has not burned eight months of cover.
   // Paper gets this wrong, always in the manufacturer's favour.
   warrantyStart DateTime?
+
+  // --- Documents ------------------------------------------------------------
+  // Just the FAT report for now — one slot, not a general attachments table.
+  // Add a proper Document model if/when a second document type is needed.
+  fatReportUrl          String?
+  fatReportUploadedAt   DateTime?
+  fatReportUploadedById String?
+  fatReportUploadedBy   User?     @relation("FatReportUploadedBy", fields: [fatReportUploadedById], references: [id])
 
   // --- Current state (a cache of the event chain, for fast queries) --------
   status TransformerStatus @default(IN_STORE)
