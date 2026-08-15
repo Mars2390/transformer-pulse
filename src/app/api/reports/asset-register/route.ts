@@ -68,7 +68,7 @@ export async function GET(request: Request) {
     const buffer = await toXlsx({
       rows,
       columns: COLUMNS,
-      title: "Transformer Pulse — Regional Asset Register",
+      title: "Transformer DNA — Regional Asset Register",
       subtitle: `${user.region ?? "All regions"} · ${total} units`,
       generatedBy: user.name,
       region: user.region ?? "All regions",

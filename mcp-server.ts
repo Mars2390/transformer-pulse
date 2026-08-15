@@ -42,7 +42,7 @@ async function main() {
   const settings = await getMcpSettings();
   if (!settings.enabled) {
     console.error(
-      "MCP is disabled in Transformer Pulse's admin settings (/mcp). " +
+      "MCP is disabled in Transformer DNA's admin settings (/mcp). " +
         "An admin needs to turn it back on before this server will run.",
     );
     process.exit(1);
@@ -72,7 +72,7 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`Transformer Pulse MCP server running on stdio — ${MCP_TOOLS.length} tools registered.`);
+  console.error(`Transformer DNA MCP server running on stdio — ${MCP_TOOLS.length} tools registered.`);
 }
 
 main().catch((error) => {

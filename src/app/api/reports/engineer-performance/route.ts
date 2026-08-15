@@ -91,7 +91,7 @@ export async function GET(request: Request) {
 
     const buffer = await toXlsx({
       rows, columns,
-      title: "Transformer Pulse — Engineer Performance Report",
+      title: "Transformer DNA — Engineer Performance Report",
       subtitle: `${user.region ?? "All regions"} · ${rows.length} engineers`,
       generatedBy: user.name,
       region: user.region ?? "All regions",

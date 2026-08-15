@@ -2,7 +2,7 @@ import Image from "next/image";
 
 /**
  * The brand lock-up: the Kenya Power mark in a white tile, followed by the
- * Transformer Pulse wordmark.
+ * Transformer DNA wordmark.
  *
  * The tile is not decoration. The supplied logo is a solid white square, so on
  * a navy navbar it needs a deliberate container or it reads as a sticker
@@ -43,7 +43,7 @@ export function BrandLockup({
           <span className={tone === "light" ? "text-white" : "text-navy"}>
             Transformer
           </span>
-          <span className="text-gold">Pulse</span>
+          <span className="text-gold">DNA</span>
         </span>
         <span
           className={`mt-1 text-[10px] font-medium tracking-tight ${

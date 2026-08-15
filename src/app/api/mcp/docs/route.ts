@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   const escaped = markdown.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const html = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Transformer Pulse — MCP documentation</title>
+<title>Transformer DNA — MCP documentation</title>
 <style>
   body{font-family:system-ui,-apple-system,sans-serif;background:#f5f6f8;margin:0;padding:0;color:#1c1f1f}
   .card{max-width:760px;margin:32px auto;background:#fff;border:1px solid #e3e6ec;border-radius:16px;padding:32px 40px}

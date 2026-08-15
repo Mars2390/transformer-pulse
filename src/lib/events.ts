@@ -10,7 +10,7 @@ import type { SessionUser } from "./session";
 import type { TestValuesInput } from "./validation";
 
 /**
- * Recording a lifecycle event is THE core operation of Transformer Pulse.
+ * Recording a lifecycle event is THE core operation of Transformer DNA.
  * Everything else in the app is a view over what this function writes.
  *
  * It runs as ONE database transaction so that the event, its test results, the

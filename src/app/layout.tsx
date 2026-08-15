@@ -10,14 +10,14 @@ const figtree = Figtree({
 
 export const metadata: Metadata = {
   title: {
-    default: "Transformer Pulse — Transformer tracking for Kenya Power",
-    template: "%s · Transformer Pulse",
+    default: "Transformer DNA — Transformer tracking for Kenya Power",
+    template: "%s · Transformer DNA",
   },
   description:
     "Track every distribution transformer from the manufacturer, through the store, to the field. Location, custody, test records and warranty status in one place.",
-  applicationName: "Transformer Pulse",
+  applicationName: "Transformer DNA",
   openGraph: {
-    title: "Transformer Pulse",
+    title: "Transformer DNA",
     description:
       "Track every distribution transformer from the manufacturer, through the store, to the field.",
     type: "website",

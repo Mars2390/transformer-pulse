@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Transformer Pulse — data model
+// Transformer DNA — data model
 //
 // The governing rule: a transformer's CURRENT STATE is derived from an
 // APPEND-ONLY chain of lifecycle events. We never edit history. If a

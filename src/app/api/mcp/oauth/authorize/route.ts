@@ -19,7 +19,7 @@ import { ROLE_LABELS } from "@/lib/format";
 function html(body: string, status = 200): NextResponse {
   return new NextResponse(
     `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
-      `<title>Transformer Pulse — Connect Claude</title>` +
+      `<title>Transformer DNA — Connect Claude</title>` +
       `<style>
         body{font-family:system-ui,-apple-system,sans-serif;background:#f5f6f8;margin:0;padding:0;color:#1c1f1f}
         .card{max-width:440px;margin:64px auto;background:#fff;border:1px solid #e3e6ec;border-radius:16px;padding:32px}
@@ -112,7 +112,7 @@ export async function GET(request: Request) {
   });
 
   return html(`
-    <h1>Connect Claude to Transformer Pulse</h1>
+    <h1>Connect Claude to Transformer DNA</h1>
     <p>Signed in as <strong>${user.name}</strong> (${ROLE_LABELS[user.role]}${user.region ? ` · ${user.region}` : ""}).</p>
     <div class="scope">
       <strong>${validated.client.clientName ?? "This app"}</strong> is requesting read-only access to:

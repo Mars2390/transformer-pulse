@@ -99,7 +99,7 @@ export async function GET(request: Request) {
       const buffer = await toXlsx({
         rows,
         columns: COLUMNS,
-        title: "Transformer Pulse — Store Inventory Report",
+        title: "Transformer DNA — Store Inventory Report",
         subtitle: scopeName,
         generatedBy: actor.name,
         sheetName: "Inventory",

@@ -1,6 +1,6 @@
-# MCP — connecting Claude to Transformer Pulse
+# MCP — connecting Claude to Transformer DNA
 
-Transformer Pulse exposes a small, read-only [Model Context Protocol](https://modelcontextprotocol.io) server so
+Transformer DNA exposes a small, read-only [Model Context Protocol](https://modelcontextprotocol.io) server so
 Claude can answer real questions about the fleet — health, load, defects, warranty, manufacturers — directly
 against live data, without anyone exporting a spreadsheet first.
 
@@ -118,10 +118,10 @@ There are two ways to connect, depending on where Claude is running.
 
 ### Remote (Claude Desktop or claude.ai — recommended)
 
-1. Sign in to Transformer Pulse and open **MCP** in the sidebar (Admin, Manager, and Store Keeper all see it).
+1. Sign in to Transformer DNA and open **MCP** in the sidebar (Admin, Manager, and Store Keeper all see it).
 2. Copy the server URL shown there (`https://<your-deployment>/api/mcp`).
 3. In Claude, go to **Settings → Connectors → Add custom connector** and paste the URL.
-4. Claude opens your browser to `/mcp` for sign-in (using your normal Transformer Pulse PIN login) and asks you to
+4. Claude opens your browser to `/mcp` for sign-in (using your normal Transformer DNA PIN login) and asks you to
    approve the connection. Approve it, and Claude is connected — no API key needed.
 
 This uses a standard OAuth 2.1 flow: dynamic client registration, PKCE (S256), and a short-lived authorization

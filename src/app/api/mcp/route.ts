@@ -72,7 +72,7 @@ function statusHtml(info: {
 }): string {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Transformer Pulse — MCP Server</title>
+<title>Transformer DNA — MCP Server</title>
 <style>
   body{font-family:system-ui,-apple-system,sans-serif;background:#f5f6f8;margin:0;padding:0;color:#1c1f1f}
   .card{max-width:480px;margin:64px auto;background:#fff;border:1px solid #e3e6ec;border-radius:16px;padding:32px}
@@ -87,7 +87,7 @@ function statusHtml(info: {
   a.primary{background:#006837;color:#fff}
   a.secondary{background:#fff;color:#0a1a4f;border:1px solid #e3e6ec}
 </style></head><body><div class="card">
-  <h1>Transformer Pulse MCP Server</h1>
+  <h1>Transformer DNA MCP Server</h1>
   <p>${info.message}</p>
   <div class="status">${info.statusLabel}</div>
   <dl>
@@ -184,7 +184,7 @@ export async function GET(request: Request) {
   const info = {
     status: enabled ? "online" : "disabled",
     statusLabel: enabled ? "🟢 Online" : "🔴 Disabled",
-    message: "Transformer Pulse MCP Server is running. Connect via Claude Desktop or use POST requests with proper authentication.",
+    message: "Transformer DNA MCP Server is running. Connect via Claude Desktop or use POST requests with proper authentication.",
     server: "transformer-pulse",
     version: SERVER_VERSION,
     protocolVersion: PROTOCOL_VERSION,

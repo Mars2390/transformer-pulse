@@ -51,7 +51,7 @@ export default function LoginPage() {
         <div className="mb-8 flex flex-col items-center text-center">
           <KplcMark className="h-14 w-14" />
           <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-white">
-            Transformer<span className="text-gold">Pulse</span>
+            Transformer<span className="text-gold">DNA</span>
           </h1>
           <p className="mt-1.5 text-sm text-white/50">
             Kenya Power Distribution Assets
@@ -78,7 +78,7 @@ export default function LoginPage() {
 
         <p className="mt-8 text-center text-xs text-white/35">
           <Link href="/" className="transition-colors hover:text-white/70">
-            ← Back to Transformer Pulse
+            ← Back to Transformer DNA
           </Link>
         </p>
       </div>

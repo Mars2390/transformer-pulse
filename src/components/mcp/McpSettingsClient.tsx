@@ -219,7 +219,7 @@ export function McpSettingsClient({
           <p className="text-xs font-bold text-navy">Remote (recommended) — claude.ai or Claude Desktop</p>
           <p className="mt-1 text-xs text-ink-soft">
             Settings → Connectors → Add custom connector, then paste this URL. Claude opens your browser to sign
-            in with your existing Transformer Pulse account.
+            in with your existing Transformer DNA account.
           </p>
           <div className="mt-2 flex gap-2">
             <input readOnly value={mcpUrl} className="flex-1 rounded-lg border border-line bg-surface-2 px-3 py-2 font-mono text-xs text-navy" />
