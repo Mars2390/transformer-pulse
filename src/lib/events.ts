@@ -10,7 +10,7 @@ import type { SessionUser } from "./session";
 import type { TestValuesInput } from "./validation";
 
 /**
- * Recording a lifecycle event is THE core operation of Transformer Pulse.
+ * Recording a lifecycle event is THE core operation of Transformer DNA.
  * Everything else in the app is a view over what this function writes.
  *
  * It runs as ONE database transaction so that the event, its test results, the
@@ -119,6 +119,23 @@ export async function recordEvent(
     }
     if (rule.requires.photo && !(input.photoUrls ?? []).length) {
       throw new LifecycleError(`"${rule.label}" must include a photograph.`);
+    }
+
+    // --- Business rule: unapproved stock does not move ----------------------
+    // checkTransition already refuses these, since DISPATCHED and TESTED allow
+    // only IN_STORE. This exists to replace "cannot record Dispatched on a
+    // transformer that is booked in and waiting for approval" with a sentence
+    // that tells the store keeper what to do about it.
+    if (
+      (transformer.status === "PENDING_APPROVAL" || transformer.status === "REJECTED") &&
+      (input.type === "DISPATCHED" || input.type === "TESTED")
+    ) {
+      throw new LifecycleError(
+        transformer.status === "PENDING_APPROVAL"
+          ? "This transformer is still waiting for approval. Someone other than the officer who booked it in has to accept it into stock before it can be tested or dispatched."
+          : "This transformer was rejected at intake. It is not stock, and cannot be tested or dispatched.",
+        409,
+      );
     }
 
     // --- Business rule: nothing untested leaves the store -------------------

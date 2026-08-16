@@ -213,6 +213,8 @@ export default async function StoryPage({
     currentSiteName: tx.currentSiteName,
     feeder: tx.feeder,
     region: tx.region,
+    substationCode: tx.substationCode,
+    substationName: tx.substationName,
     warrantyStart: tx.warrantyStart?.toISOString() ?? null,
     warrantyMonths: tx.warrantyMonths,
     events,
@@ -261,6 +263,18 @@ export default async function StoryPage({
               <p className="mt-0.5 text-sm text-ink-soft">
                 At {story.currentSiteName}
                 {story.feeder ? ` · feeder ${story.feeder}` : ""}
+              </p>
+            )}
+            {story.substationCode && (
+              <p className="mt-0.5 text-sm text-ink-soft">
+                Substation{" "}
+                <Link
+                  href={`/substations/${encodeURIComponent(story.substationCode)}`}
+                  className="font-bold text-kplc hover:underline"
+                >
+                  {story.substationCode}
+                  {story.substationName ? ` — ${story.substationName}` : ""}
+                </Link>
               </p>
             )}
             <div className="mt-3 flex flex-wrap gap-2">

@@ -46,6 +46,8 @@ export type MapPoint = {
 
 /** Pin colours by status. These match the badges used everywhere else. */
 const PIN_COLOUR: Record<TransformerStatus, string> = {
+  PENDING_APPROVAL: "#d99e00",
+  REJECTED: "#7b8383",
   IN_FIELD: "#0e8a4f",
   FAULTY: "#c02626",
   IN_TRANSIT: "#7c3aed",

@@ -85,7 +85,13 @@ export async function POST(request: Request) {
           fatReportUploadedAt: input.fatReportUrl ? receivedAt : null,
           fatReportUploadedById: input.fatReportUrl ? actor.id : null,
 
-          status: "IN_STORE",
+          // MAKER step. A receiving officer books the unit in; it is NOT stock
+          // yet. TESTED and DISPATCHED both list only IN_STORE in allowedFrom,
+          // so the lifecycle engine refuses them while it sits here — the gate
+          // is the status itself, not a check somebody could forget to write.
+          status: "PENDING_APPROVAL",
+          submittedById: actor.id,
+          submittedAt: receivedAt,
           currentStoreId: store.id,
           region: store.region,
           county: store.county,
@@ -97,6 +103,7 @@ export async function POST(request: Request) {
         `Received from ${manufacturer.name}.`,
         input.deliveryNoteRef ? `Delivery note ${input.deliveryNoteRef}.` : null,
         `Warranty runs ${manufacturer.warrantyMonths} months from today.`,
+        `Booked in by ${actor.name}. Awaiting a checker's approval before it becomes stock.`,
       ]
         .filter(Boolean)
         .join(" ");
@@ -104,7 +111,7 @@ export async function POST(request: Request) {
       const hash = computeEventHash(null, {
         transformerId: created.id,
         type: "RECEIVED_AT_STORE",
-        toStatus: "IN_STORE",
+        toStatus: "PENDING_APPROVAL",
         userId: actor.id,
         occurredAt: receivedAt,
         lat: store.lat,
@@ -119,7 +126,7 @@ export async function POST(request: Request) {
           transformerId: created.id,
           type: "RECEIVED_AT_STORE",
           fromStatus: null, // it did not exist before this moment
-          toStatus: "IN_STORE",
+          toStatus: "PENDING_APPROVAL",
           userId: actor.id,
           occurredAt: receivedAt,
           lat: store.lat,

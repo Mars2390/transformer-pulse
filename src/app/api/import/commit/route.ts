@@ -136,7 +136,16 @@ export async function POST(request: Request) {
               // claim against a manufacturer that nobody can substantiate.
               warrantyMonths: row.dataSource ? 0 : manufacturer.warrantyMonths,
               warrantyStart: row.dataSource ? null : baseDate,
-              status: row.dataSource ? "IN_FIELD" : (row.status as TransformerStatus),
+              // A spreadsheet must not hand itself a status the maker-checker
+              // flow exists to control. PENDING_APPROVAL and REJECTED are
+              // reachable only through the receive form and the approvals API;
+              // a row claiming either is parked in PENDING_APPROVAL for a human
+              // rather than trusted.
+              status: row.dataSource
+                ? "IN_FIELD"
+                : row.status === "PENDING_APPROVAL" || row.status === "REJECTED"
+                  ? "PENDING_APPROVAL"
+                  : (row.status as TransformerStatus),
               currentStoreId: !row.dataSource && row.status === "IN_STORE" ? row.storeId : null,
               currentLat: row.dataSource || row.status === "IN_FIELD" || row.status === "FAULTY" ? row.lat : null,
               currentLng: row.dataSource || row.status === "IN_FIELD" || row.status === "FAULTY" ? row.lng : null,

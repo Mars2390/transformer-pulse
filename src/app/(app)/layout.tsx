@@ -19,6 +19,7 @@ import type { Role } from "@/generated/prisma/enums";
 const NAV: Record<Role, { href: string; label: string }[]> = {
   ADMIN: [
     { href: "/admin/dashboard", label: "Overview" },
+    { href: "/manager/approvals", label: "Approvals" },
     { href: "/admin/users", label: "Users" },
     { href: "/admin/manufacturers", label: "Manufacturers" },
     { href: "/admin/stores", label: "Stores" },
@@ -28,6 +29,7 @@ const NAV: Record<Role, { href: string; label: string }[]> = {
   ],
   MANAGER: [
     { href: "/manager/dashboard", label: "Dashboard" },
+    { href: "/manager/approvals", label: "Approvals" },
     { href: "/manager/map", label: "Map" },
     { href: "/manager/warranty", label: "Warranty" },
     { href: "/manager/reports", label: "Reports" },
@@ -70,7 +72,7 @@ export default async function AppLayout({
             <Link href="/dashboard" className="flex items-center gap-2.5">
               <KplcMark className="h-9 w-9" />
               <span className="hidden text-[15px] font-extrabold tracking-tight text-navy sm:block">
-                Transformer<span className="text-gold">Pulse</span>
+                Transformer<span className="text-gold">DNA</span>
               </span>
             </Link>
 

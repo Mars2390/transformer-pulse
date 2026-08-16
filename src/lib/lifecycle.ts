@@ -33,6 +33,24 @@ export type EventRule = {
 };
 
 export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
+  // --- Maker-checker -------------------------------------------------------
+  // The only two events that move a unit out of PENDING_APPROVAL, and the only
+  // route into stock for a newly delivered unit. A maker cannot fire either:
+  // the approvals API refuses when the actor is the person who booked it in.
+  APPROVED_FOR_STOCK: {
+    allowedFrom: ["PENDING_APPROVAL"],
+    toStatus: "IN_STORE",
+    label: "Approved into stock",
+    description: "A checker accepted the delivery. The unit is stock, and can now be tested and dispatched.",
+    requires: {},
+  },
+  REJECTED_ON_INTAKE: {
+    allowedFrom: ["PENDING_APPROVAL"],
+    toStatus: "REJECTED",
+    label: "Rejected at intake",
+    description: "A checker refused the delivery. The record and its chain are kept; the unit never becomes stock.",
+    requires: {},
+  },
   RECEIVED_AT_STORE: {
     // Genesis is written by the receive form, which creates the transformer and
     // its first event together. This transition covers the OTHER cases: a unit
@@ -201,6 +219,8 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
 };
 
 export const STATUS_LABELS: Record<TransformerStatus, string> = {
+  PENDING_APPROVAL: "booked in and waiting for approval",
+  REJECTED: "rejected at intake",
   IN_STORE: "in store",
   IN_TRANSIT: "in transit",
   IN_FIELD: "in the field",

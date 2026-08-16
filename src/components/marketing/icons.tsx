@@ -52,6 +52,16 @@ export function IconPin(props: IconProps) {
   );
 }
 
+/** Add something that already exists in the world — a map pin with a plus. */
+export function IconPinPlus(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z" />
+      <path d="M12 7.4v5.2M9.4 10h5.2" />
+    </Svg>
+  );
+}
+
 /** Transport / dispatch. */
 export function IconTruck(props: IconProps) {
   return (

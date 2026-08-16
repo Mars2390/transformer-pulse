@@ -90,6 +90,8 @@ export const STATUS_META: Record<
   TransformerStatus,
   { label: string; tone: Tone }
 > = {
+  PENDING_APPROVAL: { label: "Pending approval", tone: "warning" },
+  REJECTED: { label: "Rejected", tone: "danger" },
   IN_STORE: { label: "In store", tone: "info" },
   IN_TRANSIT: { label: "In transit", tone: "warning" },
   IN_FIELD: { label: "In field", tone: "success" },
@@ -105,6 +107,8 @@ export const STATUS_META: Record<
 
 export const EVENT_META: Record<EventType, { label: string; tone: Tone }> = {
   RECEIVED_AT_STORE: { label: "Received at store", tone: "info" },
+  APPROVED_FOR_STOCK: { label: "Approved into stock", tone: "success" },
+  REJECTED_ON_INTAKE: { label: "Rejected at intake", tone: "danger" },
   ONBOARDED_EXISTING: { label: "Onboarded — existing", tone: "warning" },
   TESTED: { label: "Tested", tone: "info" },
   DISPATCHED: { label: "Dispatched", tone: "warning" },
@@ -154,6 +158,13 @@ export const DATA_SOURCE_META: Record<
     short: "Manual pin",
     tone: "warning",
     accuracy: "Positioned by hand on the map. Roughly 5 m if the operator could see the unit.",
+  },
+  FIELD_SURVEY: {
+    label: "Field survey — GPS taken at the asset",
+    short: "Field survey",
+    tone: "success",
+    accuracy:
+      "A field engineer stood under this transformer and captured a fix from the device in their hand. The most reliable position this system holds.",
   },
   INSPECTION_REGISTER: {
     label: "KPLC inspection register — Nairobi West",

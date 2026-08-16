@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Transformer Pulse — data model
+// Transformer DNA — data model
 //
 // The governing rule: a transformer's CURRENT STATE is derived from an
 // APPEND-ONLY chain of lifecycle events. We never edit history. If a
@@ -34,6 +34,16 @@ enum Role {
 }
 
 enum TransformerStatus {
+  // --- Maker-checker intake ------------------------------------------------
+  // A unit booked in by a receiving officer but not yet accepted as stock. It
+  // exists, it is on the premises, and it is deliberately NOT dispatchable or
+  // testable: DISPATCHED and TESTED both list only IN_STORE in allowedFrom, so
+  // the lifecycle engine refuses them for free while a unit sits here.
+  PENDING_APPROVAL
+  // A checker refused it — wrong nameplate, damaged on arrival, duplicate
+  // booking. The row and its chain are kept; nothing is ever deleted.
+  REJECTED
+
   IN_STORE // received at a KPLC store, G-Number assigned
   IN_TRANSIT // on a vehicle, between two places
   IN_FIELD // energised at a site
@@ -102,6 +112,15 @@ enum AllocationStatus {
 
 enum EventType {
   RECEIVED_AT_STORE // genesis for a unit that enters through a KPLC store
+
+  // --- Maker-checker -------------------------------------------------------
+  // Accepting or refusing a delivery is a custody decision, so it lives on the
+  // chain rather than only in the admin audit log. Without these the story page
+  // would show a unit sitting in stock whose last event says PENDING_APPROVAL,
+  // which is a gap a reader is right to distrust. Both are written by the
+  // CHECKER, never the maker — the API refuses when the two are the same person.
+  APPROVED_FOR_STOCK
+  REJECTED_ON_INTAKE
 
   // Genesis for a unit that was ALREADY on a pole before the system existed.
   // KPLC has tens of thousands of these. They never passed through a store we
@@ -329,6 +348,10 @@ model User {
 
   fatReportsUploaded Transformer[] @relation("FatReportUploadedBy")
 
+  // Maker-checker: the units this person booked in, and the ones they accepted.
+  transformersSubmitted Transformer[] @relation("TransformerSubmittedBy")
+  transformersApproved  Transformer[] @relation("TransformerApprovedBy")
+
   mcpSettingsUpdates McpSettings[]  @relation("McpSettingsUpdatedBy")
   mcpTokensIssued    McpToken[]     @relation("McpTokenIssuedTo")
   mcpAccessLogs      McpAccessLog[] @relation("McpAccessLogUser")
@@ -541,6 +564,23 @@ model Transformer {
   // Hash of the most recent event. The chain's head — see lib/chain.ts.
   lastEventHash String?
 
+  // --- Maker-checker ---------------------------------------------------------
+  // Who booked this unit in, and who accepted it as stock. They must be two
+  // different people; the approval API refuses otherwise. Kept as columns on the
+  // transformer rather than derived from the event chain because the approval
+  // queue filters and sorts on them, and scanning every unit's events to build
+  // that list would be a query per row.
+  submittedById String?
+  submittedBy   User?     @relation("TransformerSubmittedBy", fields: [submittedById], references: [id])
+  submittedAt   DateTime?
+
+  approvedById String?
+  approvedBy   User?     @relation("TransformerApprovedBy", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+
+  /** Why a checker refused it. Required when rejecting; never cleared. */
+  rejectionReason String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -550,6 +590,7 @@ model Transformer {
   alerts Alert[]
 
   @@index([status])
+  @@index([status, submittedAt])
   @@index([region])
   @@index([manufacturerId])
   @@index([currentLat, currentLng])

@@ -79,6 +79,9 @@ export type StoryData = {
   currentSiteName: string | null;
   feeder: string | null;
   region: string | null;
+  /** The substation this unit hangs off. The code is the identity — see src/lib/substations.ts. */
+  substationCode: string | null;
+  substationName: string | null;
   warrantyStart: string | null; // ISO
   warrantyMonths: number;
   events: StoryEvent[]; // newest first
