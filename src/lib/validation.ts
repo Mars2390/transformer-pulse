@@ -432,5 +432,68 @@ export function fieldErrors(error: z.ZodError): Record<string, string> {
     const key = issue.path.join(".") || "_";
     if (!out[key]) out[key] = issue.message;
   }
-  return out;
+return out;
 }
+
+/**
+ * Raising a movement. One submission, one or many transformers.
+ *
+ * The vehicle is required by the MOVEMENT, not by this schema - a scrapping in
+ * place has no lorry - so the check lives in the API where the movement catalog
+ * is in scope. Everything here is what a form can validate on its own.
+ */
+export const transactionCreateSchema = z.object({
+  transformerIds: z
+    .array(z.string().min(1))
+    .min(1, "Select at least one transformer.")
+    .max(50, "Move at most 50 at a time."),
+  movement: z.string().min(1, "Choose the kind of movement."),
+
+  /** Store.id - required when the destination is a store or a workshop. */
+  toStoreId: z.string().optional().or(z.literal("")),
+  /** Free text - used when the destination is a site, a manufacturer, or scrap. */
+  toName: z.string().trim().max(160).optional().or(z.literal("")),
+
+  vehiclePlate: vehiclePlateField.optional().or(z.literal("")),
+  driverName: z.string().trim().max(80).optional().or(z.literal("")),
+  driverPhone: kenyanPhoneField.optional().or(z.literal("")),
+
+  reason: z.string().trim().max(300).optional().or(z.literal("")),
+  notes: z.string().trim().max(500).optional().or(z.literal("")),
+});
+
+export type TransactionCreateInput = z.infer<typeof transactionCreateSchema>;
+
+/** Approving or refusing raised movements, in bulk. Mirrors approvalDecisionSchema. */
+export const transactionDecisionSchema = z
+  .object({
+    transactionIds: z
+      .array(z.string().min(1))
+      .min(1, "Select at least one movement.")
+      .max(200, "Decide at most 200 at a time."),
+    decision: z.enum(["APPROVE", "REJECT"]),
+    reason: z.string().trim().max(300).optional().or(z.literal("")),
+  })
+  .refine((v) => v.decision !== "REJECT" || (v.reason && v.reason.trim().length >= 3), {
+    message: "Say why it is being refused. A rejection with no reason cannot be acted on.",
+    path: ["reason"],
+  });
+
+export type TransactionDecisionInput = z.infer<typeof transactionDecisionSchema>;
+
+/**
+ * Departure and arrival. Deliberately NOT approvals - these are the two people
+ * who physically watched the lorry, and making them wait for a manager would
+ * mean the timestamps get written from memory hours later, which is worse than
+ * not recording them.
+ */
+export const transactionLegSchema = z.object({
+  leg: z.enum(["DEPART", "ARRIVE"]),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
+  accuracyM: z.coerce.number().int().min(0).max(10000).optional(),
+  photoUrls: z.array(z.string().min(1)).max(5).optional(),
+  notes: z.string().trim().max(300).optional().or(z.literal("")),
+});
+
+export type TransactionLegInput = z.infer<typeof transactionLegSchema>;
