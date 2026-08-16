@@ -18,7 +18,7 @@ const ITEMS = [
   { href: "/field/scan", label: "Submit", icon: IconCamera },
   { href: "/field/onboard", label: "Onboard", icon: IconPinPlus },
   { href: "/field/map", label: "Map", icon: IconPin },
-  { href: "/transformers", label: "Look up", icon: IconClipboard },
+  { href: "/field/qr-scan", label: "Scan tag", icon: IconCamera },
 ];
 
 export function FieldBottomNav() {

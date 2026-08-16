@@ -387,6 +387,7 @@ model User {
   transactionsReceived  TransactionRecord[] @relation("TransactionReceivedBy")
 
   mcpSettingsUpdates McpSettings[]  @relation("McpSettingsUpdatedBy")
+  appSettingsUpdates AppSetting[]   @relation("AppSettingUpdatedBy")
   mcpTokensIssued    McpToken[]     @relation("McpTokenIssuedTo")
   mcpAccessLogs      McpAccessLog[] @relation("McpAccessLogUser")
 
@@ -1616,6 +1617,24 @@ model Allocation {
 /**
  * Singleton row — read via getMcpSettings(), which creates it on first read.
  */
+/**
+ * Small, admin-editable settings that are not worth a table each.
+ *
+ * Currently one row, holding the QR access PIN. Stored as a HASH, never in
+ * clear — a four-digit shared secret is weak enough already without also
+ * sitting readable in the database and in every backup of it.
+ */
+model AppSetting {
+  id String @id @default("singleton")
+
+  /** bcrypt hash of the 4-digit PIN typed before the in-app QR scanner opens. */
+  qrAccessPinHash String?
+
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation("AppSettingUpdatedBy", fields: [updatedById], references: [id])
+}
+
 model McpSettings {
   id String @id @default(cuid())
 

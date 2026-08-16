@@ -304,6 +304,15 @@ export default async function StoryPage({
               </p>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
+              {/* The tag. Opens the PNG full size, ready to print and mount. */}
+              <a
+                href={`/api/transformers/${id}/qr`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-xs font-bold text-navy transition-colors hover:border-kplc hover:text-kplc"
+              >
+                📱 QR code
+              </a>
               <a
                 href={`/api/pdf/transformer/${id}`}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-kplc px-3 py-2 text-xs font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
