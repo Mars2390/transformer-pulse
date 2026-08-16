@@ -28,7 +28,10 @@ export async function POST(request: Request) {
     // A store keeper without a store sees an empty inventory. A manager or field
     // engineer without a region sees nothing scoped. Refuse both rather than
     // ship a silently-blank dashboard.
-    if (input.role === "STORE_KEEPER" && !input.storeId) {
+    // A store manager without a store sees NOTHING — visibleTransformerWhere()
+    // fails closed on purpose. Letting one be created storeless would hand
+    // somebody an account that silently shows an empty system.
+    if ((input.role === "STORE_KEEPER" || input.role === "STORE_MANAGER") && !input.storeId) {
       return NextResponse.json(
         { error: "A store keeper must be assigned to a store." },
         { status: 422 },
@@ -49,7 +52,10 @@ export async function POST(request: Request) {
           phone: input.phone || null,
           role: input.role,
           region: input.role === "STORE_KEEPER" ? null : input.region || null,
-          storeId: input.role === "STORE_KEEPER" ? input.storeId || null : null,
+          storeId:
+            input.role === "STORE_KEEPER" || input.role === "STORE_MANAGER"
+              ? input.storeId || null
+              : null,
           pinHash: await hashPin(input.pin),
         },
         select: { id: true, name: true, email: true, role: true },

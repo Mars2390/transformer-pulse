@@ -20,7 +20,9 @@ export async function PATCH(
     const before = await prisma.user.findUnique({ where: { id } });
     if (!before) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
-    if (input.role === "STORE_KEEPER" && !input.storeId) {
+    // Same rule on edit: promoting somebody to store manager without giving
+    // them a store would leave them staring at an empty system.
+    if ((input.role === "STORE_KEEPER" || input.role === "STORE_MANAGER") && !input.storeId) {
       return NextResponse.json({ error: "A store keeper must be assigned to a store." }, { status: 422 });
     }
     if ((input.role === "MANAGER" || input.role === "FIELD_ENGINEER") && !input.region) {
@@ -30,8 +32,14 @@ export async function PATCH(
     const after = {
       name: input.name,
       role: input.role,
-      region: input.role === "STORE_KEEPER" ? null : input.region || null,
-      storeId: input.role === "STORE_KEEPER" ? input.storeId || null : null,
+      region:
+        input.role === "STORE_KEEPER" || input.role === "STORE_MANAGER"
+          ? null
+          : input.region || null,
+      storeId:
+        input.role === "STORE_KEEPER" || input.role === "STORE_MANAGER"
+          ? input.storeId || null
+          : null,
       phone: input.phone || null,
     };
 

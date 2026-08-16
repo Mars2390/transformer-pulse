@@ -3,7 +3,21 @@ import { emailField, pinField } from "./validation";
 
 /** Validation for admin management of users, manufacturers and stores. */
 
-export const ROLES = ["ADMIN", "MANAGER", "STORE_KEEPER", "FIELD_ENGINEER"] as const;
+/**
+ * Every role the admin screens may assign.
+ *
+ * This is the list the user-creation API actually validates against, and it is
+ * the one that was silently rejecting STORE_MANAGER. Keep it in step with the
+ * Role enum in schema.prisma — Zod needs a literal tuple, so it cannot be
+ * derived, which is exactly why it went stale.
+ */
+export const ROLES = [
+  "ADMIN",
+  "MANAGER",
+  "STORE_MANAGER",
+  "STORE_KEEPER",
+  "FIELD_ENGINEER",
+] as const;
 
 export const adminCreateUserSchema = z.object({
   name: z.string().trim().min(3, "Enter the full name.").max(80),

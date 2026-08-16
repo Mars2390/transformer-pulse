@@ -43,7 +43,12 @@ export const createUserSchema = z.object({
     .optional()
     .or(z.literal("")),
   staffNumber: z.string().trim().max(20).optional().or(z.literal("")),
-  role: z.enum(["ADMIN", "MANAGER", "STORE_KEEPER", "FIELD_ENGINEER"]),
+  // Hand-listed once, and that list went stale the moment STORE_MANAGER was
+  // added — the dropdown would have offered it and the API would have refused
+  // it, which is the most confusing possible pairing. Zod needs a literal
+  // tuple, so this cannot be derived; instead it carries every member and a
+  // note that the enum in schema.prisma is the source of truth.
+  role: z.enum(["ADMIN", "MANAGER", "STORE_MANAGER", "STORE_KEEPER", "FIELD_ENGINEER"]),
   region: z.string().trim().max(60).optional().or(z.literal("")),
   storeId: z.string().trim().optional().or(z.literal("")),
   pin: pinField,

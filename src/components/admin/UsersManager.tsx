@@ -32,7 +32,19 @@ const ROLE_TONE: Record<Role, Tone> = {
   FIELD_ENGINEER: "success",
 };
 
-const ROLE_OPTIONS: Role[] = ["FIELD_ENGINEER", "STORE_KEEPER", "MANAGER", "ADMIN"];
+/**
+ * Every role, derived from ROLE_LABELS rather than hand-listed.
+ *
+ * The hand-written array is what hid STORE_MANAGER: it was typed `Role[]`,
+ * which checks that each entry IS a role but never that every role is present.
+ * So adding a member to the enum compiled cleanly and silently left the
+ * dropdown stale.
+ *
+ * ROLE_LABELS is `Record<Role, string>`, which IS exhaustiveness-checked.
+ * Deriving from it means the next role added to the enum either appears here
+ * automatically or fails the build — never disappears quietly.
+ */
+const ROLE_OPTIONS = Object.keys(ROLE_LABELS) as Role[];
 
 export function UsersManager({
   users,
@@ -264,8 +276,17 @@ function UserForm({
           </Field>
         </div>
 
-        {role === "STORE_KEEPER" ? (
-          <Field label="Store" htmlFor="storeId" required hint="A store keeper sees only their store's inventory.">
+        {role === "STORE_KEEPER" || role === "STORE_MANAGER" ? (
+          <Field
+            label="Store"
+            htmlFor="storeId"
+            required
+            hint={
+              role === "STORE_MANAGER"
+                ? "A store manager approves for exactly one store. Without one they see nothing at all — the scoping fails closed on purpose."
+                : "A store keeper sees only their store's inventory."
+            }
+          >
             <select id="storeId" name="storeId" required className={inputClass} defaultValue="">
               <option value="">— choose a store —</option>
               {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
