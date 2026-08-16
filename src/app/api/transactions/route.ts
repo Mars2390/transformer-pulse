@@ -5,6 +5,8 @@ import { apiError } from "@/lib/api";
 import { writeAudit } from "@/lib/audit";
 import { transactionCreateSchema } from "@/lib/validation";
 import { MOVEMENTS, checkEligibility, formatBatchRef, type MovementKey } from "@/lib/transactions";
+import { MOVEMENT_ACTION } from "@/lib/approvals";
+import { openApproval } from "@/lib/approval-store";
 
 /**
  * POST /api/transactions — raise a movement for one or many transformers.
@@ -188,6 +190,24 @@ export async function POST(request: Request) {
         targetLabel: label,
         details: `${actor.name} raised a ${movement.label} movement for ${label} (${fromName} → ${toName}), batch ${batchRef}. Awaiting approval.`,
       });
+
+      // Raising a movement IS raising a request for approval — the movement
+      // record already knows it is PENDING_APPROVAL. This opens the paperwork
+      // alongside it so the person waiting has something to print and hand
+      // over, and so the request appears in one queue with every other kind.
+      //
+      // It records; it does not gate. The TransactionRecord remains the
+      // authority on whether this movement may proceed.
+      await openApproval(
+        {
+          action: MOVEMENT_ACTION[movement.key],
+          transformerId: id,
+          transactionId: record.id,
+          justification: [input.reason, input.notes].filter(Boolean).join(" ") || null,
+          contextLabel: `${fromName} to ${toName}`,
+        },
+        actor,
+      );
 
       created.push({ id: record.id, label });
     }

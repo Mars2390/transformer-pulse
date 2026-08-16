@@ -18,6 +18,7 @@ export function InstallForm({
   detail,
   suggestedSite,
   releasedUntested = false,
+  approved = false,
 }: {
   transformerId: string;
   gNumber: string | null;
@@ -26,6 +27,15 @@ export function InstallForm({
   suggestedSite: string | null;
   /** Released on a sample without being tested itself. Worth saying out loud. */
   releasedUntested?: boolean;
+  /**
+   * An INSTALL approval is signed and unspent.
+   *
+   * When false the form still renders and still works — through the emergency
+   * path, with a stated reason. A form that simply refuses to appear is a form
+   * somebody works around by writing the install on paper and typing it in on
+   * Friday, which loses the GPS, the photo and the commissioning test.
+   */
+  approved?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -39,9 +49,13 @@ export function InstallForm({
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emergency, setEmergency] = useState(false);
+  const [emergencyReason, setEmergencyReason] = useState("");
 
   const gpsReady = state.status === "ready";
-  const canSubmit = gpsReady && photoUrls.length > 0 && siteName.trim().length >= 3 && !busy;
+  const emergencyReady = approved || (emergency && emergencyReason.trim().length >= 15);
+  const canSubmit =
+    gpsReady && photoUrls.length > 0 && siteName.trim().length >= 3 && emergencyReady && !busy;
 
   async function submit() {
     if (!gpsReady) return;
@@ -56,6 +70,7 @@ export function InstallForm({
         photoUrls, siteName, feeder,
         notes,
         test: { ...toTestPayload(test), passed, polarityOk: passed },
+        ...(approved ? {} : { emergency: true, emergencyReason: emergencyReason.trim() }),
       }),
     });
     const data = await response.json();
@@ -66,7 +81,12 @@ export function InstallForm({
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    toast("Installation recorded. It is now live on the map.");
+    toast(
+      data.emergency
+        ? `Installed. ${data.ratification ?? "An approval"} has been raised for a manager to ratify.`
+        : "Installation recorded. It is now live on the map.",
+      data.emergency ? "error" : "success",
+    );
     router.push("/field/dashboard");
     router.refresh();
   }
@@ -82,6 +102,46 @@ export function InstallForm({
           ⚠️ This transformer was released WITHOUT being tested, under KPLC sampling policy. Look it
           over carefully before energising, and record anything unusual in the notes.
         </p>
+      )}
+
+      {/* The gate, at the last moment before it goes on a pole. */}
+      {!approved && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-extrabold text-amber-900">
+            Installation has not been approved for this unit
+          </p>
+          <p className="mt-1 text-xs text-amber-800">
+            Go back to your dashboard and request approval — a manager usually signs within minutes.
+            If supply is off and customers are waiting, tick the box below and say why. The
+            installation goes ahead now and a manager ratifies it afterwards; the certificate will
+            say it was an emergency.
+          </p>
+          <label className="mt-3 flex items-start gap-2 text-xs font-bold text-amber-900">
+            <input
+              type="checkbox"
+              checked={emergency}
+              onChange={(e) => setEmergency(e.target.checked)}
+              className="mt-0.5 h-4 w-4"
+            />
+            Proceed as an emergency to restore supply
+          </label>
+          {emergency && (
+            <>
+              <textarea
+                rows={2}
+                value={emergencyReason}
+                onChange={(e) => setEmergencyReason(e.target.value)}
+                placeholder="How many customers are off, and since when. e.g. 400 customers off since 09:20, feeder KBT-11kV-04."
+                className={`${inputClass} mt-2 text-sm`}
+              />
+              <p className="mt-1 text-[11px] text-amber-800">
+                {emergencyReason.trim().length < 15
+                  ? `${15 - emergencyReason.trim().length} more characters. This is printed on the certificate and is what the manager reads.`
+                  : "This is printed on the certificate and recorded in the tamper-evident history."}
+              </p>
+            </>
+          )}
+        </div>
       )}
 
       {error && <FormError message={error} />}
@@ -122,7 +182,9 @@ export function InstallForm({
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="min-h-14 w-full rounded-xl bg-kplc text-base font-bold text-white shadow-lg shadow-kplc/25 transition-colors hover:bg-kplc-light disabled:opacity-45"
+          className={`min-h-14 w-full rounded-xl text-base font-bold text-white shadow-lg transition-colors disabled:opacity-45 ${
+            approved ? "bg-kplc shadow-kplc/25 hover:bg-kplc-light" : "bg-amber-600 shadow-amber-600/25 hover:bg-amber-700"
+          }`}
         >
           {busy
             ? "Recording…"
@@ -130,7 +192,13 @@ export function InstallForm({
               ? "Waiting for GPS…"
               : photoUrls.length === 0
                 ? "Add a photo to continue"
-                : "Submit installation"}
+                : !emergencyReady
+                  ? emergency
+                    ? "Say what the emergency is"
+                    : "Approval needed to continue"
+                  : approved
+                    ? "Submit installation"
+                    : "Submit as EMERGENCY install"}
         </button>
       </StickyBar>
     </div>

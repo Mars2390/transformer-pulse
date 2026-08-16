@@ -114,6 +114,19 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       actor,
     );
 
+    // Close the loop on the paperwork: the approval that authorised this
+    // movement now points at the chain entry it produced. Until this moment
+    // the certificate honestly said "not yet acted on"; from here it resolves
+    // to a hash, which is what makes a printed sheet checkable.
+    //
+    // Scoped by transactionId rather than by (transformer, action), because a
+    // unit can have several movements of the same kind in its life and only
+    // this one just arrived.
+    await prisma.approvalDocument.updateMany({
+      where: { transactionId: id, status: "APPROVED", eventId: null },
+      data: { eventId: result.eventId, chainHash: result.hash },
+    });
+
     await prisma.transactionRecord.update({
       where: { id },
       data: {

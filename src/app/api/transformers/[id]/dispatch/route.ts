@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { recordEvent } from "@/lib/events";
 import { dispatchSchema } from "@/lib/validation";
 import { sameRegion } from "@/lib/region-scope";
+import { consumeApproval, isAuthorised, notAuthorisedMessage } from "@/lib/approval-store";
 
 /**
  * POST /api/transformers/[id]/dispatch — release a transformer to the field.
@@ -12,6 +13,18 @@ import { sameRegion } from "@/lib/region-scope";
  * The engine refuses this if the unit has not passed its intake test. That rule
  * lives in recordEvent(), not here, so it holds no matter which screen or
  * script asks.
+ *
+ * THE APPROVAL GATE
+ * -----------------
+ * A dispatch also needs an approved DISPATCH document. That is new, and it is
+ * checked here rather than in the form for the usual reason: a check in the
+ * form is advice, and this endpoint is reachable without the form.
+ *
+ * The approval is single-use. `isAuthorised` only counts a document that has
+ * not yet been spent on an event, and `consumeApproval` spends it the moment
+ * the dispatch succeeds. Without that, one approval in 2026 would authorise
+ * every dispatch of that unit for the rest of its working life — which is not
+ * an approval, it is a permanent exemption.
  */
 export async function POST(
   request: Request,
@@ -23,6 +36,16 @@ export async function POST(
 
     const body = await request.json().catch(() => null);
     const input = dispatchSchema.parse(body);
+
+    if (!(await isAuthorised(id, "DISPATCH"))) {
+      return NextResponse.json(
+        {
+          error: notAuthorisedMessage("DISPATCH"),
+          needsApproval: "DISPATCH",
+        },
+        { status: 409 },
+      );
+    }
 
     // --- Who is receiving it -------------------------------------------------
     // Checked here, not only in the form. An engineer must exist, be active,
@@ -82,6 +105,11 @@ export async function POST(
       },
       actor,
     );
+
+    // Spend the approval and point it at the chain entry it authorised. From
+    // here the certificate resolves to a hash instead of saying "not yet acted
+    // on", and a second dispatch needs a second approval.
+    await consumeApproval(id, "DISPATCH", { eventId: result.eventId, hash: result.hash });
 
     // The assignment is on the transformer, not only in the event text, so the
     // engineer's dashboard is one indexed query rather than a scan of notes.

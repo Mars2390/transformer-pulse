@@ -386,6 +386,10 @@ model User {
   transactionsApproved  TransactionRecord[] @relation("TransactionApprovedBy")
   transactionsReceived  TransactionRecord[] @relation("TransactionReceivedBy")
 
+  // Approval paperwork: asked for, and signed.
+  approvalsRequested ApprovalDocument[] @relation("ApprovalRequestedBy")
+  approvalsDecided   ApprovalDocument[] @relation("ApprovalDecidedBy")
+
   mcpSettingsUpdates McpSettings[]  @relation("McpSettingsUpdatedBy")
   appSettingsUpdates AppSetting[]   @relation("AppSettingUpdatedBy")
   mcpTokensIssued    McpToken[]     @relation("McpTokenIssuedTo")
@@ -796,6 +800,7 @@ model Transformer {
   claims       WarrantyClaim[]
   alerts       Alert[]
   transactions TransactionRecord[]
+  approvals    ApprovalDocument[]
 
   @@index([status])
   @@index([status, submittedAt])
@@ -807,6 +812,124 @@ model Transformer {
   @@index([substationCode])
   @@index([priorityRank])
   @@index([lastInspectionAt])
+}
+
+// ======================= Approval paperwork ================================
+
+/**
+ * The document number counter, one row per calendar year.
+ *
+ * The obvious implementation — count the rows so far and add one — is wrong
+ * under concurrency, and it was wrong here until a test caught it. Eight
+ * simultaneous requests all read the same count, seven collide on the UNIQUE
+ * reference, and retrying does not help because every retry re-reads a count
+ * that is still stale for everybody else. Measured: 3 of 8 failed outright.
+ *
+ * This row is incremented with a single atomic statement instead
+ * (INSERT ... ON CONFLICT DO UPDATE SET value = value + 1 RETURNING value), so
+ * every caller gets a distinct number in one round trip with no retry loop and
+ * no lost requests.
+ *
+ * Numbers restart each January, which is what the reference format implies and
+ * what the filing cabinet expects. A gap can still appear if a transaction
+ * rolls back after taking a number — that is unavoidable with any counter, and
+ * a gap in the sequence is survivable in a way that two documents sharing a
+ * number is not.
+ */
+model ApprovalCounter {
+  year  Int @id
+  value Int @default(0)
+}
+
+/**
+ * One approval cycle, and the document that represents it.
+ *
+ * WHY THIS IS NOT A SECOND APPROVAL ENGINE
+ * ----------------------------------------
+ * Approvals were already enforced in four separate places before this table
+ * existed: intake (Transformer.approvedById), consignments
+ * (TransformerBatch.approvedById), movements (TransactionRecord.approvedById),
+ * and the lifecycle rules themselves. Those four remain AUTHORITATIVE. Nothing
+ * reads this table to decide whether an action is permitted.
+ *
+ * What this table is, is the PAPERWORK — the thing a utility can print, file,
+ * hand to an auditor and staple to a delivery note. It exists because KPLC
+ * needs one document format across all of those subsystems, and because a
+ * request that has not yet been decided has no home in any of them: today an
+ * approval only becomes a record at the moment somebody approves it, so the
+ * question "what is Peter waiting on?" cannot be answered.
+ *
+ * ONE ROW, TWO FACES. It opens as a REQUEST (status PENDING) and becomes a
+ * CERTIFICATE when decided. The PDF route renders whichever face matches the
+ * current status. That is deliberate: a real utility's approval certificate
+ * carries the SAME reference number as the request that preceded it, so the
+ * two can be filed together. Two tables would have produced two numbers.
+ *
+ * If this table and the authoritative record ever disagree, the authoritative
+ * record wins and this one is the bug. That direction is stated here because a
+ * document store that quietly becomes a decision store is how permission bugs
+ * are born.
+ */
+model ApprovalDocument {
+  id String @id @default(cuid())
+
+  /** APR-2026-00042. Printed on the request and on the certificate. */
+  reference String @unique
+
+  /** An ApprovalAction key — see src/lib/approvals.ts, which is the catalog. */
+  action String
+
+  transformerId String
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+
+  /**
+   * The authoritative record this documents, when there is one. Null for
+   * actions enforced by the lifecycle rules alone rather than by a row.
+   */
+  transactionId String?
+  batchId       String?
+
+  requestedById String
+  requestedBy   User     @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  requestedAt   DateTime @default(now())
+
+  /** Why the requester says it is needed. Printed on the request PDF. */
+  justification String?
+
+  /** Free-text snapshot of the destination/purpose at request time. */
+  contextLabel String?
+
+  /** PENDING | APPROVED | REJECTED | WITHDRAWN | SUPERSEDED */
+  status String @default("PENDING")
+
+  decidedById String?
+  decidedBy   User?     @relation("ApprovalDecidedBy", fields: [decidedById], references: [id])
+  decidedAt   DateTime?
+
+  decisionNotes String?
+
+  /**
+   * Set when the work was done first and the paperwork followed — an
+   * emergency install during an outage. Never silently: the certificate says
+   * so on its face, and the queue sorts these to the top.
+   */
+  emergency Boolean @default(false)
+
+  /**
+   * The lifecycle event this approval authorised, once it has happened, and
+   * that event's chain hash. This is what makes the certificate verifiable:
+   * the reference on the paper resolves to a position in the tamper-evident
+   * chain, not just to a row somebody could edit.
+   */
+  eventId   String?
+  chainHash String?
+
+  createdAt DateTime @default(now())
+
+  @@index([status, action])
+  @@index([transformerId, status])
+  @@index([requestedAt])
+  @@index([transactionId])
 }
 
 // ========================= The story itself ================================

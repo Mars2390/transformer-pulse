@@ -5,7 +5,8 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { IntakeTestForm } from "@/components/store/IntakeTestForm";
 import { Badge } from "@/components/ui";
-import { formatDate, formatRating, STATUS_META } from "@/lib/format";
+import { formatDate, formatDateTime, formatRating, ROLE_LABELS, STATUS_META } from "@/lib/format";
+import { latestApproval } from "@/lib/approval-store";
 
 export const metadata: Metadata = { title: "Intake test" };
 export const dynamic = "force-dynamic";
@@ -21,13 +22,19 @@ export default async function IntakeTestPage({
   const { id } = await params;
   const { received } = await searchParams;
 
-  const transformer = await prisma.transformer.findUnique({
-    where: { id },
-    include: {
-      manufacturer: { select: { name: true, warrantyMonths: true } },
-      tests: { orderBy: { testedAt: "desc" } },
-    },
-  });
+  const [transformer, authority] = await Promise.all([
+    prisma.transformer.findUnique({
+      where: { id },
+      include: {
+        manufacturer: { select: { name: true, warrantyMonths: true } },
+        tests: { orderBy: { testedAt: "desc" } },
+      },
+    }),
+    // The certificate that permitted this unit to be tested at all. Spent
+    // already, so `currentApproval` correctly returns nothing for it — see
+    // latestApproval's doc comment.
+    latestApproval(id, "STOCK_RELEASE"),
+  ]);
 
   if (!transformer) notFound();
 
@@ -70,6 +77,37 @@ export default async function IntakeTestPage({
           {STATUS_META[transformer.status].label}
         </Badge>
       </div>
+
+      {/* Authority to test.
+          KPLC's matrix lists "Receive -> Test" as its own approval step. It
+          already is one: TESTED is only allowed from IN_STORE, and a unit only
+          reaches IN_STORE when somebody other than the officer who booked it in
+          accepts it. That signature is what permitted this screen to exist, so
+          it is shown here rather than a second one being demanded. */}
+      {authority?.status === "APPROVED" ? (
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <span className="text-xs font-bold text-emerald-900">Testing authorised</span>
+          <span className="font-mono text-xs font-bold text-emerald-900">{authority.reference}</span>
+          <span className="text-xs text-emerald-800">
+            {authority.decidedBy?.name ?? "a manager"}
+            {authority.decidedBy ? ` · ${ROLE_LABELS[authority.decidedBy.role]}` : ""}
+            {authority.decidedAt ? ` · ${formatDateTime(authority.decidedAt)}` : ""}
+          </span>
+          <a
+            href={`/api/pdf/approval/${authority.id}`}
+            className="ml-auto rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-[11px] font-bold text-emerald-900"
+          >
+            Download Approval PDF
+          </a>
+        </div>
+      ) : (
+        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+          No stock-release certificate is on file for this unit. It predates the approval document
+          system, or it was accepted into stock before certificates were issued. Testing is still
+          permitted — the lifecycle rules already refused it until somebody accepted it into stock —
+          but there is no printable authority for this one.
+        </p>
+      )}
 
       {!transformer.gNumber && (
         <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

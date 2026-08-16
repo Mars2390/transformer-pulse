@@ -34,7 +34,26 @@ export const installSchema = z.object({
   sdb: z.string().trim().max(80).optional().or(z.literal("")),
   test: fieldTest,
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
-});
+
+  /**
+   * Proceeding without a signed installation approval, to restore supply.
+   *
+   * Deliberately NOT a checkbox on its own. The reason is required and has a
+   * floor of fifteen characters, because "emergency" as a justification tells a
+   * manager reviewing it afterwards nothing at all, and this is the one path in
+   * the system where the work happens before anybody agrees to it. It is
+   * printed on the face of the certificate, so it will be read.
+   */
+  emergency: z.boolean().optional(),
+  emergencyReason: z.string().trim().max(400).optional().or(z.literal("")),
+}).refine(
+  (v) => !v.emergency || (v.emergencyReason ?? "").trim().length >= 15,
+  {
+    message:
+      "Say what the emergency is — how many customers are off, and since when. A manager has to ratify this afterwards and needs to know why.",
+    path: ["emergencyReason"],
+  },
+);
 
 /** The extended field inspection checklist folds into the test remarks. */
 export const inspectVisualSchema = z.object({

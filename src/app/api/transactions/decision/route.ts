@@ -6,6 +6,8 @@ import { writeAudit } from "@/lib/audit";
 import { transactionDecisionSchema } from "@/lib/validation";
 import { MOVEMENTS, type MovementKey } from "@/lib/transactions";
 import { canApproveForStore } from "@/lib/region-scope";
+import { MOVEMENT_ACTION } from "@/lib/approvals";
+import { stampApproval } from "@/lib/approval-store";
 
 /**
  * POST /api/transactions/decision — approve or refuse raised movements, in bulk.
@@ -103,6 +105,22 @@ export async function POST(request: Request) {
           : `${actor.name} refused a ${movement.label} movement raised by ${r.initiatedBy.name} (${r.fromName} → ${r.toName}).`,
         reason: reason ?? undefined,
       });
+
+      // Stamp the paperwork the movement raised. No chain hash yet — a
+      // movement's lifecycle event is not written until the lorry ARRIVES
+      // (see the leg route), which can be days later. The certificate says so
+      // rather than printing a blank where a hash should be.
+      await stampApproval(
+        {
+          transformerId: r.transformer.id,
+          action: MOVEMENT_ACTION[movement.key],
+          decision: isApprove ? "APPROVED" : "REJECTED",
+          notes: reason,
+          transactionId: r.id,
+          contextLabel: `${r.fromName} to ${r.toName}`,
+        },
+        actor,
+      );
 
       decided.push(label);
     }

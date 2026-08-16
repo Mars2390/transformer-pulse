@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { DispatchForm } from "@/components/store/DispatchForm";
+import { RequestApprovalPanel } from "@/components/approvals/RequestApprovalPanel";
+import { currentApproval } from "@/lib/approval-store";
 
 export const metadata: Metadata = { title: "Dispatch" };
 export const dynamic = "force-dynamic";
@@ -16,7 +18,7 @@ export default async function DispatchPage({
   const user = await requireRole("STORE_KEEPER", "ADMIN");
   const { id } = await params;
 
-  const [transformer, stores, engineerRows] = await Promise.all([
+  const [transformer, stores, engineerRows, approval] = await Promise.all([
     prisma.transformer.findUnique({
       where: { id },
       include: {
@@ -38,6 +40,7 @@ export default async function DispatchPage({
       },
       orderBy: { name: "asc" },
     }),
+    currentApproval(id, "DISPATCH"),
   ]);
 
   if (!transformer) notFound();
@@ -84,10 +87,29 @@ export default async function DispatchPage({
         Dispatch to field
       </h1>
       <p className="mt-1 text-sm text-ink-soft">
-        Record who is carrying it, on what, and where to.
+        A dispatch needs a manager's signature before the unit leaves the store. Once it is
+        approved, record who is carrying it, on what, and where to.
       </p>
 
       <div className="mt-6">
+        <RequestApprovalPanel
+          transformerId={transformer.id}
+          action="DISPATCH"
+          contextLabel={transformer.currentSiteName ?? user.region ?? null}
+          current={
+            approval
+              ? {
+                  id: approval.id,
+                  reference: approval.reference,
+                  status: approval.status as "PENDING" | "APPROVED",
+                  requestedByName: approval.requestedBy.name,
+                  requestedAt: approval.requestedAt.toISOString(),
+                  decidedByName: approval.decidedBy?.name ?? null,
+                  decidedAt: approval.decidedAt?.toISOString() ?? null,
+                }
+              : null
+          }
+        >
         <DispatchForm
           engineers={engineerRows.map((e) => ({
             id: e.id,
@@ -103,6 +125,7 @@ export default async function DispatchPage({
           regions={regions}
           defaultRegion={user.region ?? regions[0] ?? "Nairobi North"}
         />
+        </RequestApprovalPanel>
       </div>
     </div>
   );

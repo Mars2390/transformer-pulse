@@ -255,17 +255,51 @@ function EngineerPicker({
   name: string;
 }) {
   const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
   const base = (r: string | null | undefined) => (r ?? "").split(/[\s,/-]+/)[0].toLowerCase();
-  const inRegion = engineers.filter((e) => {
+  const matches = (e: FieldEngineerOption) => {
     const a = base(e.region);
     const b = base(region);
     return !a || !b || a === b || a.includes(b) || b.includes(a);
-  });
+  };
+
+  const inRegion = engineers.filter(matches);
+  const elsewhere = engineers.filter((e) => !matches(e));
+
   const q = query.trim().toLowerCase();
-  const shown = q
-    ? inRegion.filter((e) => e.name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q))
-    : inRegion;
+  const search = (list: FieldEngineerOption[]) =>
+    q ? list.filter((e) => e.name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q)) : list;
+
   const selected = engineers.find((e) => e.id === value);
+  const selectedOutOfRegion = Boolean(selected && !matches(selected));
+
+  const row = (e: FieldEngineerOption, outOfRegion: boolean) => (
+    <li key={e.id}>
+      <button
+        type="button"
+        onClick={() => onChange(e.id)}
+        className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-surface ${
+          e.id === value ? "bg-kplc/5" : ""
+        }`}
+      >
+        <span className="min-w-0">
+          <span className={`block truncate text-sm ${e.id === value ? "font-bold text-navy" : "text-ink"}`}>
+            {e.name}
+          </span>
+          <span className="block truncate text-xs text-ink-soft">
+            {e.email} · {e.region ?? "no region"}
+          </span>
+        </span>
+        <span className="shrink-0 text-right">
+          <span className="block text-xs font-semibold text-ink-soft">{e.activeTasks} active</span>
+          {outOfRegion && (
+            <span className="block text-[10px] font-bold text-amber-700">other region</span>
+          )}
+        </span>
+      </button>
+    </li>
+  );
 
   return (
     <div>
@@ -276,42 +310,63 @@ function EngineerPicker({
         placeholder="Search by name or email"
         className={`${inputClass} mb-2 py-2 text-sm`}
       />
-      {inRegion.length === 0 ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-          No active field engineer is recorded for {region}. An admin has to assign one to this
-          region before anything can be dispatched here.
-        </p>
+
+      {inRegion.length === 0 && !showAll ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+          <p className="text-xs font-semibold text-amber-900">
+            No active field engineer is recorded for {region}.
+          </p>
+          <p className="mt-1 text-[11px] text-amber-800">
+            {elsewhere.length > 0
+              ? `There are ${elsewhere.length} elsewhere. The dispatch API refuses an out-of-region assignment, so choosing one here will be rejected — but you can see who exists, which is more use than an empty box.`
+              : "There are no active field engineers at all. An admin has to create one before anything can be dispatched."}
+          </p>
+          {elsewhere.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="mt-2 rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-[11px] font-bold text-amber-900"
+            >
+              Show all {engineers.length} field engineers
+            </button>
+          )}
+        </div>
       ) : (
-        <ul className="max-h-48 divide-y divide-line overflow-y-auto rounded-xl border border-line">
-          {shown.map((e) => (
-            <li key={e.id}>
-              <button
-                type="button"
-                onClick={() => onChange(e.id)}
-                className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-surface ${
-                  e.id === value ? "bg-kplc/5" : ""
-                }`}
-              >
-                <span className="min-w-0">
-                  <span className={`block truncate text-sm ${e.id === value ? "font-bold text-navy" : "text-ink"}`}>
-                    {e.name}
-                  </span>
-                  <span className="block truncate text-xs text-ink-soft">
-                    {e.email} · {e.region ?? "no region"}
-                  </span>
-                </span>
-                <span className="shrink-0 text-xs font-semibold text-ink-soft">
-                  {e.activeTasks} active
-                </span>
-              </button>
-            </li>
-          ))}
+        <ul className="max-h-56 divide-y divide-line overflow-y-auto rounded-xl border border-line">
+          {search(inRegion).map((e) => row(e, false))}
+
+          {/* Everyone else, under a heading, only when asked for.
+              The list used to be region-filtered with no way past it, so a
+              region with nobody recorded made dispatch impossible and gave no
+              clue why. Showing the rest is not a loosening: the API still
+              refuses a cross-region assignment. It is the difference between
+              "nothing here" and "here is who exists and why you cannot use
+              them", and only the second tells somebody what to fix. */}
+          {(showAll || q.length > 0) &&
+            search(elsewhere).length > 0 && [
+              <li key="__other" className="bg-surface px-3 py-1.5 text-[10px] font-bold tracking-wide text-ink-soft">
+                OTHER REGIONS — the API will refuse these for {region}
+              </li>,
+              ...search(elsewhere).map((e) => row(e, true)),
+            ]}
         </ul>
       )}
+
+      {!showAll && inRegion.length > 0 && elsewhere.length > 0 && q.length === 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-2 text-[11px] font-bold text-ink-soft hover:text-kplc"
+        >
+          Show the other {elsewhere.length} outside {region}
+        </button>
+      )}
+
       {selected && (
-        <p className="mt-2 text-xs font-bold text-navy">
-          Assigned to {selected.name} — {selected.activeTasks} other active{" "}
-          {selected.activeTasks === 1 ? "task" : "tasks"}.
+        <p className={`mt-2 text-xs font-bold ${selectedOutOfRegion ? "text-amber-700" : "text-navy"}`}>
+          {selectedOutOfRegion
+            ? `${selected.name} works in ${selected.region ?? "no recorded region"}, not ${region}. This will be refused on submit — either change the region above or pick somebody local.`
+            : `Assigned to ${selected.name} — ${selected.activeTasks} other active ${selected.activeTasks === 1 ? "task" : "tasks"}.`}
         </p>
       )}
     </div>

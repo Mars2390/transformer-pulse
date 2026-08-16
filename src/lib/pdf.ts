@@ -1,4 +1,10 @@
-import "server-only";
+// `server-guard` rather than the `server-only` package, for the reason set out
+// in that file: `server-only` throws unconditionally outside Next's bundler, so
+// this module could not be exercised from a plain script — which meant the only
+// way to see whether a document actually looked right was to deploy it. The
+// guard checks the thing that matters (did this reach a browser) and leaves
+// `npx tsx` able to render a proof sheet to disk.
+import "./server-guard";
 // The Node printer, not the browser bundle that `pdfmake`'s main entry exposes.
 import PdfPrinter from "pdfmake/js/Printer";
 import URLResolver from "pdfmake/js/URLResolver";
@@ -205,6 +211,237 @@ export function badge(text: string, fill: string, color = KPLC_NAVY): Content {
     table: { body: [[{ text, fillColor: fill, color, bold: true, fontSize: 9, margin: [6, 3, 6, 3] }]] },
     layout: "noBorders",
   };
+}
+
+// --- Single-sheet official documents ---------------------------------------
+
+/**
+ * A tick box that is actually drawn, not typed.
+ *
+ * The obvious way to render a checklist is the ballot-box characters, U+2610
+ * and U+2612. They cannot be used here. The standard-14 fonts this module
+ * relies on carry WinAnsi encoding, which has 224 glyphs and neither of those
+ * is among them — the box would come out as a wrong character or take the
+ * document down. The same applies to the hourglass and every other emoji.
+ *
+ * So the box is a one-cell table with a real border and an X inside it. It
+ * survives photocopying, which the character would not have anyway.
+ */
+export function tickBox(ticked: boolean): TableCell {
+  return {
+    // lineHeight 1 here on purpose: the document default is 1.25, which adds
+    // leading inside a 10pt cell and pushed the X through the top border.
+    table: { widths: [9], heights: [9], body: [[{ text: ticked ? "X" : " ", fontSize: 7, lineHeight: 1, bold: true, alignment: "center", color: KPLC_NAVY }]] },
+    layout: {
+      hLineWidth: () => 0.8,
+      vLineWidth: () => 0.8,
+      hLineColor: () => KPLC_NAVY,
+      vLineColor: () => KPLC_NAVY,
+      paddingLeft: () => 0,
+      paddingRight: () => 0,
+      paddingTop: () => 1.5,
+      paddingBottom: () => 0,
+    },
+  };
+}
+
+/**
+ * The checklist of actions, with exactly one ticked.
+ *
+ * Two columns rather than one long list. Eight stacked rows ate a third of the
+ * sheet and pushed the signatures onto a second page — and a two-page approval
+ * certificate where page two holds only a signature block is the shape of a
+ * document nobody files correctly.
+ */
+export function tickList(items: { label: string; ticked: boolean }[]): ContentTable {
+  const half = Math.ceil(items.length / 2);
+  const left = items.slice(0, half);
+  const right = items.slice(half);
+  const cell = (i: { label: string; ticked: boolean } | undefined): TableCell[] =>
+    i
+      ? [
+          tickBox(i.ticked),
+          { text: i.label, fontSize: 8.5, bold: i.ticked, color: i.ticked ? KPLC_NAVY : INK_SOFT, margin: [3, 0, 0, 0] },
+        ]
+      : [{ text: "" }, { text: "" }];
+
+  return {
+    table: {
+      widths: [12, "*", 12, "*"],
+      body: left.map((l, idx) => [...cell(l), ...cell(right[idx])]),
+    },
+    layout: {
+      hLineWidth: () => 0,
+      vLineWidth: () => 0,
+      paddingTop: () => 2.5,
+      paddingBottom: () => 2.5,
+      paddingLeft: () => 0,
+      paddingRight: () => 4,
+    },
+  };
+}
+
+/** A compact section heading for single-sheet documents. */
+export function sheetTitle(text: string): Content {
+  return { text: text.toUpperCase(), fontSize: 8.5, bold: true, color: KPLC_GREEN, characterSpacing: 0.6, margin: [0, 11, 0, 4] };
+}
+
+/**
+ * A narrow label/value table, sized to sit inside a half-width column.
+ *
+ * `detailTable` uses a fixed 150pt label column, which is right at full width
+ * and overflows the moment two of them sit side by side.
+ */
+export function miniTable(rows: [string, string | number | null][]): ContentTable {
+  const body: TableCell[][] = rows.map(([k, v], i) => [
+    { text: k, bold: true, fontSize: 8, color: KPLC_NAVY, fillColor: i % 2 ? "#f7f8fa" : undefined },
+    { text: v == null || v === "" ? "—" : String(v), fontSize: 8, color: "#1c1f1f", fillColor: i % 2 ? "#f7f8fa" : undefined },
+  ]);
+  if (body.length === 0) body.push([{ text: "No data", italics: true, colSpan: 2, color: INK_SOFT }, {}]);
+  return {
+    table: { widths: [66, "*"], body },
+    layout: {
+      hLineWidth: () => 0.5,
+      vLineWidth: () => 0,
+      hLineColor: () => LINE,
+      paddingTop: () => 3.5,
+      paddingBottom: () => 3.5,
+      paddingLeft: () => 6,
+    },
+  };
+}
+
+/** A ruled line somebody signs on, with the role printed underneath. */
+export function signatureLine(caption: string, width = 200): Content {
+  return {
+    stack: [
+      { canvas: [{ type: "line", x1: 0, y1: 0, x2: width, y2: 0, lineWidth: 0.8, lineColor: KPLC_NAVY }], margin: [0, 26, 0, 0] },
+      { text: caption, fontSize: 7.5, color: INK_SOFT, margin: [0, 4, 0, 0] },
+    ],
+  };
+}
+
+export type SheetOptions = {
+  /** "APPROVAL CERTIFICATE" — the band across the top of the sheet. */
+  documentType: string;
+  /** "APR-2026-00042" — printed in the letterhead and in the footer. */
+  reference: string;
+  /** The coloured status strip: text plus its fill. */
+  statusText: string;
+  statusFill: string;
+  statusColor?: string;
+  /** Optional QR image (data URI) printed in the letterhead. */
+  qrDataUri?: string | null;
+  content: Content[];
+};
+
+/**
+ * One-sheet official document — certificates, requests, permits.
+ *
+ * Deliberately NOT `buildPdf`. That one opens with a full-page cover and a
+ * page break, which is right for a twenty-page regional report and absurd for
+ * a single-page approval: the reader would turn a title page to reach four
+ * paragraphs. A utility's approval sheet is one page with a letterhead at the
+ * top, and anybody who has filed one recognises the shape instantly.
+ *
+ * Everything else is shared with `buildPdf` — same printer, same standard-14
+ * fonts, same logo cache, same footer — so the two document families look like
+ * they came from the same organisation, which is the entire point.
+ */
+export async function buildSheet({
+  documentType,
+  reference,
+  statusText,
+  statusFill,
+  statusColor = KPLC_NAVY,
+  qrDataUri,
+  content,
+}: SheetOptions): Promise<Uint8Array<ArrayBuffer>> {
+  const logo = await logoDataUri();
+  const generated = new Date().toLocaleString("en-GB", {
+    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+
+  const letterhead: Content = {
+    columns: [
+      ...(logo ? [{ image: logo, width: 54, width_: 0 } as never] : []),
+      {
+        width: "*",
+        stack: [
+          { text: "KENYA POWER AND LIGHTING COMPANY PLC", fontSize: 11, bold: true, color: KPLC_NAVY },
+          { text: "Transformer DNA  |  Distribution Asset Lifecycle Management", fontSize: 8, color: INK_SOFT, margin: [0, 2, 0, 0] },
+          { text: `Document ${reference}`, fontSize: 8, bold: true, color: KPLC_GREEN, margin: [0, 4, 0, 0] },
+        ],
+        margin: [10, 4, 0, 0],
+      },
+      ...(qrDataUri
+        ? [{ image: qrDataUri, width: 52, alignment: "right" as const, width_: 0 } as never]
+        : []),
+    ],
+    columnGap: 6,
+  };
+
+  const doc: TDocumentDefinitions = {
+    pageSize: "A4",
+    pageOrientation: "portrait",
+    pageMargins: [46, 40, 46, 54],
+    defaultStyle: { font: "Helvetica", fontSize: 9, color: "#1c1f1f", lineHeight: 1.25 },
+    styles: {
+      section: { fontSize: 10, bold: true, color: KPLC_GREEN },
+      h2: { fontSize: 11, bold: true, color: KPLC_NAVY },
+      muted: { fontSize: 8, color: INK_SOFT },
+    },
+    info: { title: `${documentType} ${reference}`, author: "Transformer DNA — Kenya Power" },
+
+    footer: (currentPage, pageCount) => ({
+      margin: [46, 12, 46, 0],
+      stack: [
+        { canvas: [{ type: "line", x1: 0, y1: 0, x2: 503, y2: 0, lineWidth: 0.5, lineColor: LINE }] },
+        {
+          margin: [0, 6, 0, 0],
+          columns: [
+            { text: `${reference}  |  Kenya Power  |  Transformer DNA`, fontSize: 7, color: INK_SOFT, width: "*" },
+            { text: `Generated ${generated}`, fontSize: 7, color: INK_SOFT, width: "auto", margin: [0, 0, 12, 0] },
+            { text: `Page ${currentPage} of ${pageCount}`, fontSize: 7, color: INK_SOFT, width: "auto" },
+          ],
+        },
+      ],
+    }),
+
+    content: [
+      letterhead,
+      { canvas: [{ type: "line", x1: 0, y1: 0, x2: 503, y2: 0, lineWidth: 2, lineColor: KPLC_GOLD }], margin: [0, 10, 0, 0] },
+
+      // The document type band. Big, boxed and unambiguous, because the first
+      // thing somebody holding this needs to know is whether it is a request
+      // or an authority to act — and those two get filed very differently.
+      {
+        margin: [0, 14, 0, 0],
+        table: {
+          widths: ["*", "auto"],
+          body: [[
+            { text: documentType, fontSize: 15, bold: true, color: "#ffffff", fillColor: KPLC_NAVY, margin: [10, 8, 6, 8] },
+            { text: statusText, fontSize: 9.5, bold: true, color: statusColor, fillColor: statusFill, margin: [10, 8, 10, 8], alignment: "right" },
+          ]],
+        },
+        layout: "noBorders",
+      },
+
+      ...content,
+    ],
+  };
+
+  const pdf = await printer.createPdfKitDocument(doc);
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    pdf.on("data", (c: Buffer) => chunks.push(c));
+    pdf.on("end", () => {
+      const merged = Buffer.concat(chunks);
+      resolve(new Uint8Array(merged.buffer.slice(merged.byteOffset, merged.byteOffset + merged.byteLength) as ArrayBuffer));
+    });
+    pdf.on("error", reject);
+    pdf.end();
+  });
 }
 
 export type CoverOptions = {

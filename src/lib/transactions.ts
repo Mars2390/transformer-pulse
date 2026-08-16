@@ -197,7 +197,11 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "SCRAP",
     purpose: "SCRAP",
     initiators: ["FIELD_ENGINEER", "ADMIN"],
-    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
+    // TIGHTENED: not STORE_MANAGER. Condemnation is the only
+    // irreversible step in the lifecycle — no event brings a SCRAPPED unit
+    // back — and writing an asset off the fleet register is a regional
+    // decision, not a single store's. See SCRAP in approvals.ts.
+    approvers: ["MANAGER", "ADMIN"],
     completionEvent: "CONDEMNED_ON_SITE",
     allowedFrom: ["FAULTY", "IN_FIELD"],
     requiresVehicle: false,
@@ -210,7 +214,11 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "SCRAP",
     purpose: "SCRAP",
     initiators: ["STORE_KEEPER", "ADMIN"],
-    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
+    // TIGHTENED: not STORE_MANAGER. Condemnation is the only
+    // irreversible step in the lifecycle — no event brings a SCRAPPED unit
+    // back — and writing an asset off the fleet register is a regional
+    // decision, not a single store's. See SCRAP in approvals.ts.
+    approvers: ["MANAGER", "ADMIN"],
     completionEvent: "DISPOSED",
     allowedFrom: ["BEYOND_REPAIR"],
     requiresVehicle: false,

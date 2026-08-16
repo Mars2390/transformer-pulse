@@ -604,12 +604,23 @@ export const receiveBatchSchema = z.object({
 
 export type ReceiveBatchInput = z.infer<typeof receiveBatchSchema>;
 
-/** A checker accepting or refusing a whole consignment. */
+/**
+ * A checker accepting or refusing consignments — one, or many at once.
+ *
+ * `batchId` (singular) is still accepted so nothing that already posts the old
+ * shape breaks. Both forms are normalised to `batchIds` by the route, which is
+ * the only place that has to know two spellings exist.
+ */
 export const batchDecisionSchema = z
   .object({
-    batchId: z.string().min(1),
+    batchId: z.string().min(1).optional(),
+    batchIds: z.array(z.string().min(1)).min(1).max(100).optional(),
     decision: z.enum(["APPROVE", "REJECT"]),
     reason: z.string().trim().max(300).optional().or(z.literal("")),
+  })
+  .refine((v) => Boolean(v.batchId) || Boolean(v.batchIds?.length), {
+    message: "Select at least one consignment.",
+    path: ["batchIds"],
   })
   .refine((v) => v.decision !== "REJECT" || (v.reason && v.reason.trim().length >= 3), {
     message: "Say why the consignment is being refused.",
@@ -617,3 +628,44 @@ export const batchDecisionSchema = z
   });
 
 export type BatchDecisionInput = z.infer<typeof batchDecisionSchema>;
+
+// --- Approval documents -----------------------------------------------------
+
+/**
+ * Raising a request for approval.
+ *
+ * `action` is validated against the catalog in approvals.ts rather than being
+ * repeated as a literal tuple here. The catalog is a `const` array, so a new
+ * action added there is accepted here with no second edit — which is exactly
+ * the failure that put STORE_MANAGER in a dropdown the API then refused.
+ */
+export const approvalRequestSchema = z.object({
+  transformerIds: z
+    .array(z.string().min(1))
+    .min(1, "Choose at least one transformer.")
+    .max(200, "Request at most 200 at a time."),
+  action: z.string().min(1, "Choose what is being requested."),
+  justification: z.string().trim().max(600).optional().or(z.literal("")),
+  contextLabel: z.string().trim().max(200).optional().or(z.literal("")),
+  /** Set only by the emergency install path, and never trusted from the client alone. */
+  emergency: z.boolean().optional(),
+});
+
+export type ApprovalRequestInput = z.infer<typeof approvalRequestSchema>;
+
+/** A manager signing off, or refusing, one or many requests at once. */
+export const approvalDecideSchema = z
+  .object({
+    approvalIds: z
+      .array(z.string().min(1))
+      .min(1, "Select at least one request.")
+      .max(200, "Decide at most 200 at a time."),
+    decision: z.enum(["APPROVE", "REJECT"]),
+    notes: z.string().trim().max(600).optional().or(z.literal("")),
+  })
+  .refine((v) => v.decision !== "REJECT" || (v.notes && v.notes.trim().length >= 3), {
+    message: "Say why it is being refused. A rejection with no reason cannot be acted on.",
+    path: ["notes"],
+  });
+
+export type ApprovalDecideInput = z.infer<typeof approvalDecideSchema>;

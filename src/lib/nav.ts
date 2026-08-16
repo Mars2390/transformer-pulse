@@ -34,6 +34,7 @@ const MANAGER_CORE: NavSection[] = [
   {
     title: "Approvals",
     links: [
+      { href: "/manager/approvals/actions", label: "Action approvals" },
       { href: "/manager/approvals", label: "Stock approvals" },
       { href: "/manager/batch-approvals", label: "Batch approvals" },
       { href: "/manager/transactions", label: "Movements" },
@@ -90,6 +91,7 @@ const STORE_MANAGER_SECTIONS: NavSection[] = [
   {
     title: "Approvals",
     links: [
+      { href: "/manager/approvals/actions", label: "Action approvals" },
       { href: "/manager/approvals", label: "Stock approvals" },
       { href: "/manager/batch-approvals", label: "Batch approvals" },
       { href: "/manager/transactions", label: "Movements" },
@@ -111,7 +113,8 @@ export const NAV_SECTIONS: Record<Role, NavSection[]> = {
       title: "Dashboard",
       links: [
         { href: "/admin/dashboard", label: "Overview" },
-        { href: "/manager/approvals", label: "Approvals" },
+        { href: "/manager/approvals/actions", label: "Action approvals" },
+        { href: "/manager/approvals", label: "Stock approvals" },
       ],
     },
     {

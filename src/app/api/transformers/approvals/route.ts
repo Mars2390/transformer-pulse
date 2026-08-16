@@ -6,6 +6,7 @@ import { recordEvent } from "@/lib/events";
 import { writeAudit } from "@/lib/audit";
 import { approvalDecisionSchema } from "@/lib/validation";
 import { visibleTransformerWhere, canApproveForStore } from "@/lib/region-scope";
+import { stampApproval } from "@/lib/approval-store";
 
 /**
  * POST /api/transformers/approvals — the CHECKER half of maker-checker.
@@ -87,8 +88,9 @@ export async function POST(request: Request) {
       const isApprove = input.decision === "APPROVE";
       const reason = input.reason?.trim() || null;
 
+      let recorded: { eventId: string; hash: string } | null = null;
       try {
-        await recordEvent(
+        recorded = await recordEvent(
           id,
           {
             type: isApprove ? "APPROVED_FOR_STOCK" : "REJECTED_ON_INTAKE",
@@ -116,6 +118,27 @@ export async function POST(request: Request) {
             rejectionReason: isApprove ? null : reason,
           },
         });
+
+        // The certificate. Stamped inside the same transaction as the decision
+        // it records, because a certificate that survives a rolled-back
+        // approval is a piece of paper saying something the system does not.
+        //
+        // The chain hash goes on here rather than being looked up later: this
+        // is the one moment where the decision and the event it produced are
+        // both in hand, and it is what lets somebody holding the printout
+        // verify it against the tamper-evident history.
+        await stampApproval(
+          {
+            transformerId: id,
+            action: "STOCK_RELEASE",
+            decision: isApprove ? "APPROVED" : "REJECTED",
+            notes: reason,
+            eventId: recorded?.eventId ?? null,
+            chainHash: recorded?.hash ?? null,
+          },
+          actor,
+          t,
+        );
 
         await writeAudit(
           {

@@ -10,6 +10,7 @@ import { buildPriorityList } from "@/lib/combined-health";
 import { deriveHealthStatus, HEALTH_STATUS_META } from "@/lib/health-status";
 import { computeServiceSummary } from "@/lib/service-summary";
 import { measured, unit, pair } from "@/lib/measure";
+import { APPROVAL_ACTION_META, APPROVAL_STATUS_META, isApprovalAction, type ApprovalAction, type ApprovalStatus } from "@/lib/approvals";
 import { Badge } from "@/components/ui";
 import { StoryLocationMap } from "@/components/transformer/StoryLocationMap";
 import { StoryTabs } from "@/components/transformer/StoryTabs";
@@ -70,7 +71,7 @@ export default async function StoryPage({
   if (!tx) notFound();
 
   // --- Auto-link status: is EMDis and/or KYN data actually linked here? -----
-  const [emdisAgg, inspectionCount, movements, priorityRows] = await Promise.all([
+  const [emdisAgg, inspectionCount, movements, priorityRows, approvalDocs] = await Promise.all([
     prisma.emdisDataset.aggregate({
       where: { transformerId: id },
       _sum: { readingCount: true },
@@ -87,6 +88,17 @@ export default async function StoryPage({
       },
     }),
     buildPriorityList({ transformerIds: [id], allStatuses: true }),
+    // Every approval ever raised against this unit. Newest first, because the
+    // question somebody is usually answering is "what is it waiting on".
+    prisma.approvalDocument.findMany({
+      where: { transformerId: id },
+      orderBy: { requestedAt: "desc" },
+      take: 40,
+      include: {
+        requestedBy: { select: { name: true } },
+        decidedBy: { select: { name: true } },
+      },
+    }),
   ]);
   const emdisReadingCount = emdisAgg._sum.readingCount ?? 0;
 
@@ -388,6 +400,51 @@ export default async function StoryPage({
             <p className="mt-1 text-sm font-bold text-navy">{story.events.length}</p>
           </div>
         </div>
+
+        {/* --- Approval paperwork ---------------------------------------- */}
+        {approvalDocs.length > 0 && (
+          <div className="mt-6 border-t border-line pt-5">
+            <p className="text-[11px] font-bold tracking-wide text-ink-soft">
+              APPROVALS · {approvalDocs.length}
+            </p>
+            <p className="mt-1 text-[11px] text-ink-soft">
+              A pending row downloads as a request; a decided one as an official certificate. Both
+              carry the same reference, so they file together.
+            </p>
+            <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
+              {approvalDocs.filter((d) => isApprovalAction(d.action)).map((d) => {
+                const meta = APPROVAL_ACTION_META[d.action as ApprovalAction];
+                const statusMeta = APPROVAL_STATUS_META[d.status as ApprovalStatus] ?? {
+                  label: d.status,
+                  tone: "neutral" as const,
+                };
+                return (
+                  <li key={d.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 ${d.emergency ? "bg-amber-50/60" : ""}`}>
+                    <span className="font-mono text-[11px] font-bold text-navy">{d.reference}</span>
+                    <span className="text-xs font-semibold text-ink">{meta.label}</span>
+                    <Badge tone={statusMeta.tone}>{statusMeta.label}</Badge>
+                    {d.emergency && (
+                      <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-extrabold text-amber-900">
+                        EMERGENCY
+                      </span>
+                    )}
+                    <span className="text-[11px] text-ink-soft">
+                      {d.status === "PENDING"
+                        ? `Raised by ${d.requestedBy.name} · ${formatDateTime(d.requestedAt)}`
+                        : `${d.decidedBy?.name ?? "—"} · ${d.decidedAt ? formatDateTime(d.decidedAt) : "—"}`}
+                    </span>
+                    <a
+                      href={`/api/pdf/approval/${d.id}`}
+                      className="ml-auto shrink-0 rounded-lg border border-line bg-white px-3 py-1.5 text-[11px] font-bold text-navy hover:border-kplc hover:text-kplc"
+                    >
+                      {d.status === "PENDING" ? "Download Approval Request PDF" : "Download Approval PDF"}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {/* --- Full nameplate ------------------------------------------- */}
         {(() => {
