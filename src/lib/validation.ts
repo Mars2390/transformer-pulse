@@ -202,6 +202,77 @@ export const onboardTransformerSchema = z.object({
 export type OnboardTransformerInput = z.infer<typeof onboardTransformerSchema>;
 
 /**
+ * A FIELD ENGINEER onboarding an existing transformer, standing under it.
+ *
+ * Same premise as onboardTransformerSchema above, different evidence. The store
+ * version is somebody at a desk dropping a pin on a map; this is somebody with
+ * the unit in front of them and a GPS fix in their pocket. That difference is
+ * why these are two schemas rather than one with optional halves:
+ *
+ *   - Coordinates come from the device, not a click, so accuracyM is part of
+ *     the record and the position is SURVEYED rather than estimated.
+ *   - A substation number is REQUIRED. A field engineer always knows which
+ *     substation they are working on, and it is the one fact that lets an
+ *     orphan pole-top unit join the rest of the network. The desk flow cannot
+ *     demand it, because whoever is clicking the map often does not know.
+ *   - Photographs are accepted, because someone is there to take them.
+ *
+ * Everything the engineer cannot read from the ground stays optional. Demanding
+ * a serial number off a corroded plate is how a unit ends up never recorded.
+ */
+export const fieldOnboardSchema = z.object({
+  lat: z.coerce
+    .number()
+    .min(-90, "Latitude must be between -90 and 90.")
+    .max(90, "Latitude must be between -90 and 90."),
+  lng: z.coerce
+    .number()
+    .min(-180, "Longitude must be between -180 and 180.")
+    .max(180, "Longitude must be between -180 and 180."),
+
+  /** Metres of GPS uncertainty as the device reported it. */
+  accuracyM: z.coerce.number().int().min(0).max(10000).optional(),
+
+  // The substation is the link into the rest of the network, so it is the one
+  // piece of free text that cannot be skipped.
+  substationCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .min(1, "Enter the substation number — you are standing on it.")
+    .max(40),
+  substationName: z.string().trim().max(120).optional().or(z.literal("")),
+
+  locationDescription: z
+    .string()
+    .trim()
+    .min(3, "Describe where this is — a road, a landmark, a plot.")
+    .max(160),
+
+  gNumber: gNumberField.optional().or(z.literal("")),
+  serialNumber: z.string().trim().toUpperCase().max(40).optional().or(z.literal("")),
+
+  manufacturerId: z.string().min(1, "Choose the manufacturer, or Unknown."),
+
+  ratingKva: z.coerce
+    .number()
+    .int()
+    .refine((v) => [50, 100, 200, 315, 500, 1000].includes(v), "Choose a standard rating."),
+
+  yearOfManufacture: z.coerce
+    .number()
+    .int()
+    .min(1960, "That year seems too early.")
+    .max(new Date().getFullYear(), "That year is in the future.")
+    .optional(),
+
+  photoUrls: z.array(z.string().min(1)).max(5).optional(),
+  notes: z.string().trim().max(500).optional().or(z.literal("")),
+});
+
+export type FieldOnboardInput = z.infer<typeof fieldOnboardSchema>;
+
+/**
  * Editing an EXISTING transformer's nameplate. Store keeper or admin. This
  * corrects static physical facts about the unit — it never touches a lifecycle
  * event, so the custody chain is untouched. Every edit is audited.

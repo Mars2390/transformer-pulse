@@ -155,6 +155,13 @@ export const DATA_SOURCE_META: Record<
     tone: "warning",
     accuracy: "Positioned by hand on the map. Roughly 5 m if the operator could see the unit.",
   },
+  FIELD_SURVEY: {
+    label: "Field survey — GPS taken at the asset",
+    short: "Field survey",
+    tone: "success",
+    accuracy:
+      "A field engineer stood under this transformer and captured a fix from the device in their hand. The most reliable position this system holds.",
+  },
   INSPECTION_REGISTER: {
     label: "KPLC inspection register — Nairobi West",
     short: "Inspection register",

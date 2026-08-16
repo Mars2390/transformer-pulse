@@ -6,7 +6,7 @@ import { FilterableMap, type MapRow } from "@/components/manager/FilterableMap";
 import { MAP_POINT_SELECT, toMapPoints } from "@/lib/map-points";
 import { EmptyState } from "@/components/ui";
 import { regionWhere } from "@/lib/region-scope";
-import { findArea, NAIROBI_AREAS } from "@/lib/areas";
+import { areaTextFor, findArea, NAIROBI_AREAS } from "@/lib/areas";
 
 export const metadata: Metadata = { title: "Map" };
 export const dynamic = "force-dynamic";
@@ -14,22 +14,35 @@ export const dynamic = "force-dynamic";
 export default async function FieldMapPage() {
   const user = await requireRole("FIELD_ENGINEER", "ADMIN");
 
-  const transformers = await prisma.transformer.findMany({
-    where: {
-      ...regionWhere(user.region, user.role),
-      currentLat: { not: null },
-      currentLng: { not: null },
-    },
-    select: MAP_POINT_SELECT,
-  });
+  const scope = regionWhere(user.region, user.role);
+
+  const [transformers, unplacedCount] = await Promise.all([
+    prisma.transformer.findMany({
+      where: { ...scope, currentLat: { not: null }, currentLng: { not: null } },
+      select: MAP_POINT_SELECT,
+    }),
+    // Counted, never fetched — these cannot be drawn. A map that does not say
+    // how many it left out reads as a complete fleet.
+    prisma.transformer.count({
+      where: { ...scope, OR: [{ currentLat: null }, { currentLng: null }] },
+    }),
+  ]);
 
   const points = toMapPoints(transformers);
   const byId = new Map(transformers.map((t) => [t.id, t]));
   const rows: MapRow[] = points.map((p) => {
     const tx = byId.get(p.id)!;
-    return { ...p, area: findArea(tx.currentSiteName, tx.substationName, tx.feeder) };
+    return {
+      ...p,
+      area: findArea(tx.currentSiteName, tx.substationName, tx.feeder),
+      areaText: areaTextFor(tx),
+    };
   });
-  const areasPresent = NAIROBI_AREAS.filter((a) => rows.some((r) => r.area === a));
+  // Offer an area if any record's location text mentions it — not only if the
+  // single-bucket findArea() happened to land on it.
+  const areasPresent = NAIROBI_AREAS.filter((a) =>
+    rows.some((r) => (r.areaText ?? "").toLowerCase().includes(a.toLowerCase())),
+  );
 
   return (
     <div className="pb-20">
@@ -46,7 +59,12 @@ export default async function FieldMapPage() {
       </div>
 
       {points.length ? (
-        <FilterableMap rows={rows} areas={areasPresent} showManufacturerWarranty={false} />
+        <FilterableMap
+          rows={rows}
+          areas={areasPresent}
+          showManufacturerWarranty={false}
+          unplacedCount={unplacedCount}
+        />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
           <EmptyState message="No transformers with a recorded location in your region yet." />

@@ -25,6 +25,7 @@ export const MAP_POINT_SELECT = {
   currentLng: true,
   currentSiteName: true,
   substationName: true,
+  substationCode: true,
   feeder: true,
   region: true,
   dataSource: true,
@@ -62,6 +63,7 @@ type Row = {
   currentLng: number | null;
   currentSiteName: string | null;
   substationName?: string | null;
+  substationCode?: string | null;
   feeder: string | null;
   region?: string | null;
   dataSource?: string | null;

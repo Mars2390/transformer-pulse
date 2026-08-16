@@ -22,3 +22,25 @@ export function findArea(...texts: (string | null | undefined)[]): string | null
   }
   return null;
 }
+
+/**
+ * Every scrap of location text a transformer carries, joined for matching.
+ *
+ * findArea() returns the FIRST bucket it recognises, which makes a fine display
+ * label and a poor filter key: a site reading "Parklands / Westlands" buckets to
+ * Parklands and then vanishes from a Westlands filter, and a site reading
+ * "Nairobi West" matches no bucket at all and vanishes from every one of them.
+ * The map filters this string instead, case-insensitively, so a selection finds
+ * what the record actually says rather than what the bucket guessed.
+ */
+export function areaTextFor(t: {
+  currentSiteName?: string | null;
+  substationName?: string | null;
+  substationCode?: string | null;
+  feeder?: string | null;
+  region?: string | null;
+}): string {
+  return [t.currentSiteName, t.substationName, t.substationCode, t.feeder, t.region]
+    .filter(Boolean)
+    .join(" ");
+}

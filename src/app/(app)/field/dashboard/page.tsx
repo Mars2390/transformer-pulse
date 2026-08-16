@@ -10,6 +10,7 @@ import { formatNumber, formatRating, formatRelative } from "@/lib/format";
 import {
   IconCamera,
   IconPin,
+  IconPinPlus,
   IconClipboard,
   IconArrowRight,
 } from "@/components/marketing/icons";
@@ -139,6 +140,30 @@ export default async function FieldDashboard() {
           </span>
         </span>
         <span className="h-5 w-5 shrink-0 text-white/60">
+          <IconArrowRight />
+        </span>
+      </Link>
+
+      {/* --- Onboard an existing transformer ---------------------------------
+          Second only to submitting a reading. A field engineer walks past units
+          this system has never heard of all day; before this they had nowhere
+          to put them and had to ask a store keeper to add one from a desk. */}
+      <Link
+        href="/field/onboard"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-white p-4 transition-transform active:scale-[0.99]"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-kplc/10 text-kplc">
+          <span className="h-5 w-5">
+            <IconPinPlus />
+          </span>
+        </span>
+        <span className="flex-1">
+          <span className="block text-sm font-bold text-navy">📍 Onboard existing transformer</span>
+          <span className="block text-[13px] text-ink-soft">
+            One you found in the field that is not in the system yet
+          </span>
+        </span>
+        <span className="h-5 w-5 shrink-0 text-ink-soft">
           <IconArrowRight />
         </span>
       </Link>
