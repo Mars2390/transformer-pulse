@@ -112,7 +112,14 @@ export function roleHome(role: Role): string {
 /** Which URL prefixes each role may enter. */
 export const ROLE_AREAS: Record<Role, string[]> = {
   ADMIN: ["/admin", "/transformers", "/manager", "/store", "/field", "/kplc-control", "/mcp"],
-  MANAGER: ["/manager", "/transformers", "/kplc-control", "/mcp"],
+  // "/store" and "/admin/field-engineers" are listed because the PAGES at
+  // /store/transfer and /admin/field-engineers both accept MANAGER through
+  // requireRole, while this list did not. A manager clicking either link was
+  // silently bounced to their own dashboard, so the navigation looked broken
+  // with nothing to explain it. Widening the list is safe: requireRole on each
+  // page is the real boundary and still refuses the screens under /store that
+  // a manager genuinely may not use.
+  MANAGER: ["/manager", "/transformers", "/store", "/admin/field-engineers", "/kplc-control", "/mcp"],
   // Same screens as a manager, minus the region-wide ones. Every page they can
   // reach scopes itself to their store; this list only decides which doors open.
   STORE_MANAGER: ["/manager", "/transformers", "/store"],

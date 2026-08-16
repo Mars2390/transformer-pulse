@@ -343,7 +343,7 @@ async function getFleetSummary(args: unknown): Promise<McpToolResult> {
     prisma.warrantyClaim.findMany({ where: { status: { in: ["OPEN", "SUBMITTED"] }, transformer: where }, select: { claimValueKes: true } }),
   ]);
 
-  const byHealth: Record<HealthStatusLevel, number> = { HEALTHY: 0, BREATHING: 0, SURVIVING: 0, CRITICAL: 0, DECEASED: 0 };
+  const byHealth: Record<HealthStatusLevel, number> = { HEALTHY: 0, BREATHING: 0, SURVIVING: 0, CRITICAL: 0, DECEASED: 0, UNVERIFIED: 0 };
   for (const row of priorityRows) {
     const status = deriveHealthStatus({ electrical: row.electrical, physical: row.physical, status: row.status, reasons: row.reasons });
     byHealth[status.level]++;

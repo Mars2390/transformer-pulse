@@ -10,6 +10,43 @@ import { z } from "zod";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
 
+/**
+ * A blank box is NOT a zero.
+ *
+ * `z.coerce.number()` runs `Number(value)`, and `Number("")` is 0. An HTML form
+ * always posts every field, so an untouched "Oil weight (kg)" box arrives as
+ * "" and lands in the database as 0. That is where "0 kg", "0/0 °C" and
+ * "0 °C max ambient" on the story page came from: nobody typed them, and no
+ * transformer on earth weighs nothing.
+ *
+ * On the nameplate that is embarrassing. On a test sheet it is dangerous — a
+ * blank oil BDV box would be stored as 0 kV, which reads as complete dielectric
+ * failure, and a blank insulation resistance as 0 MΩ, a dead short. The health
+ * score would then act on a reading that was never taken.
+ *
+ * So every optional number goes through this first. Empty, whitespace, "-",
+ * "N/A" and "null" all mean the same thing — nobody wrote anything down — and
+ * they all become null, which the whole app already renders as "—".
+ */
+const BLANK = /^(|-|--|—|n\/?a|nil|none|null|undefined)$/i;
+
+export function blankToNull<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((v) => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === "string" && BLANK.test(v.trim())) return null;
+    if (typeof v === "number" && Number.isNaN(v)) return null;
+    return v;
+  }, schema);
+}
+
+/** An optional measured quantity: blank stays blank, and zero is not invented. */
+const optionalNumber = (opts: { min?: number; max: number; int?: boolean }) => {
+  let n = z.coerce.number();
+  if (opts.int) n = n.int();
+  if (opts.min !== undefined) n = n.min(opts.min);
+  return blankToNull(n.max(opts.max).nullable().optional());
+};
+
 export const emailField = z
   .string()
   .trim()
@@ -94,17 +131,19 @@ export const gNumberField = z
 // Everything on the plate a KPLC store records, beyond the core electricals.
 // All optional: a rusty plate may not be fully legible, and that is honest.
 const nameplateFields = {
-  frequencyHz: z.coerce.number().int().min(40).max(70).optional().nullable(),
+  frequencyHz: optionalNumber({ min: 40, max: 70, int: true }),
   duty: z.string().trim().max(20).optional().or(z.literal("")),
   standardRef: z.string().trim().max(40).optional().or(z.literal("")),
   hvInsulationLevelKv: z.string().trim().max(20).optional().or(z.literal("")),
-  tempRiseOilC: z.coerce.number().int().min(0).max(200).optional().nullable(),
-  tempRiseWindingC: z.coerce.number().int().min(0).max(200).optional().nullable(),
+  // Minimums are 1, not 0. A temperature RISE of zero and a weight of zero are
+  // not readings anyone takes; they are the shape a blank box used to arrive in.
+  tempRiseOilC: optionalNumber({ min: 1, max: 200, int: true }),
+  tempRiseWindingC: optionalNumber({ min: 1, max: 200, int: true }),
   tempClass: z.string().trim().max(5).optional().or(z.literal("")),
-  maxAmbientTempC: z.coerce.number().int().min(0).max(80).optional().nullable(),
+  maxAmbientTempC: optionalNumber({ min: 1, max: 80, int: true }),
   insulationOilType: z.string().trim().max(40).optional().or(z.literal("")),
-  oilWeightKg: z.coerce.number().int().min(0).max(100_000).optional().nullable(),
-  totalWeightKg: z.coerce.number().int().min(0).max(200_000).optional().nullable(),
+  oilWeightKg: optionalNumber({ min: 1, max: 100_000, int: true }),
+  totalWeightKg: optionalNumber({ min: 1, max: 200_000, int: true }),
   tapRange: z.string().trim().max(120).optional().or(z.literal("")),
 };
 
@@ -129,9 +168,9 @@ export const receiveTransformerSchema = z.object({
   secondaryKv: z.coerce.number().positive().max(500),
   phases: z.coerce.number().int().refine((v) => v === 1 || v === 3, "Phases must be 1 or 3."),
   coolingType: z.string().trim().max(20),
-  impedancePct: z.coerce.number().min(0).max(30).optional().nullable(),
+  impedancePct: optionalNumber({ min: 0.5, max: 30 }),
   vectorGroup: z.string().trim().max(20).optional().or(z.literal("")),
-  oilVolumeLitres: z.coerce.number().int().min(0).max(20_000).optional().nullable(),
+  oilVolumeLitres: optionalNumber({ min: 1, max: 20_000, int: true }),
   yearOfManufacture: z.coerce
     .number()
     .int()
@@ -322,9 +361,9 @@ export const editTransformerSchema = z.object({
   secondaryKv: z.coerce.number().positive().max(500),
   phases: z.coerce.number().int().refine((v) => v === 1 || v === 3, "Phases must be 1 or 3."),
   coolingType: z.string().trim().max(20),
-  impedancePct: z.coerce.number().min(0).max(30).optional().nullable(),
+  impedancePct: optionalNumber({ min: 0.5, max: 30 }),
   vectorGroup: z.string().trim().max(20).optional().or(z.literal("")),
-  oilVolumeLitres: z.coerce.number().int().min(0).max(20_000).optional().nullable(),
+  oilVolumeLitres: optionalNumber({ min: 1, max: 20_000, int: true }),
   yearOfManufacture: z.coerce.number().int().min(1950).max(new Date().getFullYear()),
   ...nameplateFields,
 });
@@ -361,8 +400,27 @@ export type CorrectTransformerInput = z.infer<typeof correctTransformerSchema>;
 
 // --- Test values ------------------------------------------------------------
 
+/**
+ * A test reading that was actually taken.
+ *
+ * The minimum is deliberately above zero. Zero megohms is a dead short, zero kV
+ * breakdown voltage is oil that conducts, and a turns ratio of zero is not a
+ * transformer — none of these are readings an instrument produces on a unit
+ * somebody is standing next to. They are what an empty box used to become, and
+ * the health score would then have acted on a measurement nobody made.
+ *
+ * If an engineer genuinely reads zero, the honest record is a failed test with
+ * that stated in the remarks, not a number that cannot occur.
+ */
 const measurement = (max: number) =>
-  z.coerce.number().min(0, "Cannot be negative.").max(max).optional().nullable();
+  blankToNull(
+    z.coerce
+      .number()
+      .positive("A reading of zero is not a measurement — leave it blank if the test was not done.")
+      .max(max)
+      .nullable()
+      .optional(),
+  );
 
 export const testValuesSchema = z.object({
   stage: z.enum([
@@ -375,12 +433,14 @@ export const testValuesSchema = z.object({
   insulationResistanceHvMohm: measurement(100_000),
   insulationResistanceLvMohm: measurement(100_000),
   turnsRatio: measurement(1000),
-  turnsRatioDeviationPct: z.coerce.number().min(-100).max(100).optional().nullable(),
+  // Deviation and temperatures CAN legitimately be zero or negative, so they
+  // only get the blank guard, not a positive floor.
+  turnsRatioDeviationPct: blankToNull(z.coerce.number().min(-100).max(100).nullable().optional()),
   windingResistanceHvOhm: measurement(10_000),
   windingResistanceLvOhm: measurement(10_000),
   oilBdvKv: measurement(200),
-  oilTempC: z.coerce.number().min(-20).max(200).optional().nullable(),
-  ambientTempC: z.coerce.number().min(-20).max(70).optional().nullable(),
+  oilTempC: blankToNull(z.coerce.number().min(-20).max(200).nullable().optional()),
+  ambientTempC: blankToNull(z.coerce.number().min(-20).max(70).nullable().optional()),
   polarityOk: z.boolean().optional().nullable(),
   passed: z.boolean(),
   remarks: z.string().trim().max(1000).optional().nullable(),

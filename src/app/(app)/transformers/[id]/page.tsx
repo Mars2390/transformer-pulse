@@ -9,6 +9,7 @@ import { computeHealth, HEALTH_BAND_META } from "@/lib/health";
 import { buildPriorityList } from "@/lib/combined-health";
 import { deriveHealthStatus, HEALTH_STATUS_META } from "@/lib/health-status";
 import { computeServiceSummary } from "@/lib/service-summary";
+import { measured, unit, pair } from "@/lib/measure";
 import { Badge } from "@/components/ui";
 import { StoryLocationMap } from "@/components/transformer/StoryLocationMap";
 import { StoryTabs } from "@/components/transformer/StoryTabs";
@@ -395,18 +396,18 @@ export default async function StoryPage({
             ["Voltage", `${tx.primaryKv} / ${tx.secondaryKv} kV`],
             ["Vector group", tx.vectorGroup],
             ["Cooling", tx.coolingType],
-            ["Impedance", tx.impedancePct != null ? `${tx.impedancePct}%` : null],
-            ["Frequency", tx.frequencyHz != null ? `${tx.frequencyHz} Hz` : null],
+            ["Impedance", measured(tx.impedancePct) != null ? `${tx.impedancePct}%` : null],
+            ["Frequency", unit(tx.frequencyHz, "Hz")],
             ["Duty", tx.duty],
             ["Standard", tx.standardRef],
             ["HV insulation / BIL", tx.hvInsulationLevelKv],
-            ["Temp rise oil/wdg", tx.tempRiseOilC != null ? `${tx.tempRiseOilC}/${tx.tempRiseWindingC ?? "—"} °C` : null],
+            ["Temp rise oil/wdg", pair(tx.tempRiseOilC, tx.tempRiseWindingC, "°C")],
             ["Temp class", tx.tempClass],
-            ["Max ambient", tx.maxAmbientTempC != null ? `${tx.maxAmbientTempC} °C` : null],
+            ["Max ambient", unit(tx.maxAmbientTempC, "°C")],
             ["Oil type", tx.insulationOilType],
-            ["Oil weight", tx.oilWeightKg != null ? `${tx.oilWeightKg} kg` : null],
-            ["Oil volume", tx.oilVolumeLitres != null ? `${tx.oilVolumeLitres} L` : null],
-            ["Total weight", tx.totalWeightKg != null ? `${tx.totalWeightKg} kg` : null],
+            ["Oil weight", unit(tx.oilWeightKg, "kg")],
+            ["Oil volume", unit(tx.oilVolumeLitres, "L")],
+            ["Total weight", unit(tx.totalWeightKg, "kg")],
             ["Year", tx.yearOfManufacture],
             ["Tap range", tx.tapRange],
           ];

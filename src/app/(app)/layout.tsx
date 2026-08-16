@@ -1,12 +1,10 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { KplcMark } from "@/components/brand/KplcLogo";
-import { LogoutButton } from "@/components/app/LogoutButton";
+import { AppShell } from "@/components/app/AppShell";
 import { FieldBottomNav } from "@/components/field/FieldBottomNav";
 import { AlertBell } from "@/components/manager/AlertBell";
 import { ToastProvider } from "@/components/ui/Toast";
+import { NAV_SECTIONS, QUICK_LINKS } from "@/lib/nav";
 import { ROLE_LABELS } from "@/lib/format";
-import type { Role } from "@/generated/prisma/enums";
 
 /**
  * The shell every signed-in page sits inside.
@@ -14,65 +12,15 @@ import type { Role } from "@/generated/prisma/enums";
  * `requireUser()` here is the real security boundary — middleware only
  * redirects, and a cookie is client-controlled. This runs on the server, on
  * every request, and cannot be skipped by editing anything in a browser.
+ *
+ * The navigation itself moved to src/lib/nav.ts and the chrome to AppShell.
+ * That split exists because the nav needs `usePathname` to mark the current
+ * page, which makes it a client component, while the auth check must stay on
+ * the server. Keeping them in one file would have meant shipping either the
+ * auth check to the browser or a nav that cannot tell you where you are.
  */
-
-const NAV: Record<Role, { href: string; label: string }[]> = {
-  ADMIN: [
-    { href: "/admin/dashboard", label: "Overview" },
-    { href: "/manager/approvals", label: "Approvals" },
-    { href: "/admin/qr-codes", label: "QR labels" },
-    { href: "/admin/users", label: "Users" },
-    { href: "/admin/field-engineers", label: "Engineers" },
-    { href: "/admin/manufacturers", label: "Manufacturers" },
-    { href: "/admin/stores", label: "Stores" },
-    { href: "/admin/audit", label: "Audit" },
-    { href: "/admin/chain", label: "Chain" },
-    { href: "/mcp", label: "MCP" },
-  ],
-  MANAGER: [
-    { href: "/manager/dashboard", label: "Dashboard" },
-    { href: "/manager/approvals", label: "Approvals" },
-    { href: "/manager/batch-approvals", label: "Batches" },
-    { href: "/manager/untested", label: "Untested" },
-    { href: "/manager/transactions", label: "Movements" },
-    { href: "/admin/field-engineers", label: "Engineers" },
-    { href: "/store/transfer", label: "Raise movement" },
-    { href: "/manager/map", label: "Map" },
-    { href: "/manager/warranty", label: "Warranty" },
-    { href: "/manager/reports", label: "Reports" },
-    { href: "/manager/search", label: "Search" },
-    { href: "/mcp", label: "MCP" },
-  ],
-  // A store manager's nav is a manager's nav with the region-wide entries
-  // removed. Everything left scopes itself to their store.
-  STORE_MANAGER: [
-    { href: "/manager/dashboard", label: "Dashboard" },
-    { href: "/manager/approvals", label: "Approvals" },
-    { href: "/manager/batch-approvals", label: "Batches" },
-    { href: "/manager/untested", label: "Untested" },
-    { href: "/manager/transactions", label: "Movements" },
-    { href: "/transformers", label: "Transformers" },
-  ],
-  STORE_KEEPER: [
-    { href: "/store/dashboard", label: "Store" },
-    { href: "/store/receive-batch", label: "Receive batch" },
-    { href: "/store/transfer", label: "Move stock" },
-    { href: "/transformers", label: "Transformers" },
-    { href: "/mcp", label: "MCP" },
-  ],
-  FIELD_ENGINEER: [
-    { href: "/field/dashboard", label: "My work" },
-    { href: "/transformers", label: "Transformers" },
-  ],
-};
-
-export default async function AppLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const links = NAV[user.role] ?? [];
   const isField = user.role === "FIELD_ENGINEER";
 
   // Two initials for the avatar — "Grace Wanjiru" becomes GW.
@@ -84,81 +32,23 @@ export default async function AppLayout({
     .join("");
 
   return (
-    <div className="min-h-svh bg-surface">
-      <header className="sticky top-0 z-40 border-b border-line bg-white/85 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-          <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="flex items-center gap-2.5">
-              <KplcMark className="h-9 w-9" />
-              <span className="hidden text-[15px] font-extrabold tracking-tight text-navy sm:block">
-                Transformer<span className="text-gold">DNA</span>
-              </span>
-            </Link>
-
-            <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-              {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-2 hover:text-navy"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {(user.role === "MANAGER" || user.role === "ADMIN") && <AlertBell />}
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold leading-tight text-navy">
-                {user.name}
-              </p>
-              <p className="text-[11px] leading-tight text-ink-soft">
-                {ROLE_LABELS[user.role]}
-                {user.region ? ` · ${user.region}` : ""}
-              </p>
-            </div>
-            <span
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-kplc text-xs font-bold text-white"
-              aria-hidden="true"
-            >
-              {initials}
-            </span>
-            <LogoutButton />
-          </div>
-        </div>
-
-        {/* Mobile nav — the desktop links have nowhere to go on a phone. */}
-        {/* Field engineers get a fixed BOTTOM nav instead of this top strip —
-            it is where a thumb rests. Every other role keeps the top strip. */}
-        {!isField && (
-          <nav
-            className="flex gap-1 overflow-x-auto border-t border-line px-4 py-2 md:hidden"
-            aria-label="Main"
-          >
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-2 hover:text-navy"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-        )}
-      </header>
-
-      <main
-        className={`mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 ${
-          isField ? "pb-24 md:pb-8" : ""
-        }`}
-      >
+    <AppShell
+      sections={NAV_SECTIONS[user.role] ?? []}
+      quickLinks={QUICK_LINKS[user.role] ?? []}
+      user={{
+        name: user.name,
+        roleLabel: ROLE_LABELS[user.role],
+        region: user.region ?? null,
+        initials,
+      }}
+      bell={user.role === "MANAGER" || user.role === "ADMIN" ? <AlertBell /> : null}
+      // Field engineers keep the fixed bottom bar — it is where a thumb rests,
+      // and it is faster than the drawer for the four things they do all day.
+      bottomNav={isField ? <FieldBottomNav /> : null}
+    >
+      <div className={isField ? "pb-20 lg:pb-0" : ""}>
         <ToastProvider>{children}</ToastProvider>
-      </main>
-
-      {isField && <FieldBottomNav />}
-    </div>
+      </div>
+    </AppShell>
   );
 }

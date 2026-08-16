@@ -13,6 +13,7 @@ import { computeWarranty } from "@/lib/warranty";
 import { computeHealth, HEALTH_BAND_META } from "@/lib/health";
 import { dmy, gps, trend } from "@/lib/report-data";
 import { EVENT_META, ROLE_LABELS, STATUS_META, formatKes, formatPlate } from "@/lib/format";
+import { unit } from "@/lib/measure";
 
 /**
  * GET /api/pdf/transformer/[id] — the complete story of one transformer.
@@ -80,17 +81,17 @@ export async function GET(
 
     // --- Nameplate ----------------------------------------------------------
     const plate: [string, string | number | null][] = [
-      ["Frequency", tx.frequencyHz != null ? `${tx.frequencyHz} Hz` : null],
+      ["Frequency", unit(tx.frequencyHz, "Hz")],
       ["Duty", tx.duty],
       ["Standard", tx.standardRef],
       ["HV insulation level / BIL", tx.hvInsulationLevelKv],
-      ["Temp rise — oil", tx.tempRiseOilC != null ? `${tx.tempRiseOilC} °C` : null],
-      ["Temp rise — winding", tx.tempRiseWindingC != null ? `${tx.tempRiseWindingC} °C` : null],
+      ["Temp rise — oil", unit(tx.tempRiseOilC, "°C")],
+      ["Temp rise — winding", unit(tx.tempRiseWindingC, "°C")],
       ["Temperature class", tx.tempClass],
-      ["Max ambient temperature", tx.maxAmbientTempC != null ? `${tx.maxAmbientTempC} °C` : null],
+      ["Max ambient temperature", unit(tx.maxAmbientTempC, "°C")],
       ["Insulation oil type", tx.insulationOilType],
-      ["Oil weight", tx.oilWeightKg != null ? `${tx.oilWeightKg} kg` : null],
-      ["Total weight", tx.totalWeightKg != null ? `${tx.totalWeightKg} kg` : null],
+      ["Oil weight", unit(tx.oilWeightKg, "kg")],
+      ["Total weight", unit(tx.totalWeightKg, "kg")],
       ["Tap range", tx.tapRange],
     ];
     const missing = plate.filter(([, v]) => v == null || v === "").length;

@@ -26,7 +26,7 @@ export function FieldBottomNav() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-white/95 backdrop-blur-md md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-white/95 backdrop-blur-md lg:hidden"
       aria-label="Field navigation"
     >
       {ITEMS.map((item) => {

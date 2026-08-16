@@ -60,7 +60,7 @@ type Preview = {
 type HealthUpdate = { transformerId: string; label: string; level: string; explanation: string; alertsRaised: number };
 
 const LEVEL_EMOJI: Record<string, string> = {
-  HEALTHY: "🔵", BREATHING: "🟢", SURVIVING: "🟡", CRITICAL: "🔴", DECEASED: "⚫",
+  HEALTHY: "🔵", BREATHING: "🟢", SURVIVING: "🟡", CRITICAL: "🔴", DECEASED: "⚫", UNVERIFIED: "⚪",
 };
 
 /** "✅ G-153457 analyzed. Health: CRITICAL. 3 new alerts. Phase L3 at 121%..." */
