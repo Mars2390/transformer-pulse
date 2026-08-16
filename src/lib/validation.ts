@@ -233,6 +233,16 @@ export const fieldOnboardSchema = z.object({
   /** Metres of GPS uncertainty as the device reported it. */
   accuracyM: z.coerce.number().int().min(0).max(10000).optional(),
 
+  /**
+   * How the position was obtained. A device fix and a typed pair of numbers
+   * are both coordinates and they are NOT the same evidence, so the record
+   * keeps them apart: only GPS earns positionSource SURVEYED and a verifiedAt
+   * stamp. Typing coordinates is allowed - a handheld unit, a reading called
+   * in over the radio, a phone whose GPS will not lock under a canopy - but
+   * the record says so rather than quietly promoting a guess.
+   */
+  positionMethod: z.enum(["GPS", "MANUAL"]).default("GPS"),
+
   // The substation is the link into the rest of the network, so it is the one
   // piece of free text that cannot be skipped.
   substationCode: z
@@ -271,6 +281,30 @@ export const fieldOnboardSchema = z.object({
 });
 
 export type FieldOnboardInput = z.infer<typeof fieldOnboardSchema>;
+
+/**
+ * The CHECKER half of maker-checker: accepting or refusing booked-in units.
+ *
+ * Bulk by design - a checker facing a delivery of forty units should not click
+ * forty times - but a rejection reason is required, and one reason covers the
+ * whole call. Rejecting a mixed batch for different reasons is two calls, which
+ * is the honest shape: a reason that applies to everything or nothing.
+ */
+export const approvalDecisionSchema = z
+  .object({
+    transformerIds: z
+      .array(z.string().min(1))
+      .min(1, "Select at least one transformer.")
+      .max(200, "Approve at most 200 at a time."),
+    decision: z.enum(["APPROVE", "REJECT"]),
+    reason: z.string().trim().max(300).optional().or(z.literal("")),
+  })
+  .refine((v) => v.decision !== "REJECT" || (v.reason && v.reason.trim().length >= 3), {
+    message: "Say why it is being rejected. A rejection with no reason cannot be acted on.",
+    path: ["reason"],
+  });
+
+export type ApprovalDecisionInput = z.infer<typeof approvalDecisionSchema>;
 
 /**
  * Editing an EXISTING transformer's nameplate. Store keeper or admin. This

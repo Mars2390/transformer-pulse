@@ -38,6 +38,8 @@ type HealthBand = "ALL" | "CRITICAL" | "WARNING" | "GOOD" | "NOT_SCORED";
  * option matches both values instead, see statusMatches().
  */
 const STATUS_OPTIONS: TransformerStatus[] = [
+  "PENDING_APPROVAL",
+  "REJECTED",
   "IN_STORE",
   "IN_TRANSIT",
   "IN_FIELD",
