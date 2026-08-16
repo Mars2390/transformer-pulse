@@ -89,7 +89,7 @@ async function geocode(query: string): Promise<{ lat: number; lon: number; displ
       headers: {
         // Nominatim requires a real identifying User-Agent. Anonymous traffic
         // is blocked, and rightly so.
-        "User-Agent": "TransformerPulse/1.0 (KPLC asset mapping; contact via repository)",
+        "User-Agent": "TransformerDNA/1.0 (KPLC asset mapping; contact via repository)",
         "Accept-Language": "en",
       },
       signal: AbortSignal.timeout(20_000),

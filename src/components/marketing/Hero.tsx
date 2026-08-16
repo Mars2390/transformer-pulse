@@ -57,7 +57,7 @@ export function Hero() {
           <h1 className="mt-6 text-[clamp(2.4rem,7vw,4.8rem)] font-extrabold tracking-[-0.03em] text-navy">
             Transformer
             <span className="relative ml-2.5 whitespace-nowrap sm:ml-3">
-              <span className="relative z-10">Pulse</span>
+              <span className="relative z-10">DNA</span>
               {/* Gold highlighter behind the second word — one accent, once. */}
               <span
                 className="absolute inset-x-0 bottom-[0.09em] z-0 h-[0.3em] rounded-sm bg-gold/45"

@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     }
 
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = "Transformer Pulse";
+    workbook.creator = "Transformer DNA";
     const sheet = workbook.addWorksheet("Transformers", { views: [{ state: "frozen", ySplit: 2 }] });
 
     const headerRow = sheet.getRow(1);

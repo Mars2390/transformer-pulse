@@ -218,7 +218,7 @@ async function coverPage(cover: CoverOptions): Promise<Content[]> {
   const logo = await logoDataUri();
   return [
     ...(logo ? [{ image: logo, width: 90, alignment: "center" as const, margin: [0, 60, 0, 20] as [number, number, number, number] }] : [{ text: "", margin: [0, 90, 0, 0] as [number, number, number, number] }]),
-    { text: "Transformer Pulse", alignment: "center", fontSize: 16, bold: true, color: KPLC_NAVY },
+    { text: "Transformer DNA", alignment: "center", fontSize: 16, bold: true, color: KPLC_NAVY },
     { text: "Kenya Power Distribution Assets", alignment: "center", fontSize: 10, color: INK_SOFT, margin: [0, 2, 0, 40] },
     { canvas: [{ type: "line", x1: 140, y1: 0, x2: 375, y2: 0, lineWidth: 2, lineColor: KPLC_GOLD }] },
     { text: cover.headline, alignment: "center", fontSize: 30, bold: true, color: KPLC_NAVY, margin: [0, 26, 0, 0] },
@@ -269,7 +269,7 @@ export async function buildPdf({
       h2: { fontSize: 11, bold: true, color: KPLC_NAVY },
       muted: { fontSize: 8, color: INK_SOFT },
     },
-    info: { title: `${cover.headline} — ${cover.title}`, author: "Transformer Pulse" },
+    info: { title: `${cover.headline} — ${cover.title}`, author: "Transformer DNA" },
 
     // Every page after the cover gets the running head.
     header: (currentPage) =>
@@ -288,7 +288,7 @@ export async function buildPdf({
       margin: [40, 10, 40, 0],
       columns: [
         {
-          text: "Transformer Pulse  |  Kenya Power",
+          text: "Transformer DNA  |  Kenya Power",
           fontSize: 7, color: INK_SOFT, width: "*",
         },
         { text: `Generated ${generated}`, fontSize: 7, color: INK_SOFT, width: "auto", margin: [0, 0, 12, 0] },

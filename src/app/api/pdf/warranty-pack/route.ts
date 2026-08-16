@@ -62,7 +62,7 @@ export async function GET(request: Request) {
         ]},
         { width: "*", stack: [
           { text: "FROM", fontSize: 7, bold: true, color: "#5b6480" },
-          { text: "Kenya Power — Transformer Pulse", fontSize: 11, bold: true, color: KPLC_NAVY },
+          { text: "Kenya Power — Transformer DNA", fontSize: 11, bold: true, color: KPLC_NAVY },
           { text: `${user.name} (${ROLE_LABELS[user.role]})`, fontSize: 9 },
           { text: user.region ?? "All regions", fontSize: 9 },
           { text: new Date().toLocaleDateString("en-GB"), fontSize: 9 },
