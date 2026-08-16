@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { resizeImage } from "@/lib/imageResize";
+import { prepareForOcr } from "@/lib/imagePrep";
+import { parseNameplate } from "@/lib/nameplate-parse";
 
 /**
  * Photograph a nameplate, read it with Tesseract.js entirely in the browser,
@@ -194,6 +196,47 @@ const CONFIDENCE_META: Record<Confidence, { icon: string; label: string }> = {
   low: { icon: "🔴", label: "Not found — enter manually" },
 };
 
+/**
+ * Map the pure parser's output onto the shape this component already renders.
+ *
+ * Keeping parseNameplate() free of React and of the manufacturer list is what
+ * makes it testable against real plate text — see the label-anchored reasoning
+ * in src/lib/nameplate-parse.ts. This function is the only glue.
+ */
+function toLegacyShape(
+  parsed: ReturnType<typeof parseNameplate>,
+  manufacturers: { id: string; name: string }[],
+): NameplateExtraction {
+  const guess = parsed.manufacturerGuess.value;
+  const matched = guess
+    ? manufacturers.find((m) => m.name.toUpperCase().includes(guess.toUpperCase()))
+    : undefined;
+
+  return {
+    serialNumber: parsed.serialNumber,
+    manufacturerId: matched
+      ? { value: matched.id, confidence: parsed.manufacturerGuess.confidence }
+      : { value: null, confidence: "low" as const },
+    // What the plate said, kept even when no configured manufacturer matches —
+    // "ABB" read off the plate is useful to the keeper even if ABB has not been
+    // added to the system yet.
+    manufacturerLabel: {
+      value: matched?.name ?? guess ?? null,
+      confidence: matched ? parsed.manufacturerGuess.confidence : ("low" as const),
+    },
+    ratingKva: parsed.ratingKva,
+    primaryKv: parsed.primaryKv,
+    secondaryKv: parsed.secondaryKv,
+    yearOfManufacture: parsed.yearOfManufacture,
+    frequencyHz: parsed.frequencyHz,
+    coolingType: parsed.coolingType,
+    oilVolumeLitres: parsed.oilVolumeLitres,
+    totalWeightKg: parsed.totalWeightKg,
+    vectorGroup: parsed.vectorGroup,
+    impedancePct: parsed.impedancePct,
+  } as NameplateExtraction;
+}
+
 type Stage = "idle" | "resizing" | "reading" | "review" | "uploading";
 
 export function NameplateOCR({
@@ -228,10 +271,16 @@ export function NameplateOCR({
     setStage("resizing");
 
     try {
+      // Two different images from one photo. The upload copy is shrunk so it
+      // will actually finish over LTE; the OCR copy is upscaled, greyscaled and
+      // contrast-stretched, because Tesseract reads engraved text better the
+      // more pixels it has. Handing the shrunk copy to OCR was a large part of
+      // why the scanner read almost nothing.
       const resized = await resizeImage(file);
       setPhoto(resized);
       setStage("reading");
       setProgress(0);
+      const forOcr = await prepareForOcr(file);
 
       const { createWorker } = await import("tesseract.js");
       const worker = await createWorker("eng", undefined, {
@@ -242,12 +291,13 @@ export function NameplateOCR({
         },
       });
 
-      const { data } = await worker.recognize(resized);
+      const { data } = await worker.recognize(forOcr);
       await worker.terminate();
 
       const text = data.text ?? "";
       setRawText(text);
-      const extracted = extractFields(text, manufacturers);
+      const parsed = parseNameplate(text);
+      const extracted = toLegacyShape(parsed, manufacturers);
       setExtraction(extracted);
       setForm({
         photoUrl: "",

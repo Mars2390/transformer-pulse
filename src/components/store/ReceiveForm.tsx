@@ -35,7 +35,11 @@ export function ReceiveForm({
   const [fatReportUrl, setFatReportUrl] = useState<string | null>(null);
 
   // --- Nameplate scan: shown first, hands its result to the form below ----
-  const [showScan, setShowScan] = useState(true);
+  // Manual entry is the primary path and the default. The scanner is an
+  // optional accelerant: on a rusty plate photographed at an angle it saves
+  // nothing, and a keeper who has to dismiss it before every receipt will
+  // stop using the system rather than stop using the camera.
+  const [showScan, setShowScan] = useState(false);
   const [ocrPrefill, setOcrPrefill] = useState<ConfirmedNameplateData | null>(null);
   // Bumped on every OCR confirm so the uncontrolled inputs below remount
   // with fresh defaultValue props — the same trick a key change always is,
