@@ -112,6 +112,32 @@ export function ReceiveForm({
         />
       )}
 
+      {/* --- Way back into the scanner -------------------------------------
+          When showScan defaulted to true, the scanner WAS the first screen and
+          "Fill Manually Instead" was the only door needed. Flipping the default
+          to manual without adding this button left the scanner unreachable on a
+          fresh page load: the banner below only appears AFTER a successful
+          scan. This is that missing door. */}
+      {!showScan && !ocrPrefill && (
+        <button
+          type="button"
+          onClick={() => setShowScan(true)}
+          className="flex w-full items-center gap-4 rounded-2xl border border-kplc/30 bg-kplc/5 p-4 text-left transition-transform active:scale-[0.99] hover:bg-kplc/10"
+        >
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-kplc text-xl text-white">
+            📸
+          </span>
+          <span className="flex-1">
+            <span className="block text-sm font-bold text-navy">Scan Nameplate</span>
+            <span className="block text-[13px] text-ink-soft">
+              Photograph the plate and let it fill the form. Optional — typing it in below is
+              always faster on a worn plate.
+            </span>
+          </span>
+          <span className="shrink-0 text-xs font-bold text-kplc">Open</span>
+        </button>
+      )}
+
       {!showScan && ocrPrefill && (
         <div className="flex items-center justify-between rounded-xl border border-kplc/20 bg-kplc/5 px-4 py-3 text-xs">
           <p className="font-semibold text-navy">Form filled from the nameplate scan — check every field below.</p>
