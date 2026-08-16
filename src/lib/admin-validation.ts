@@ -48,6 +48,8 @@ export const manufacturerSchema = z.object({
 });
 
 export const storeSchema = z.object({
+  /** A workshop is a store that repairs. Same table, same behaviour, one column. */
+  kind: z.enum(["STORE", "WORKSHOP"]).default("STORE"),
   name: z.string().trim().min(3, "Enter the store name.").max(80),
   code: z.string().trim().min(2, "Enter a store code.").max(20).toUpperCase(),
   region: z.string().trim().min(2, "Enter the region.").max(60),

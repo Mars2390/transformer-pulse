@@ -167,7 +167,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     from: "WORKSHOP",
     to: "SITE",
     purpose: "INSTALL",
-    initiators: ["FIELD_ENGINEER", "ADMIN"],
+    initiators: ["FIELD_ENGINEER", "STORE_KEEPER", "ADMIN"],
     approvers: ["MANAGER", "ADMIN"],
     completionEvent: "DEPLOYED_FROM_WORKSHOP",
     allowedFrom: ["REPAIRED", "AT_WORKSHOP"],
@@ -215,6 +215,52 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     description: "Opened, condemned, and disposed of. Only possible once it is beyond repair.",
   },
 };
+
+/**
+ * Why a given transformer can or cannot take part in a given movement.
+ *
+ * Returning a REASON rather than a boolean is the whole point. A form that
+ * silently hides everything it cannot offer looks broken — the store keeper
+ * knows the unit exists, sees an empty list, and concludes the system is wrong.
+ * Every rejection here is a sentence somebody can act on.
+ */
+export type Eligibility = { ok: true } | { ok: false; reason: string };
+
+export function checkEligibility(
+  movement: Movement,
+  unit: { status: TransformerStatus; heldByStoreId: string | null; heldByStoreName: string | null },
+  actor: { role: Role; storeId: string | null },
+): Eligibility {
+  if (!movement.allowedFrom.includes(unit.status)) {
+    return {
+      ok: false,
+      reason: `Is ${unit.status.toLowerCase().replace(/_/g, " ")} — a ${movement.label} movement starts from ${movement.allowedFrom
+        .map((s) => s.toLowerCase().replace(/_/g, " "))
+        .join(" or ")}.`,
+    };
+  }
+
+  // Custody. An admin coordinates across the whole fleet; everybody else can
+  // only move what they physically hold. A keeper at one store raising a
+  // transfer for a unit sitting in another store is not a permission question,
+  // it is a lie about who is loading the lorry.
+  const originIsAPlace = movement.from === "STORE" || movement.from === "WORKSHOP";
+  if (originIsAPlace && actor.role !== "ADMIN") {
+    if (!actor.storeId) {
+      return { ok: false, reason: "You are not assigned to a store, so you hold nothing to move." };
+    }
+    if (unit.heldByStoreId !== actor.storeId) {
+      return {
+        ok: false,
+        reason: unit.heldByStoreName
+          ? `Held at ${unit.heldByStoreName}, not yours. That store raises the transfer.`
+          : "Not held at any store, so there is nothing for you to load.",
+      };
+    }
+  }
+
+  return { ok: true };
+}
 
 export const MOVEMENT_KEYS = Object.keys(MOVEMENTS) as MovementKey[];
 

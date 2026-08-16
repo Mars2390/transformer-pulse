@@ -17,25 +17,32 @@ export const dynamic = "force-dynamic";
  * store back to the manufacturer, and a condemned unit leaving a workshop.
  */
 export default async function StoreTransferPage() {
-  const user = await requireRole("STORE_KEEPER", "ADMIN");
+  const user = await requireRole("STORE_KEEPER", "MANAGER", "ADMIN");
 
-  const allowed = movementsFor(user.role)
-    .filter((m) => m.from === "STORE" || m.from === "WORKSHOP")
-    .map((m) => m.key);
+  // Every movement this role may raise, not just the ones starting at a store.
+  // A store keeper who also runs a workshop needs Workshop to Site, and hiding
+  // it made the list look shorter than the system's actual capability.
+  const allowed = movementsFor(user.role).map((m) => m.key);
 
   const [held, destinations] = await Promise.all([
+    // The WHOLE fleet, not just this store's shelf. Filtering the query was
+    // what made the form look empty: a keeper whose stock was all awaiting
+    // approval, or whose units had no currentStoreId, saw nothing at all and
+    // had no way to tell whether the data or the screen was broken. Custody is
+    // now enforced per row, visibly, instead of by an invisible where clause.
     prisma.transformer.findMany({
-      where: user.storeId ? { currentStoreId: user.storeId } : {},
       select: {
         id: true,
         gNumber: true,
         serialNumber: true,
         ratingKva: true,
         status: true,
-        currentStore: { select: { name: true } },
+        currentSiteName: true,
+        manufacturer: { select: { name: true } },
+        currentStore: { select: { id: true, name: true } },
       },
-      orderBy: { gNumber: "asc" },
-      take: 500,
+      orderBy: [{ status: "asc" }, { gNumber: "asc" }],
+      take: 2000,
     }),
     prisma.store.findMany({
       where: { active: true, ...(user.storeId ? { id: { not: user.storeId } } : {}) },
@@ -50,7 +57,10 @@ export default async function StoreTransferPage() {
     serialNumber: t.serialNumber,
     ratingKva: t.ratingKva,
     status: t.status,
-    whereNow: t.currentStore?.name ?? "Unassigned",
+    manufacturerName: t.manufacturer.name,
+    whereNow: t.currentStore?.name ?? t.currentSiteName ?? "Location not recorded",
+    heldByStoreId: t.currentStore?.id ?? null,
+    heldByStoreName: t.currentStore?.name ?? null,
   }));
 
   return (
@@ -61,8 +71,8 @@ export default async function StoreTransferPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Move stock</h1>
         <p className="mt-1.5 text-sm text-ink-soft">
-          Transfers between stores, units going to a workshop, and warranty returns. Dispatch to a site
-          is on the dispatch screen, where the intake-test rule lives.
+          Every transformer in the system is listed. Ones you cannot move right now are greyed with
+          the reason on the row, so an empty selection is never a mystery.
         </p>
       </div>
 
@@ -76,6 +86,7 @@ export default async function StoreTransferPage() {
           destinations={destinations as Destination[]}
           allowed={allowed}
           heading="Movement"
+          actor={{ role: user.role, storeId: user.storeId ?? null }}
         />
       )}
     </div>

@@ -23,6 +23,7 @@ export async function POST(request: Request) {
           code: input.code,
           region: input.region,
           county: input.county,
+          kind: input.kind,
           lat: input.lat ?? null,
           lng: input.lng ?? null,
         },

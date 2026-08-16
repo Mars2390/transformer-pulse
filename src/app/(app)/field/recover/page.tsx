@@ -19,13 +19,12 @@ export const dynamic = "force-dynamic";
 export default async function FieldRecoverPage() {
   const user = await requireRole("FIELD_ENGINEER", "ADMIN");
 
-  const allowed = movementsFor(user.role)
-    .filter((m) => m.from === "SITE" || m.from === "WORKSHOP")
-    .map((m) => m.key);
+  const allowed = movementsFor(user.role).map((m) => m.key);
 
   const [inField, destinations] = await Promise.all([
     prisma.transformer.findMany({
-      where: { ...regionWhere(user.region, user.role), status: { in: ["IN_FIELD", "FAULTY", "REPAIRED", "AT_WORKSHOP"] } },
+      // Everything in region, whatever its status. Reasons are shown per row.
+      where: regionWhere(user.region, user.role),
       select: {
         id: true,
         gNumber: true,
@@ -33,9 +32,11 @@ export default async function FieldRecoverPage() {
         ratingKva: true,
         status: true,
         currentSiteName: true,
+        manufacturer: { select: { name: true } },
+        currentStore: { select: { id: true, name: true } },
       },
-      orderBy: { gNumber: "asc" },
-      take: 500,
+      orderBy: [{ status: "asc" }, { gNumber: "asc" }],
+      take: 2000,
     }),
     prisma.store.findMany({
       where: { active: true },
@@ -50,7 +51,10 @@ export default async function FieldRecoverPage() {
     serialNumber: t.serialNumber,
     ratingKva: t.ratingKva,
     status: t.status,
-    whereNow: t.currentSiteName ?? "Location not recorded",
+    manufacturerName: t.manufacturer.name,
+    whereNow: t.currentSiteName ?? t.currentStore?.name ?? "Location not recorded",
+    heldByStoreId: t.currentStore?.id ?? null,
+    heldByStoreName: t.currentStore?.name ?? null,
   }));
 
   return (
@@ -75,6 +79,7 @@ export default async function FieldRecoverPage() {
           destinations={destinations as Destination[]}
           allowed={allowed}
           heading="Recovery"
+          actor={{ role: user.role, storeId: user.storeId ?? null }}
         />
       )}
     </div>

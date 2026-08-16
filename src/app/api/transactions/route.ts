@@ -4,7 +4,7 @@ import { requireApiUser } from "@/lib/auth";
 import { apiError } from "@/lib/api";
 import { writeAudit } from "@/lib/audit";
 import { transactionCreateSchema } from "@/lib/validation";
-import { MOVEMENTS, formatBatchRef, type MovementKey } from "@/lib/transactions";
+import { MOVEMENTS, checkEligibility, formatBatchRef, type MovementKey } from "@/lib/transactions";
 
 /**
  * POST /api/transactions — raise a movement for one or many transformers.
@@ -126,12 +126,19 @@ export async function POST(request: Request) {
         skipped.push({ id, label, reason: "Not found." });
         continue;
       }
-      if (!movement.allowedFrom.includes(t.status)) {
-        skipped.push({
-          id,
-          label,
-          reason: `Is ${t.status.toLowerCase().replace(/_/g, " ")} — a ${movement.label} movement is not possible from there.`,
-        });
+      // Exactly the same check the form ran, so the sentence the keeper read on
+      // screen is the sentence they get back if they somehow submit anyway.
+      const verdict = checkEligibility(
+        movement,
+        {
+          status: t.status,
+          heldByStoreId: t.currentStore?.id ?? null,
+          heldByStoreName: t.currentStore?.name ?? null,
+        },
+        { role: actor.role, storeId: actor.storeId ?? null },
+      );
+      if (!verdict.ok) {
+        skipped.push({ id, label, reason: verdict.reason });
         continue;
       }
       const open = await prisma.transactionRecord.findFirst({
