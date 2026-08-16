@@ -412,6 +412,15 @@ export const dispatchSchema = z.object({
   vehiclePlate: vehiclePlateField,
   driverName: z.string().trim().min(3, "Enter the driver's name.").max(80),
   driverPhone: kenyanPhoneField.optional().or(z.literal("")),
+
+  /**
+   * The engineer who will receive it. REQUIRED, and required here rather than
+   * in the UI: a transformer on a lorry with nobody's name against it is how a
+   * unit sits in a yard for a fortnight while everyone assumes somebody else is
+   * collecting it.
+   */
+  assignedEngineerId: z.string().min(1, "Choose the field engineer who will receive it."),
+
   expectedArrival: z.coerce.date().optional().nullable(),
   photoUrls: z.array(z.string().url()).max(6).optional(),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),

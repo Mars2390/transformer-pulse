@@ -16,7 +16,7 @@ export default async function DispatchPage({
   const user = await requireRole("STORE_KEEPER", "ADMIN");
   const { id } = await params;
 
-  const [transformer, stores] = await Promise.all([
+  const [transformer, stores, engineerRows] = await Promise.all([
     prisma.transformer.findUnique({
       where: { id },
       include: {
@@ -24,6 +24,20 @@ export default async function DispatchPage({
       },
     }),
     prisma.store.findMany({ select: { region: true } }),
+    // Active-task count is what a store keeper needs to avoid piling a fifth
+    // delivery on somebody already holding four. Counted per engineer in one
+    // grouped query rather than a query per row.
+    prisma.user.findMany({
+      where: { role: "FIELD_ENGINEER", active: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        region: true,
+        _count: { select: { assignedTransformers: true } },
+      },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   if (!transformer) notFound();
@@ -75,6 +89,13 @@ export default async function DispatchPage({
 
       <div className="mt-6">
         <DispatchForm
+          engineers={engineerRows.map((e) => ({
+            id: e.id,
+            name: e.name,
+            email: e.email,
+            region: e.region,
+            activeTasks: e._count.assignedTransformers,
+          }))}
           transformerId={transformer.id}
           gNumber={transformer.gNumber}
           serialNumber={transformer.serialNumber}

@@ -8,6 +8,7 @@ import { PhotoUpload } from "@/components/ui/PhotoUpload";
 import { inputClass, FormError } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
 import { isWithinKenya } from "@/lib/geo";
+import { ManufacturerPicker } from "@/components/manufacturer/ManufacturerPicker";
 
 const RATINGS = [50, 100, 200, 315, 500, 1000];
 
@@ -52,6 +53,7 @@ export function FieldOnboardForm({
   const [locationDescription, setLocationDescription] = useState("");
   const [gNumber, setGNumber] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
+  const [makers, setMakers] = useState(manufacturers);
   const [manufacturerId, setManufacturerId] = useState("");
   const [ratingKva, setRatingKva] = useState("200");
   const [yearOfManufacture, setYearOfManufacture] = useState("");
@@ -65,8 +67,8 @@ export function FieldOnboardForm({
   // "Unknown" is a legitimate and common answer on a corroded plate, so it is
   // the default rather than something the engineer has to go hunting for.
   const unknownMaker = useMemo(
-    () => manufacturers.find((m) => /unknown/i.test(m.name))?.id ?? manufacturers[0]?.id ?? "",
-    [manufacturers],
+    () => makers.find((m) => /unknown/i.test(m.name))?.id ?? makers[0]?.id ?? "",
+    [makers],
   );
   const chosenMaker = manufacturerId || unknownMaker;
 
@@ -344,14 +346,14 @@ export function FieldOnboardForm({
           </div>
           <div>
             <label className="block text-xs font-bold text-ink-soft" htmlFor="manufacturerId">Manufacturer</label>
-            <select
-              id="manufacturerId"
-              value={chosenMaker}
-              onChange={(e) => setManufacturerId(e.target.value)}
-              className={`${inputClass} mt-1 text-base`}
-            >
-              {manufacturers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
+            <div className="mt-1">
+              <ManufacturerPicker
+                manufacturers={makers}
+                value={chosenMaker}
+                onChange={setManufacturerId}
+                onCreated={(m) => setMakers((prev) => [...prev, m])}
+              />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-ink-soft" htmlFor="serialNumber">Serial number</label>

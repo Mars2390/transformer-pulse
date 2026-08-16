@@ -12,6 +12,7 @@ export function DispatchForm({
   ratingKva,
   regions,
   defaultRegion,
+  engineers,
 }: {
   transformerId: string;
   gNumber: string | null;
@@ -19,12 +20,15 @@ export function DispatchForm({
   ratingKva: number;
   regions: string[];
   defaultRegion: string;
+  engineers: FieldEngineerOption[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [plate, setPlate] = useState("");
+  const [region, setRegion] = useState(defaultRegion);
+  const [engineerId, setEngineerId] = useState("");
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -90,7 +94,13 @@ export function DispatchForm({
           </Field>
 
           <Field label="Region" htmlFor="region" required error={fields.region}>
-            <select id="region" name="region" defaultValue={defaultRegion} className={inputClass}>
+            <select
+              id="region"
+              name="region"
+              value={region}
+              onChange={(e) => { setRegion(e.target.value); setEngineerId(""); }}
+              className={inputClass}
+            >
               {regions.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </Field>
@@ -98,6 +108,29 @@ export function DispatchForm({
           <Field label="County" htmlFor="county" error={fields.county}>
             <input id="county" name="county" placeholder="Nairobi" className={inputClass} />
           </Field>
+
+          {/* --- Who is receiving it ------------------------------------------
+              Required. A transformer on a lorry with nobody's name against it
+              is how a unit sits in a yard for a fortnight while everyone
+              assumes somebody else is collecting it. The list narrows to the
+              destination region, and the server checks the same rule. */}
+          <div className="sm:col-span-2">
+            <Field
+              label="Assign field engineer"
+              htmlFor="assignedEngineerId"
+              required
+              error={fields.assignedEngineerId}
+              hint={`Engineers working in ${region}. They see it on their phone as soon as it is dispatched.`}
+            >
+              <EngineerPicker
+                engineers={engineers}
+                region={region}
+                value={engineerId}
+                onChange={setEngineerId}
+                name="assignedEngineerId"
+              />
+            </Field>
+          </div>
 
           <Field
             label="Expected arrival"
@@ -188,5 +221,99 @@ export function DispatchForm({
         </button>
       </div>
     </form>
+  );
+}
+
+export type FieldEngineerOption = {
+  id: string;
+  name: string;
+  email: string;
+  region: string | null;
+  activeTasks: number;
+};
+
+/**
+ * Choosing the engineer who will receive a dispatch.
+ *
+ * Filtered to the destination region and searchable, because a region can hold
+ * a dozen engineers and a <select> of every field engineer in the country is
+ * how the wrong name gets picked on a phone. The active-task count is shown so
+ * a store keeper can avoid piling a fifth delivery on somebody already holding
+ * four — the system knows that, and the keeper usually does not.
+ */
+function EngineerPicker({
+  engineers,
+  region,
+  value,
+  onChange,
+  name,
+}: {
+  engineers: FieldEngineerOption[];
+  region: string;
+  value: string;
+  onChange: (id: string) => void;
+  name: string;
+}) {
+  const [query, setQuery] = useState("");
+  const base = (r: string | null | undefined) => (r ?? "").split(/[\s,/-]+/)[0].toLowerCase();
+  const inRegion = engineers.filter((e) => {
+    const a = base(e.region);
+    const b = base(region);
+    return !a || !b || a === b || a.includes(b) || b.includes(a);
+  });
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? inRegion.filter((e) => e.name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q))
+    : inRegion;
+  const selected = engineers.find((e) => e.id === value);
+
+  return (
+    <div>
+      <input type="hidden" name={name} value={value} />
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search by name or email"
+        className={`${inputClass} mb-2 py-2 text-sm`}
+      />
+      {inRegion.length === 0 ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+          No active field engineer is recorded for {region}. An admin has to assign one to this
+          region before anything can be dispatched here.
+        </p>
+      ) : (
+        <ul className="max-h-48 divide-y divide-line overflow-y-auto rounded-xl border border-line">
+          {shown.map((e) => (
+            <li key={e.id}>
+              <button
+                type="button"
+                onClick={() => onChange(e.id)}
+                className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-surface ${
+                  e.id === value ? "bg-kplc/5" : ""
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className={`block truncate text-sm ${e.id === value ? "font-bold text-navy" : "text-ink"}`}>
+                    {e.name}
+                  </span>
+                  <span className="block truncate text-xs text-ink-soft">
+                    {e.email} · {e.region ?? "no region"}
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs font-semibold text-ink-soft">
+                  {e.activeTasks} active
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {selected && (
+        <p className="mt-2 text-xs font-bold text-navy">
+          Assigned to {selected.name} — {selected.activeTasks} other active{" "}
+          {selected.activeTasks === 1 ? "task" : "tasks"}.
+        </p>
+      )}
+    </div>
   );
 }

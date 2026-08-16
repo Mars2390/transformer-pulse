@@ -7,6 +7,7 @@ import { PhotoUpload } from "@/components/ui/PhotoUpload";
 import { DocumentUpload } from "@/components/ui/DocumentUpload";
 import { NameplateFields } from "@/components/store/NameplateFields";
 import { NameplateOCR, type ConfirmedNameplateData } from "@/components/store/NameplateOCR";
+import { ManufacturerPicker } from "@/components/manufacturer/ManufacturerPicker";
 
 type Manufacturer = {
   id: string;
@@ -29,6 +30,7 @@ export function ReceiveForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
+  const [makers, setMakers] = useState<Manufacturer[]>(manufacturers);
   const [manufacturerId, setManufacturerId] = useState(manufacturers[0]?.id ?? "");
   const [gNumber, setGNumber] = useState("");
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
@@ -55,7 +57,7 @@ export function ReceiveForm({
     setShowScan(false);
   }
 
-  const chosen = manufacturers.find((m) => m.id === manufacturerId);
+  const chosen = makers.find((m) => m.id === manufacturerId);
 
   // Offer the next free G-Number, so the keeper types six digits fewer and the
   // sequence has no accidental holes.
@@ -186,18 +188,14 @@ export function ReceiveForm({
           </Field>
 
           <Field label="Manufacturer" htmlFor="manufacturerId" required error={fields.manufacturerId}>
-            <select
-              id="manufacturerId"
-              name="manufacturerId"
+            <ManufacturerPicker
+              manufacturers={makers}
               value={manufacturerId}
-              onChange={(e) => setManufacturerId(e.target.value)}
+              onChange={setManufacturerId}
+              onCreated={(m) => setMakers((prev) => [...prev, { ...m, warrantyMonths: 24 }])}
+              name="manufacturerId"
               required
-              className={inputClass}
-            >
-              {manufacturers.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
+            />
           </Field>
 
           <Field label="Year of manufacture" htmlFor="yearOfManufacture" required error={fields.yearOfManufacture}>

@@ -61,3 +61,25 @@ export function inRegion(
   if (!transformerRegion) return false;
   return transformerRegion.toLowerCase().includes(base.toLowerCase());
 }
+
+/**
+ * Do two free-text regions refer to the same place?
+ *
+ * Regions are typed by hand in three tables, so "Nairobi North", "NAIROBI
+ * NORTH" and "Nairobi-North" are all the same patch of city. Comparison is on
+ * the base token, case-insensitively, in both directions — a unit going to
+ * "Nairobi West" is accepted for an engineer whose region reads "Nairobi",
+ * because a broader region contains a narrower one.
+ *
+ * A missing region on either side returns true rather than false: refusing an
+ * assignment because somebody's profile is incomplete would block real work to
+ * enforce data tidiness, which is the wrong trade in the field.
+ */
+export function sameRegion(a: string | null | undefined, b: string | null | undefined): boolean {
+  const x = baseRegion(a);
+  const y = baseRegion(b);
+  if (!x || !y) return true;
+  const lx = x.toLowerCase();
+  const ly = y.toLowerCase();
+  return lx === ly || lx.includes(ly) || ly.includes(lx);
+}

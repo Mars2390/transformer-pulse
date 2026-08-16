@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiRole } from "@/lib/auth";
 import { apiError } from "@/lib/api";
+import { prisma } from "@/lib/prisma";
 import { recordEvent } from "@/lib/events";
 import { confirmReceiptSchema } from "@/lib/field-validation";
 
@@ -26,6 +27,14 @@ export async function POST(
       },
       actor,
     );
+
+    // The assignment has done its job the moment the engineer signs for it.
+    // Leaving it set would keep the unit in their "awaiting confirmation" list
+    // and in the 48-hour overdue count for ever.
+    await prisma.transformer.update({
+      where: { id },
+      data: { assignedEngineerId: null, assignedAt: null },
+    });
 
     return NextResponse.json({ ok: true, alerts: result.alerts });
   } catch (error) {

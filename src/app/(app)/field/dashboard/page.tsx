@@ -74,6 +74,20 @@ export default async function FieldDashboard() {
   const awaitingReceipt = inTransit.filter(
     (tx) => tx.events[0]?.type !== "RECEIVED_BY_FIELD",
   );
+
+  // Units dispatched TO THIS ENGINEER by name. Region scope already put most of
+  // them in `awaitingReceipt`, but "somewhere in your region" and "yours" are
+  // different claims, and only the second one makes somebody responsible.
+  const assignedToMe = awaitingReceipt.filter((tx) => tx.assignedEngineerId === user.id);
+
+  // 48 hours on a lorry without a confirmation is the point at which nobody is
+  // wondering any more — they have each assumed the other collected it. Derived
+  // on read rather than written by a scheduler: the app has no cron, and an
+  // alert row that depends on a job nobody runs is worse than no alert.
+  const OVERDUE_MS = 48 * 60 * 60 * 1000;
+  const overdueAssignments = assignedToMe.filter(
+    (tx) => tx.assignedAt != null && Date.now() - tx.assignedAt.getTime() > OVERDUE_MS,
+  );
   const pendingInstall = inTransit.filter(
     (tx) => tx.events[0]?.type === "RECEIVED_BY_FIELD",
   );
@@ -193,6 +207,49 @@ export default async function FieldDashboard() {
       </Link>
 
       {/* --- Awaiting receipt ------------------------------------------------ */}
+      {/* --- Assigned to you ------------------------------------------------ */}
+      {assignedToMe.length > 0 && (
+        <Card>
+          <CardHeader title={`Arriving — assigned to you (${assignedToMe.length})`} />
+          {overdueAssignments.length > 0 && (
+            <p className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800">
+              ⚠️ {overdueAssignments.length}{" "}
+              {overdueAssignments.length === 1 ? "unit has" : "units have"} been on the road more
+              than 48 hours without your confirmation. Confirm receipt, or tell your manager it has
+              not arrived.
+            </p>
+          )}
+          <ul className="divide-y divide-line">
+            {assignedToMe.map((tx) => {
+              const late = tx.assignedAt != null && Date.now() - tx.assignedAt.getTime() > OVERDUE_MS;
+              return (
+                <li key={tx.id} className="flex items-center gap-3 px-5 py-3.5">
+                  <span className="text-lg">{late ? "⚠️" : "🆕"}</span>
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/field/${tx.id}/receive`}
+                      className="text-sm font-bold text-navy hover:text-kplc"
+                    >
+                      {tx.gNumber ?? tx.serialNumber} · {formatRating(tx.ratingKva)}
+                    </Link>
+                    <p className="truncate text-xs text-ink-soft">
+                      {tx.currentSiteName ?? "Destination not recorded"}
+                      {tx.assignedAt ? ` · assigned ${formatRelative(tx.assignedAt)}` : ""}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/field/${tx.id}/receive`}
+                    className="shrink-0 rounded-lg bg-kplc px-3 py-1.5 text-xs font-bold text-white"
+                  >
+                    Confirm
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+
       {awaitingReceipt.length > 0 && (
         <Card>
           <CardHeader title={`Arriving — confirm receipt (${awaitingReceipt.length})`} />
