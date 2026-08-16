@@ -11,6 +11,7 @@ import {
   IconCamera,
   IconPin,
   IconPinPlus,
+  IconTruck,
   IconClipboard,
   IconArrowRight,
 } from "@/components/marketing/icons";
@@ -161,6 +162,29 @@ export default async function FieldDashboard() {
           <span className="block text-sm font-bold text-navy">📍 Onboard existing transformer</span>
           <span className="block text-[13px] text-ink-soft">
             One you found in the field that is not in the system yet
+          </span>
+        </span>
+        <span className="h-5 w-5 shrink-0 text-ink-soft">
+          <IconArrowRight />
+        </span>
+      </Link>
+
+      {/* --- Recover / condemn ----------------------------------------------
+          Taking a unit off a pole takes a site off supply, so the engineer
+          raises it and a manager authorises it. */}
+      <Link
+        href="/field/recover"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-white p-4 transition-transform active:scale-[0.99]"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700">
+          <span className="h-5 w-5">
+            <IconTruck />
+          </span>
+        </span>
+        <span className="flex-1">
+          <span className="block text-sm font-bold text-navy">Recover a transformer</span>
+          <span className="block text-[13px] text-ink-soft">
+            Off the pole to a workshop or store, or condemned where it stands
           </span>
         </span>
         <span className="h-5 w-5 shrink-0 text-ink-soft">

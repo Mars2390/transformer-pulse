@@ -103,6 +103,14 @@ export async function POST(request: Request) {
 
     const occurredAt = new Date();
 
+    // A device fix and a typed pair of numbers are not the same evidence.
+    // Only the first is SURVEYED, and only the first sets verifiedAt — a
+    // coordinate somebody keyed in may be read off a handheld unit at the pole
+    // or copied from a note back at the depot, and the record cannot tell which.
+    const byGps = input.positionMethod === "GPS";
+    const positionSource = byGps ? "SURVEYED" : "GEOCODED";
+    const accuracyM = byGps ? input.accuracyM ?? null : null;
+
     const created = await prisma.$transaction(async (tx) => {
       const transformer = await tx.transformer.create({
         data: {
@@ -114,7 +122,7 @@ export async function POST(request: Request) {
           // required. The note below says so in words, so no age-based score is
           // ever read as fact.
           yearOfManufacture: input.yearOfManufacture ?? occurredAt.getFullYear(),
-          dataSource: "FIELD_SURVEY",
+          dataSource: byGps ? "FIELD_SURVEY" : "MANUAL_PIN",
 
           status: "IN_FIELD",
           currentLat: input.lat,
@@ -127,10 +135,12 @@ export async function POST(request: Request) {
 
           // The difference that matters: a fix taken at the asset, with the
           // device's own uncertainty alongside it.
-          positionSource: "SURVEYED",
-          positionAccuracyM: input.accuracyM ?? null,
-          positionSourceText: `GPS fix by ${actor.name} during field onboarding.`,
-          verifiedAt: occurredAt,
+          positionSource,
+          positionAccuracyM: accuracyM,
+          positionSourceText: byGps
+            ? `GPS fix by ${actor.name} during field onboarding.`
+            : `Coordinates entered by hand by ${actor.name} during field onboarding.`,
+          verifiedAt: byGps ? occurredAt : null,
 
           // No warranty claimed. KPLC's delivery date for a unit found on a
           // pole is unknown, and inventing one manufactures a claim nobody can
@@ -145,7 +155,11 @@ export async function POST(request: Request) {
         `Substation ${formatSubstation(substation.code, substationName)}${
           substation.existed ? " (already known to the system)" : " (first record of this substation)"
         }.`,
-        input.accuracyM != null ? `GPS accurate to ±${input.accuracyM} m.` : null,
+        byGps
+          ? accuracyM != null
+            ? `GPS fix accurate to ±${accuracyM} m.`
+            : "GPS fix taken at the asset."
+          : "Coordinates entered by hand, not captured by GPS — position not treated as verified.",
         input.yearOfManufacture ? null : "Year of manufacture not established.",
         input.serialNumber ? null : "Serial number not readable from the ground.",
         input.notes || null,
@@ -176,7 +190,7 @@ export async function POST(request: Request) {
           occurredAt,
           lat: input.lat,
           lng: input.lng,
-          accuracyM: input.accuracyM ?? null,
+          accuracyM,
           locationName: input.locationDescription,
           photoUrls: input.photoUrls ?? [],
           notes,
@@ -200,7 +214,7 @@ export async function POST(request: Request) {
           targetId: transformer.id,
           targetLabel: gNumber,
           details: `Field engineer ${actor.name} onboarded ${gNumber} at ${input.lat.toFixed(5)}, ${input.lng.toFixed(5)}${
-            input.accuracyM != null ? ` (±${input.accuracyM} m)` : ""
+            accuracyM != null ? ` (±${accuracyM} m)` : byGps ? "" : " (typed, not a GPS fix)"
           } — substation ${formatSubstation(substation.code, substationName)}.`,
         },
         tx,

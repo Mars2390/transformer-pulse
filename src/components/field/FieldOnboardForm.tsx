@@ -7,8 +7,11 @@ import { GpsCapture } from "@/components/field/GpsCapture";
 import { PhotoUpload } from "@/components/ui/PhotoUpload";
 import { inputClass, FormError } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
+import { isWithinKenya } from "@/lib/geo";
 
 const RATINGS = [50, 100, 200, 315, 500, 1000];
+
+type PositionMode = "auto" | "manual";
 
 /**
  * Onboarding an existing transformer, from a phone, standing under it.
@@ -35,6 +38,15 @@ export function FieldOnboardForm({
   const toast = useToast();
   const { state, capture } = useGeolocation();
 
+  // Auto-capture is the default and the hook fires it on mount. Manual entry is
+  // the escape hatch for a phone that will not lock under a canopy or a
+  // coordinate read off a handheld unit — it is never the first thing offered,
+  // because a typed number is weaker evidence than a fix and the record grades
+  // it accordingly.
+  const [positionMode, setPositionMode] = useState<PositionMode>("auto");
+  const [manualLat, setManualLat] = useState("");
+  const [manualLng, setManualLng] = useState("");
+
   const [substationCode, setSubstationCode] = useState("");
   const [substationName, setSubstationName] = useState("");
   const [locationDescription, setLocationDescription] = useState("");
@@ -59,15 +71,42 @@ export function FieldOnboardForm({
   const chosenMaker = manufacturerId || unknownMaker;
 
   const gpsReady = state.status === "ready";
-  const canSubmit = gpsReady && substationCode.trim() !== "" && locationDescription.trim().length >= 3 && !busy;
+
+  // One resolved position, whichever way it arrived. Everything downstream —
+  // the submit guard, the payload — reads this and never the two sources.
+  const manualPos = useMemo(() => {
+    const lat = Number(manualLat);
+    const lng = Number(manualLng);
+    if (manualLat.trim() === "" || manualLng.trim() === "") return null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (!isWithinKenya(lat, lng)) return null;
+    return { lat, lng };
+  }, [manualLat, manualLng]);
+
+  const manualTouched = manualLat.trim() !== "" || manualLng.trim() !== "";
+  const position =
+    positionMode === "auto"
+      ? gpsReady
+        ? { lat: state.lat, lng: state.lng, accuracyM: Math.round(state.accuracyM), method: "GPS" as const }
+        : null
+      : manualPos
+        ? { ...manualPos, accuracyM: undefined, method: "MANUAL" as const }
+        : null;
+
+  const canSubmit =
+    position !== null && substationCode.trim() !== "" && locationDescription.trim().length >= 3 && !busy;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
 
-    if (state.status !== "ready") {
-      setError("Wait for a GPS fix. That position is the whole point of doing this here.");
+    if (!position) {
+      setError(
+        positionMode === "auto"
+          ? "Wait for a GPS fix. That position is the whole point of doing this here."
+          : "Enter a latitude and longitude inside Kenya before saving.",
+      );
       return;
     }
 
@@ -77,9 +116,10 @@ export function FieldOnboardForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          lat: state.lat,
-          lng: state.lng,
-          accuracyM: Math.round(state.accuracyM),
+          lat: position.lat,
+          lng: position.lng,
+          accuracyM: position.accuracyM,
+          positionMethod: position.method,
           substationCode,
           substationName: substationName || undefined,
           locationDescription,
@@ -117,11 +157,89 @@ export function FieldOnboardForm({
       <section className="rounded-2xl border border-line bg-white p-4">
         <h2 className="text-sm font-bold text-navy">1 · Where you are standing</h2>
         <p className="mt-1 text-xs text-ink-soft">
-          This fix becomes the transformer&apos;s position, marked as surveyed because you are here.
+          {positionMode === "auto"
+            ? "This fix becomes the transformer's position, marked as surveyed because you are here."
+            : "A typed coordinate is recorded as estimated, not surveyed. Use auto-capture whenever the phone will lock."}
         </p>
-        <div className="mt-3">
-          <GpsCapture state={state} onRetry={capture} required />
+
+        <div
+          role="radiogroup"
+          aria-label="How to set the position"
+          className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1"
+        >
+          {(
+            [
+              { mode: "auto" as const, label: "📍 Auto-capture" },
+              { mode: "manual" as const, label: "⌨️ Manual entry" },
+            ]
+          ).map((opt) => (
+            <button
+              key={opt.mode}
+              type="button"
+              role="radio"
+              aria-checked={positionMode === opt.mode}
+              onClick={() => {
+                setPositionMode(opt.mode);
+                if (opt.mode === "auto" && state.status !== "ready") capture();
+              }}
+              className={`rounded-lg py-2 text-xs font-bold transition-colors ${
+                positionMode === opt.mode ? "bg-white text-navy shadow-sm" : "text-ink-soft"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
+
+        {positionMode === "auto" ? (
+          <div className="mt-3">
+            <GpsCapture state={state} onRetry={capture} required />
+          </div>
+        ) : (
+          <div className="mt-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-ink-soft" htmlFor="manualLat">
+                  Latitude <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="manualLat"
+                  value={manualLat}
+                  onChange={(e) => setManualLat(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="-1.28640"
+                  className={`${inputClass} mt-1 font-mono text-base`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-ink-soft" htmlFor="manualLng">
+                  Longitude <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="manualLng"
+                  value={manualLng}
+                  onChange={(e) => setManualLng(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="36.81720"
+                  className={`${inputClass} mt-1 font-mono text-base`}
+                />
+              </div>
+            </div>
+
+            {manualTouched && !manualPos && (
+              <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                That is not a point inside Kenya. Check the decimal places — Nairobi is about
+                -1.28, 36.81.
+              </p>
+            )}
+            {manualPos && (
+              <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                ⚠️ Typed coordinate accepted. It is recorded as estimated, not surveyed, and this
+                unit will not count as position-verified.
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       {/* --- 2. Substation: the link into the rest of the network ----------- */}
@@ -297,7 +415,13 @@ export function FieldOnboardForm({
           disabled={!canSubmit}
           className="w-full rounded-xl bg-kplc py-3.5 text-sm font-bold text-white shadow-lg shadow-kplc/25 transition-transform active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-ink-soft/40 disabled:shadow-none"
         >
-          {busy ? "Saving…" : gpsReady ? "Onboard this transformer" : "Waiting for GPS…"}
+          {busy
+            ? "Saving…"
+            : position
+              ? "Onboard this transformer"
+              : positionMode === "auto"
+                ? "Waiting for GPS…"
+                : "Enter coordinates…"}
         </button>
         <p className="mt-1.5 text-center text-[11px] text-ink-soft">
           Recorded as onboarded by {engineerName}. No approval needed.

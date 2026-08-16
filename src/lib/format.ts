@@ -127,6 +127,10 @@ export const EVENT_META: Record<EventType, { label: string; tone: Tone }> = {
   AWAITING_REPLACEMENT: { label: "Awaiting replacement", tone: "danger" },
   RETURNED_TO_MANUFACTURER: { label: "Returned to manufacturer", tone: "neutral" },
   SCRAPPED: { label: "Scrapped", tone: "neutral" },
+  TRANSFERRED_TO_STORE: { label: "Transferred to store", tone: "info" },
+  SENT_TO_WORKSHOP: { label: "Sent to workshop", tone: "warning" },
+  DEPLOYED_FROM_WORKSHOP: { label: "Deployed from workshop", tone: "success" },
+  CONDEMNED_ON_SITE: { label: "Condemned on site", tone: "danger" },
 };
 
 /**

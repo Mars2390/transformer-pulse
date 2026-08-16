@@ -12,6 +12,12 @@ import { computeServiceSummary } from "@/lib/service-summary";
 import { Badge } from "@/components/ui";
 import { StoryLocationMap } from "@/components/transformer/StoryLocationMap";
 import { StoryTabs } from "@/components/transformer/StoryTabs";
+import {
+  MOVEMENTS,
+  TRANSACTION_STATUS_META,
+  type MovementKey,
+  type TransactionStatus,
+} from "@/lib/transactions";
 import { ServiceSummaryCard } from "@/components/transformer/ServiceSummaryCard";
 import { LinkStatusBanner } from "@/components/transformer/LinkStatusBanner";
 import type { WarrantyView } from "@/components/transformer/WarrantyTab";
@@ -63,12 +69,22 @@ export default async function StoryPage({
   if (!tx) notFound();
 
   // --- Auto-link status: is EMDis and/or KYN data actually linked here? -----
-  const [emdisAgg, inspectionCount, priorityRows] = await Promise.all([
+  const [emdisAgg, inspectionCount, movements, priorityRows] = await Promise.all([
     prisma.emdisDataset.aggregate({
       where: { transformerId: id },
       _sum: { readingCount: true },
     }),
     prisma.substationInspection.count({ where: { transformerId: id } }),
+    prisma.transactionRecord.findMany({
+      where: { transformerId: id },
+      orderBy: { initiatedAt: "desc" },
+      take: 20,
+      include: {
+        initiatedBy: { select: { name: true } },
+        approvedBy: { select: { name: true } },
+        receivedBy: { select: { name: true } },
+      },
+    }),
     buildPriorityList({ transformerIds: [id], allStatuses: true }),
   ]);
   const emdisReadingCount = emdisAgg._sum.readingCount ?? 0;
@@ -453,6 +469,50 @@ export default async function StoryPage({
       <div className="mt-6">
         <ServiceSummaryCard summary={serviceSummary} />
       </div>
+
+      {/* --- Movements -------------------------------------------------------
+          The chain says the unit moved. This says who asked for it, who
+          authorised it, which lorry carried it and when it turned up — the part
+          of a journey that a tamper-evident hash cannot hold. */}
+      {movements.length > 0 && (
+        <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-white">
+          <div className="border-b border-line px-5 py-3">
+            <p className="text-sm font-bold text-navy">Movements</p>
+          </div>
+          <ul className="divide-y divide-line">
+            {movements.map((mv) => {
+              const meta =
+                TRANSACTION_STATUS_META[mv.status as TransactionStatus] ?? {
+                  label: mv.status,
+                  tone: "neutral" as const,
+                };
+              return (
+                <li key={mv.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                  <Badge tone={meta.tone}>{meta.label}</Badge>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-navy">
+                      {mv.fromName} → {mv.toName}
+                    </p>
+                    <p className="truncate text-xs text-ink-soft">
+                      {MOVEMENTS[mv.movement as MovementKey]?.label ?? mv.movement}
+                      {mv.vehiclePlate ? ` · ${mv.vehiclePlate}` : ""}
+                      {mv.driverName ? ` · ${mv.driverName}` : ""}
+                    </p>
+                    <p className="truncate text-[11px] text-ink-soft">
+                      raised by {mv.initiatedBy.name}
+                      {mv.approvedBy ? ` · approved by ${mv.approvedBy.name}` : ""}
+                      {mv.receivedBy ? ` · received by ${mv.receivedBy.name}` : ""}
+                    </p>
+                  </div>
+                  <Link href={`/transactions/${mv.id}`} className="shrink-0 text-xs font-bold text-kplc hover:underline">
+                    Track
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {/* --- Tabs --------------------------------------------------------- */}
       <div className="mt-6">

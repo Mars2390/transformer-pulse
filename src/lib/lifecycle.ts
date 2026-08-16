@@ -51,6 +51,37 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     description: "A checker refused the delivery. The record and its chain are kept; the unit never becomes stock.",
     requires: {},
   },
+  // --- Movements that had no event of their own ----------------------------
+  // See src/lib/transactions.ts for why there are only four of these and not
+  // one per movement: the other seven already had events.
+  TRANSFERRED_TO_STORE: {
+    allowedFrom: ["IN_TRANSIT"],
+    toStatus: "IN_STORE",
+    label: "Transferred to store",
+    description: "Arrived at another store after an inter-store transfer.",
+    requires: { vehicle: true },
+  },
+  SENT_TO_WORKSHOP: {
+    allowedFrom: ["IN_STORE", "IN_TRANSIT"],
+    toStatus: "AT_WORKSHOP",
+    label: "Sent to workshop",
+    description: "Sent from a store for testing or refurbishment, without having failed in service.",
+    requires: { vehicle: true },
+  },
+  DEPLOYED_FROM_WORKSHOP: {
+    allowedFrom: ["REPAIRED", "AT_WORKSHOP", "IN_TRANSIT"],
+    toStatus: "IN_FIELD",
+    label: "Deployed from workshop",
+    description: "Installed straight from the workshop, without passing back through a store.",
+    requires: { gps: true, photo: true },
+  },
+  CONDEMNED_ON_SITE: {
+    allowedFrom: ["FAULTY", "IN_FIELD"],
+    toStatus: "SCRAPPED",
+    label: "Condemned on site",
+    description: "Written off where it stood. Nothing was recovered.",
+    requires: { gps: true, photo: true },
+  },
   RECEIVED_AT_STORE: {
     // Genesis is written by the receive form, which creates the transformer and
     // its first event together. This transition covers the OTHER cases: a unit
@@ -210,7 +241,7 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     requires: { vehicle: true },
   },
   SCRAPPED: {
-    allowedFrom: ["FAULTY", "IN_STORE", "RETURNED"],
+    allowedFrom: ["FAULTY", "IN_STORE", "RETURNED", "IN_FIELD"],
     toStatus: "SCRAPPED",
     label: "Scrapped",
     description: "Written off. The end of the asset's story.",

@@ -30,6 +30,7 @@ const NAV: Record<Role, { href: string; label: string }[]> = {
   MANAGER: [
     { href: "/manager/dashboard", label: "Dashboard" },
     { href: "/manager/approvals", label: "Approvals" },
+    { href: "/manager/transactions", label: "Movements" },
     { href: "/manager/map", label: "Map" },
     { href: "/manager/warranty", label: "Warranty" },
     { href: "/manager/reports", label: "Reports" },
@@ -38,6 +39,7 @@ const NAV: Record<Role, { href: string; label: string }[]> = {
   ],
   STORE_KEEPER: [
     { href: "/store/dashboard", label: "Store" },
+    { href: "/store/transfer", label: "Move stock" },
     { href: "/transformers", label: "Transformers" },
     { href: "/mcp", label: "MCP" },
   ],

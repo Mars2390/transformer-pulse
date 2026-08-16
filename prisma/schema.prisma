@@ -155,6 +155,17 @@ enum EventType {
 
   RETURNED_TO_MANUFACTURER
   SCRAPPED
+
+  // --- Movements that had no event of their own -----------------------------
+  // Deliberately only four. Store-to-site is already DISPATCHED, site-to-
+  // workshop is RECOVERED_FOR_REPAIR, manufacturer-to-store is
+  // RECEIVED_AT_STORE, store-to-manufacturer is RETURNED_TO_MANUFACTURER.
+  // Adding parallel names for those would put the same physical movement on
+  // the chain under two labels depending on which screen recorded it.
+  TRANSFERRED_TO_STORE // store to another store — stock rebalancing
+  SENT_TO_WORKSHOP // store to workshop for testing or refurbishment, not a fault
+  DEPLOYED_FROM_WORKSHOP // workshop straight to a site, skipping the store
+  CONDEMNED_ON_SITE // written off where it stands, never recovered
 }
 
 enum TestStage {
@@ -352,6 +363,11 @@ model User {
   transformersSubmitted Transformer[] @relation("TransformerSubmittedBy")
   transformersApproved  Transformer[] @relation("TransformerApprovedBy")
 
+  // Movements: raised, authorised, and signed for on arrival.
+  transactionsInitiated TransactionRecord[] @relation("TransactionInitiatedBy")
+  transactionsApproved  TransactionRecord[] @relation("TransactionApprovedBy")
+  transactionsReceived  TransactionRecord[] @relation("TransactionReceivedBy")
+
   mcpSettingsUpdates McpSettings[]  @relation("McpSettingsUpdatedBy")
   mcpTokensIssued    McpToken[]     @relation("McpTokenIssuedTo")
   mcpAccessLogs      McpAccessLog[] @relation("McpAccessLogUser")
@@ -393,10 +409,105 @@ model Store {
   county    String
   lat       Float?
   lng       Float?
+
+  /**
+   * STORE or WORKSHOP.
+   *
+   * A workshop is not a different kind of thing from a store in any way this
+   * system cares about: it receives units, holds them, has a custodian, sits in
+   * a region, and dispatches them again. Modelling it as a second table would
+   * mean a second foreign key on Transformer, a second set of CRUD screens and
+   * a second scoping rule, all to express "this shed repairs things".
+   *
+   * So it is one column, and currentStoreId points at a workshop exactly as it
+   * points at a store. The AT_WORKSHOP status still says what is happening to
+   * the unit; this says where it physically is.
+   */
+  kind String @default("STORE")
+
+  /**
+   * A disabled store cannot receive or dispatch. Its history is untouched —
+   * nothing is deleted, because a transformer that passed through here still
+   * needs somewhere for its chain to point.
+   */
+  active Boolean @default(true)
   createdAt DateTime @default(now())
 
   users        User[]
   transformers Transformer[]
+}
+
+/**
+ * One transformer, moving from one place to another, with a paper trail.
+ *
+ * The LifecycleEvent chain already records that a movement HAPPENED and refuses
+ * illegal ones. What it cannot hold is the part that happens around a movement:
+ * who asked for it, who authorised it, which lorry, which driver, when it left
+ * and when it turned up. That is this table. It is the envelope; the chain is
+ * still the letter.
+ *
+ * ONE ROW PER TRANSFORMER, never one row for a lorry-load. Five units on the
+ * same truck share a batchRef, and each keeps its own approval, its own
+ * departure and its own arrival — because in practice a checker refuses one
+ * unit out of five, and one unit out of five fails to arrive. A shared row
+ * cannot say that without a join table, which is the same thing with more
+ * moving parts.
+ *
+ * fromId / toId point at Store rows, which now include workshops (Store.kind).
+ * They are null for a SITE (a pole is not a record) and for a MANUFACTURER
+ * endpoint, where the Manufacturer table is the counterparty instead.
+ */
+model TransactionRecord {
+  id            String      @id @default(cuid())
+  transformerId String
+  transformer   Transformer @relation(fields: [transformerId], references: [id])
+
+  /** Groups a lorry-load. "T-2026-0042". One transformer still gets one row. */
+  batchRef String?
+
+  /** One of the movement keys in src/lib/transactions.ts — the single catalog. */
+  movement String
+
+  fromType String // MANUFACTURER | STORE | WORKSHOP | SITE
+  fromId   String? // Store.id when fromType is STORE or WORKSHOP
+  fromName String
+  toType   String // STORE | WORKSHOP | SITE | MANUFACTURER | SCRAP
+  toId     String? // Store.id when toType is STORE or WORKSHOP
+  toName   String
+  purpose  String // INSTALL | REPAIR | TRANSFER | RETURN | REFURBISH | SCRAP
+
+  vehiclePlate String?
+  driverName   String?
+  driverPhone  String?
+
+  initiatedById String
+  initiatedBy   User     @relation("TransactionInitiatedBy", fields: [initiatedById], references: [id])
+  initiatedAt   DateTime @default(now())
+
+  approvedById    String?
+  approvedBy      User?     @relation("TransactionApprovedBy", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  departedAt   DateTime?
+  arrivedAt    DateTime?
+  receivedById String?
+  receivedBy   User?     @relation("TransactionReceivedBy", fields: [receivedById], references: [id])
+  receivedAt   DateTime?
+
+  /** PENDING_APPROVAL | APPROVED | IN_TRANSIT | COMPLETED | REJECTED */
+  status String @default("PENDING_APPROVAL")
+
+  /** The chain event written when the movement actually completes. */
+  completionEventId String?
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([transformerId])
+  @@index([status])
+  @@index([initiatedAt])
+  @@index([batchRef])
 }
 
 model Manufacturer {
@@ -584,10 +695,11 @@ model Transformer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  events LifecycleEvent[]
-  tests  TestRecord[]
-  claims WarrantyClaim[]
-  alerts Alert[]
+  events       LifecycleEvent[]
+  tests        TestRecord[]
+  claims       WarrantyClaim[]
+  alerts       Alert[]
+  transactions TransactionRecord[]
 
   @@index([status])
   @@index([status, submittedAt])
