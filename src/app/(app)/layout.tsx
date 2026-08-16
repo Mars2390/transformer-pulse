@@ -31,6 +31,8 @@ const NAV: Record<Role, { href: string; label: string }[]> = {
   MANAGER: [
     { href: "/manager/dashboard", label: "Dashboard" },
     { href: "/manager/approvals", label: "Approvals" },
+    { href: "/manager/batch-approvals", label: "Batches" },
+    { href: "/manager/untested", label: "Untested" },
     { href: "/manager/transactions", label: "Movements" },
     { href: "/admin/field-engineers", label: "Engineers" },
     { href: "/store/transfer", label: "Raise movement" },
@@ -40,8 +42,19 @@ const NAV: Record<Role, { href: string; label: string }[]> = {
     { href: "/manager/search", label: "Search" },
     { href: "/mcp", label: "MCP" },
   ],
+  // A store manager's nav is a manager's nav with the region-wide entries
+  // removed. Everything left scopes itself to their store.
+  STORE_MANAGER: [
+    { href: "/manager/dashboard", label: "Dashboard" },
+    { href: "/manager/approvals", label: "Approvals" },
+    { href: "/manager/batch-approvals", label: "Batches" },
+    { href: "/manager/untested", label: "Untested" },
+    { href: "/manager/transactions", label: "Movements" },
+    { href: "/transformers", label: "Transformers" },
+  ],
   STORE_KEEPER: [
     { href: "/store/dashboard", label: "Store" },
+    { href: "/store/receive-batch", label: "Receive batch" },
     { href: "/store/transfer", label: "Move stock" },
     { href: "/transformers", label: "Transformers" },
     { href: "/mcp", label: "MCP" },

@@ -17,12 +17,15 @@ export function InstallForm({
   serialNumber,
   detail,
   suggestedSite,
+  releasedUntested = false,
 }: {
   transformerId: string;
   gNumber: string | null;
   serialNumber: string;
   detail: string;
   suggestedSite: string | null;
+  /** Released on a sample without being tested itself. Worth saying out loud. */
+  releasedUntested?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -71,6 +74,16 @@ export function InstallForm({
   return (
     <div className="space-y-5 pb-28">
       <FieldFormHeader gNumber={gNumber} serialNumber={serialNumber} detail={detail} />
+
+      {/* Said here rather than only on the story page, because this is the last
+          moment before it goes live on a pole. */}
+      {releasedUntested && (
+        <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+          ⚠️ This transformer was released WITHOUT being tested, under KPLC sampling policy. Look it
+          over carefully before energising, and record anything unusual in the notes.
+        </p>
+      )}
+
       {error && <FormError message={error} />}
 
       <FormSection title="Photo of the installed unit">

@@ -27,6 +27,18 @@ datasource db {
 // ============================== Enums ======================================
 
 enum Role {
+  /**
+   * A store's own approver. Sees exactly one store and nothing else: the
+   * pending queue for that store, its inventory, its movements, its batches.
+   * Approves; never edits, never deletes, never records a field event.
+   *
+   * Deliberately NOT a Manager with a narrower where clause. A manager's scope
+   * is a REGION, which is free text matched with `contains`; a store manager's
+   * scope is a foreign key. Conflating them is how somebody ends up seeing a
+   * neighbouring store because two regions share a word.
+   */
+  STORE_MANAGER
+
   ADMIN // creates users, manages manufacturers
   MANAGER // the one-way mirror — reads everything, writes nothing
   STORE_KEEPER // receives, tests, dispatches
@@ -366,6 +378,9 @@ model User {
   /** Units dispatched to this engineer and not yet confirmed received. */
   assignedTransformers Transformer[] @relation("TransformerAssignedEngineer")
 
+  batchesReceived TransformerBatch[] @relation("BatchReceivedBy")
+  batchesApproved TransformerBatch[] @relation("BatchApprovedBy")
+
   // Movements: raised, authorised, and signed for on arrival.
   transactionsInitiated TransactionRecord[] @relation("TransactionInitiatedBy")
   transactionsApproved  TransactionRecord[] @relation("TransactionApprovedBy")
@@ -438,6 +453,7 @@ model Store {
 
   users        User[]
   transformers Transformer[]
+  batches      TransformerBatch[]
 }
 
 /**
@@ -513,6 +529,60 @@ model TransactionRecord {
   @@index([batchRef])
 }
 
+/**
+ * One delivery, received as a group and tested as a sample.
+ *
+ * KPLC does not test every transformer in a lorry-load; it tests a few and
+ * releases the rest on the strength of them. That practice is real and is not
+ * going to change, so the system records it honestly rather than pretending
+ * each unit was individually proved.
+ *
+ * The batch exists to hold two things the individual records cannot: what the
+ * delivery note CLAIMED arrived, and one approval decision covering the whole
+ * consignment. Everything else — status, chain, warranty — stays on each
+ * transformer, because each transformer is what ends up on a pole.
+ *
+ * Note what is NOT stored here: testedCount and untestedCount. Those drift the
+ * first time a unit is tested after approval. They are counted from the
+ * transformers, and only totalCount is kept — as the delivery note's claim, so
+ * that "12 declared, 11 entered" stays visible instead of being papered over.
+ */
+model TransformerBatch {
+  id       String @id @default(cuid())
+  batchRef String @unique // B-2026-0042
+
+  manufacturerId String
+  manufacturer   Manufacturer @relation(fields: [manufacturerId], references: [id])
+
+  /** What the delivery note said. Compared against the rows actually entered. */
+  totalCount Int
+
+  receivedAt   DateTime @default(now())
+  receivedById String
+  receivedBy   User     @relation("BatchReceivedBy", fields: [receivedById], references: [id])
+
+  /** Where it landed. A batch belongs to a store, which is who approves it. */
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id])
+
+  /** PENDING_APPROVAL | APPROVED | REJECTED */
+  status String @default("PENDING_APPROVAL")
+
+  approvedById String?
+  approvedBy   User?     @relation("BatchApprovedBy", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+
+  rejectionReason String?
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  transformers Transformer[]
+
+  @@index([status])
+  @@index([storeId, status])
+  @@index([receivedAt])
+}
+
 model Manufacturer {
   id           String  @id @default(cuid())
   name         String  @unique
@@ -530,6 +600,7 @@ model Manufacturer {
 
   transformers Transformer[]
   claims       WarrantyClaim[]
+  batches      TransformerBatch[]
 }
 
 // ============================ The asset ====================================
@@ -705,6 +776,17 @@ model Transformer {
   assignedEngineer   User?     @relation("TransformerAssignedEngineer", fields: [assignedEngineerId], references: [id])
   assignedAt         DateTime?
 
+  // --- Sample testing --------------------------------------------------------
+  // batchId is what makes sampleTested meaningful. A unit received on its own
+  // has batchId null and sampleTested false, and that is NOT an untested
+  // release — it went through the ordinary intake test. "Released untested"
+  // means batchId is set AND sampleTested is false, and nothing else.
+  batchId String?
+  batch   TransformerBatch? @relation(fields: [batchId], references: [id])
+
+  /** True when this unit was one of the few actually tested for its batch. */
+  sampleTested Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -717,6 +799,7 @@ model Transformer {
   @@index([status])
   @@index([status, submittedAt])
   @@index([assignedEngineerId])
+  @@index([batchId])
   @@index([region])
   @@index([manufacturerId])
   @@index([currentLat, currentLng])

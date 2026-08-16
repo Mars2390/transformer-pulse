@@ -506,3 +506,49 @@ export const transactionLegSchema = z.object({
 });
 
 export type TransactionLegInput = z.infer<typeof transactionLegSchema>;
+
+/**
+ * Receiving a delivery as a batch, and naming the sample that will be tested.
+ *
+ * The delivery note's claimed count is captured SEPARATELY from the rows
+ * actually entered, because those two disagreeing is the single most useful
+ * signal a goods-in process produces. Reconciling them silently would throw it
+ * away.
+ */
+export const receiveBatchSchema = z.object({
+  manufacturerId: z.string().min(1, "Choose the manufacturer."),
+  /** What the delivery note says arrived. */
+  totalCount: z.coerce.number().int().min(1, "How many arrived?").max(500),
+  notes: z.string().trim().max(500).optional().or(z.literal("")),
+  units: z
+    .array(
+      z.object({
+        serialNumber: z.string().trim().toUpperCase().max(40).optional().or(z.literal("")),
+        ratingKva: z.coerce
+          .number()
+          .int()
+          .refine((v) => [25, 50, 100, 200, 315, 500, 1000].includes(v), "Choose a standard rating."),
+        yearOfManufacture: z.coerce.number().int().min(1960).max(new Date().getFullYear()),
+        /** Was this one of the few actually tested? */
+        sampleTested: z.boolean().default(false),
+      }),
+    )
+    .min(1, "Enter at least one transformer.")
+    .max(500),
+});
+
+export type ReceiveBatchInput = z.infer<typeof receiveBatchSchema>;
+
+/** A checker accepting or refusing a whole consignment. */
+export const batchDecisionSchema = z
+  .object({
+    batchId: z.string().min(1),
+    decision: z.enum(["APPROVE", "REJECT"]),
+    reason: z.string().trim().max(300).optional().or(z.literal("")),
+  })
+  .refine((v) => v.decision !== "REJECT" || (v.reason && v.reason.trim().length >= 3), {
+    message: "Say why the consignment is being refused.",
+    path: ["reason"],
+  });
+
+export type BatchDecisionInput = z.infer<typeof batchDecisionSchema>;

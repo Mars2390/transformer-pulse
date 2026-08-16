@@ -24,7 +24,7 @@ export const metadata: Metadata = { title: "Manager dashboard" };
 export const dynamic = "force-dynamic";
 
 export default async function ManagerDashboard() {
-  const user = await requireRole("MANAGER", "ADMIN");
+  const user = await requireRole("MANAGER", "STORE_MANAGER", "ADMIN");
 
   // A manager sees their region. An admin sees everything.
   const scope = regionWhere(user.region, user.role);

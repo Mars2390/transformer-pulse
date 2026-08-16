@@ -64,9 +64,11 @@ export type Movement = {
 };
 
 /**
- * STORE_MANAGER does not exist yet as a Role, so every approval that would have
- * gone to one goes to MANAGER for now. When the role is added, only the
- * `approvers` arrays below change — nothing else in the system knows the matrix.
+ * STORE_MANAGER now exists, and appears alongside MANAGER as an approver on
+ * every movement. The narrowing is NOT expressed here — a store manager may
+ * approve any KIND of movement, but only ones touching their own store, and
+ * that is enforced per record in the API where the store is known. Encoding it
+ * in this table would mean the table lying about a rule it cannot see.
  */
 export const MOVEMENTS: Record<MovementKey, Movement> = {
   MANUFACTURER_TO_STORE: {
@@ -76,7 +78,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "STORE",
     purpose: "TRANSFER",
     initiators: ["STORE_KEEPER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "RECEIVED_AT_STORE",
     allowedFrom: ["IN_TRANSIT"],
     requiresVehicle: true,
@@ -90,7 +92,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "STORE",
     purpose: "TRANSFER",
     initiators: ["STORE_KEEPER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "TRANSFERRED_TO_STORE",
     allowedFrom: ["IN_STORE"],
     requiresVehicle: true,
@@ -103,7 +105,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "SITE",
     purpose: "INSTALL",
     initiators: ["STORE_KEEPER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "DISPATCHED",
     allowedFrom: ["IN_STORE"],
     requiresVehicle: true,
@@ -116,7 +118,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "WORKSHOP",
     purpose: "REFURBISH",
     initiators: ["STORE_KEEPER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "SENT_TO_WORKSHOP",
     allowedFrom: ["IN_STORE"],
     requiresVehicle: true,
@@ -129,7 +131,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "WORKSHOP",
     purpose: "REPAIR",
     initiators: ["FIELD_ENGINEER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "RECOVERED_FOR_REPAIR",
     allowedFrom: ["FAULTY", "IN_FIELD"],
     requiresVehicle: true,
@@ -142,7 +144,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "STORE",
     purpose: "TRANSFER",
     initiators: ["FIELD_ENGINEER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "RECOVERED",
     allowedFrom: ["FAULTY", "IN_FIELD"],
     requiresVehicle: true,
@@ -155,7 +157,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "STORE",
     purpose: "RETURN",
     initiators: ["STORE_KEEPER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "RECEIVED_AT_STORE",
     allowedFrom: ["REPAIRED"],
     requiresVehicle: true,
@@ -168,7 +170,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "SITE",
     purpose: "INSTALL",
     initiators: ["FIELD_ENGINEER", "STORE_KEEPER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "DEPLOYED_FROM_WORKSHOP",
     allowedFrom: ["REPAIRED", "AT_WORKSHOP"],
     requiresVehicle: true,
@@ -181,7 +183,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "MANUFACTURER",
     purpose: "RETURN",
     initiators: ["MANAGER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "RETURNED_TO_MANUFACTURER",
     allowedFrom: ["FAULTY", "IN_TRANSIT", "IN_STORE"],
     requiresVehicle: true,
@@ -195,7 +197,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "SCRAP",
     purpose: "SCRAP",
     initiators: ["FIELD_ENGINEER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "CONDEMNED_ON_SITE",
     allowedFrom: ["FAULTY", "IN_FIELD"],
     requiresVehicle: false,
@@ -208,7 +210,7 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     to: "SCRAP",
     purpose: "SCRAP",
     initiators: ["STORE_KEEPER", "ADMIN"],
-    approvers: ["MANAGER", "ADMIN"],
+    approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "DISPOSED",
     allowedFrom: ["BEYOND_REPAIR"],
     requiresVehicle: false,

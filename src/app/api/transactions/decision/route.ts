@@ -5,6 +5,7 @@ import { apiError } from "@/lib/api";
 import { writeAudit } from "@/lib/audit";
 import { transactionDecisionSchema } from "@/lib/validation";
 import { MOVEMENTS, type MovementKey } from "@/lib/transactions";
+import { canApproveForStore } from "@/lib/region-scope";
 
 /**
  * POST /api/transactions/decision — approve or refuse raised movements, in bulk.
@@ -63,6 +64,19 @@ export async function POST(request: Request) {
         skipped.push({ id, label, reason: `Your role cannot approve a ${movement.label} movement.` });
         continue;
       }
+      // A store manager authorises movements touching their own store — one
+      // end or the other. A movement between two other stores is none of their
+      // business, and the approvers list in transactions.ts cannot express that
+      // because it does not know which store.
+      if (
+        actor.role === "STORE_MANAGER" &&
+        !canApproveForStore(actor, r.fromId) &&
+        !canApproveForStore(actor, r.toId)
+      ) {
+        skipped.push({ id, label, reason: "Neither end of this movement is your store." });
+        continue;
+      }
+
       if (r.initiatedById === actor.id) {
         skipped.push({ id, label, reason: "You raised this one. A second person has to approve it." });
         continue;

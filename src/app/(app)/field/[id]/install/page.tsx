@@ -24,6 +24,7 @@ export default async function InstallPage({ params }: { params: Promise<{ id: st
           serialNumber={tx.serialNumber}
           detail={tx.detail}
           suggestedSite={tx.currentSiteName}
+          releasedUntested={Boolean(tx.batchId) && !tx.sampleTested}
         />
       </div>
     </div>

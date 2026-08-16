@@ -281,6 +281,16 @@ export default async function StoryPage({
                 {story.feeder ? ` · feeder ${story.feeder}` : ""}
               </p>
             )}
+            {/* --- Released untested ---------------------------------------
+                batchId AND not sampleTested. A unit received on its own has
+                batchId null and sampleTested false, and that is NOT an untested
+                release — it went through the ordinary intake test. */}
+            {tx.batchId && !tx.sampleTested && (
+              <p className="mt-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">
+                ⚠️ Never tested. Released under KPLC sampling policy — a sample of its consignment
+                was tested and this unit was not one of them.
+              </p>
+            )}
             {story.substationCode && (
               <p className="mt-0.5 text-sm text-ink-soft">
                 Substation{" "}

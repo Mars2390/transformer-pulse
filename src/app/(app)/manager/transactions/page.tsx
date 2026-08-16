@@ -27,7 +27,7 @@ export default async function TransactionsPage({
 }: {
   searchParams: Promise<{ status?: string; movement?: string; q?: string }>;
 }) {
-  await requireRole("MANAGER", "ADMIN");
+  await requireRole("MANAGER", "STORE_MANAGER", "ADMIN");
   const sp = await searchParams;
 
   const status = TRANSACTION_STATUSES.includes(sp.status as TransactionStatus)

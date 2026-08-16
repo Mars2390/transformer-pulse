@@ -98,6 +98,7 @@ export function roleHome(role: Role): string {
     case "ADMIN":
       return "/admin/dashboard";
     case "MANAGER":
+    case "STORE_MANAGER":
       return "/manager/dashboard";
     case "STORE_KEEPER":
       return "/store/dashboard";
@@ -112,6 +113,9 @@ export function roleHome(role: Role): string {
 export const ROLE_AREAS: Record<Role, string[]> = {
   ADMIN: ["/admin", "/transformers", "/manager", "/store", "/field", "/kplc-control", "/mcp"],
   MANAGER: ["/manager", "/transformers", "/kplc-control", "/mcp"],
+  // Same screens as a manager, minus the region-wide ones. Every page they can
+  // reach scopes itself to their store; this list only decides which doors open.
+  STORE_MANAGER: ["/manager", "/transformers", "/store"],
   STORE_KEEPER: ["/store", "/transformers", "/mcp"],
   FIELD_ENGINEER: ["/field", "/transformers"],
 };

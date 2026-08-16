@@ -10,10 +10,16 @@ export const metadata: Metadata = { title: "Movement approvals" };
 export const dynamic = "force-dynamic";
 
 export default async function TransactionApprovalsPage() {
-  const user = await requireRole("MANAGER", "ADMIN");
+  const user = await requireRole("MANAGER", "STORE_MANAGER", "ADMIN");
 
   const pending = await prisma.transactionRecord.findMany({
-    where: { status: "PENDING_APPROVAL" },
+    where: {
+      status: "PENDING_APPROVAL",
+      // A store manager only sees movements with their store at one end.
+      ...(user.role === "STORE_MANAGER" && user.storeId
+        ? { OR: [{ fromId: user.storeId }, { toId: user.storeId }] }
+        : {}),
+    },
     orderBy: { initiatedAt: "asc" },
     include: {
       transformer: { select: { id: true, gNumber: true, serialNumber: true } },

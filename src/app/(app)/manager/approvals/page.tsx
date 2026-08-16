@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, StatTile } from "@/components/ui";
 import { ApprovalQueue, type PendingUnit } from "@/components/manager/ApprovalQueue";
-import { regionWhere } from "@/lib/region-scope";
+import { visibleTransformerWhere } from "@/lib/region-scope";
 
 export const metadata: Metadata = { title: "Approvals" };
 export const dynamic = "force-dynamic";
@@ -18,8 +18,10 @@ export const dynamic = "force-dynamic";
  * it. This page is where somebody does something about it.
  */
 export default async function ApprovalsPage() {
-  const user = await requireRole("MANAGER", "ADMIN");
-  const scope = regionWhere(user.region, user.role);
+  const user = await requireRole("MANAGER", "STORE_MANAGER", "ADMIN");
+  // A store manager sees ONE store, by foreign key. A manager sees a region,
+  // by free-text match. Those are different questions and share no code path.
+  const scope = visibleTransformerWhere(user);
 
   const [pending, rejectedCount, approvedThisWeek] = await Promise.all([
     prisma.transformer.findMany({

@@ -27,6 +27,7 @@ type Store = { id: string; name: string; region: string };
 const ROLE_TONE: Record<Role, Tone> = {
   ADMIN: "danger",
   MANAGER: "warning",
+  STORE_MANAGER: "warning",
   STORE_KEEPER: "info",
   FIELD_ENGINEER: "success",
 };

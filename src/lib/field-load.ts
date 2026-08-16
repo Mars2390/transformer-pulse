@@ -41,6 +41,10 @@ export async function loadFieldTransformer(id: string, region: string | null) {
     ratingKva: tx.ratingKva,
     currentSiteName: tx.currentSiteName,
     manufacturerName: tx.manufacturer.name,
+    // Sampling policy: batchId set AND not in the tested sample means this unit
+    // was never proved. Every field screen that could energise it says so.
+    batchId: tx.batchId,
+    sampleTested: tx.sampleTested,
     lastEventType: tx.events[0]?.type ?? null,
     detail: `${formatRating(tx.ratingKva)} · ${tx.manufacturer.name}`,
     dispatch: tx.events[0]

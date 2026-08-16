@@ -5,7 +5,7 @@ import { apiError } from "@/lib/api";
 import { recordEvent } from "@/lib/events";
 import { writeAudit } from "@/lib/audit";
 import { approvalDecisionSchema } from "@/lib/validation";
-import { regionWhere } from "@/lib/region-scope";
+import { visibleTransformerWhere, canApproveForStore } from "@/lib/region-scope";
 
 /**
  * POST /api/transformers/approvals — the CHECKER half of maker-checker.
@@ -27,14 +27,14 @@ import { regionWhere } from "@/lib/region-scope";
  */
 export async function POST(request: Request) {
   try {
-    const actor = await requireApiRole("MANAGER", "ADMIN");
+    const actor = await requireApiRole("MANAGER", "STORE_MANAGER", "ADMIN");
 
     const body = await request.json().catch(() => null);
     const input = approvalDecisionSchema.parse(body);
 
     // Region scope applies to approvals exactly as it does to everything else:
     // a manager approves stock for their own region, an admin for all of it.
-    const scope = regionWhere(actor.region, actor.role);
+    const scope = visibleTransformerWhere(actor);
 
     const candidates = await prisma.transformer.findMany({
       where: { id: { in: input.transformerIds }, ...scope },
@@ -45,6 +45,7 @@ export async function POST(request: Request) {
         status: true,
         submittedById: true,
         submittedBy: { select: { name: true } },
+        currentStoreId: true,
       },
     });
 
@@ -65,6 +66,14 @@ export async function POST(request: Request) {
         skipped.push({ id, label, reason: `Already ${tx.status.toLowerCase().replace(/_/g, " ")}.` });
         continue;
       }
+      // A store manager approves their own store's stock and nothing else.
+      // Checked here as well as in the query scope, because a scope is a filter
+      // and this is a rule.
+      if (!canApproveForStore(actor, tx.currentStoreId)) {
+        skipped.push({ id, label, reason: "Held at another store — its own approver has to accept it." });
+        continue;
+      }
+
       // The whole point of the control.
       if (tx.submittedById && tx.submittedById === actor.id) {
         skipped.push({
