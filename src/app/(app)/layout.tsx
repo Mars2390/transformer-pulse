@@ -41,7 +41,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         region: user.region ?? null,
         initials,
       }}
-      bell={user.role === "MANAGER" || user.role === "ADMIN" ? <AlertBell /> : null}
+      // STORE_MANAGER was omitted here, so the one role that has an approval
+      // queue and a store to run had no way of being told anything was in it.
+      bell={
+        user.role === "MANAGER" || user.role === "STORE_MANAGER" || user.role === "ADMIN" ? (
+          <AlertBell />
+        ) : null
+      }
       // Field engineers keep the fixed bottom bar — it is where a thumb rests,
       // and it is faster than the drawer for the four things they do all day.
       bottomNav={isField ? <FieldBottomNav /> : null}

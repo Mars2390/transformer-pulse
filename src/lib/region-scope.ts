@@ -129,3 +129,31 @@ export function canApproveForStore(
   if (user.role === "STORE_MANAGER") return Boolean(user.storeId) && user.storeId === storeId;
   return false;
 }
+
+/**
+ * Consignments this person may act on.
+ *
+ * A batch has no region of its own — it has a STORE, and the store has the
+ * region. That indirection is why the region filter was missing here for
+ * regional managers while being present for store managers: it is one level
+ * further down than every other scope in the codebase, so it was easy to leave
+ * out, and the symptom is quiet — a Nairobi manager simply also sees Mombasa's
+ * consignments and has no way to tell they are not theirs.
+ *
+ * A batch with NO store still shows to a regional manager rather than
+ * vanishing. An orphaned consignment is a data problem somebody has to notice,
+ * and a filter that hides it is a filter that guarantees nobody ever does.
+ */
+export function visibleBatchWhere(user: {
+  role: string;
+  region?: string | null;
+  storeId?: string | null;
+}): Record<string, unknown> {
+  if (user.role === "ADMIN") return {};
+  if (user.role === "STORE_MANAGER") {
+    return { storeId: user.storeId ?? "__no_store_assigned__" };
+  }
+  const scope = regionWhere(user.region, user.role);
+  if (!("region" in scope)) return {};
+  return { OR: [{ store: scope }, { storeId: null }] };
+}

@@ -17,14 +17,23 @@ export const dynamic = "force-dynamic";
  * store back to the manufacturer, and a condemned unit leaving a workshop.
  */
 export default async function StoreTransferPage() {
-  const user = await requireRole("STORE_KEEPER", "MANAGER", "ADMIN");
+  // STORE_MANAGER and FIELD_ENGINEER added: both are now initiators on the
+  // three site-origin movements, and a role that may raise a movement but
+  // cannot reach the screen that raises it is a dead end.
+  const user = await requireRole(
+    "STORE_KEEPER",
+    "STORE_MANAGER",
+    "MANAGER",
+    "FIELD_ENGINEER",
+    "ADMIN",
+  );
 
   // Every movement this role may raise, not just the ones starting at a store.
   // A store keeper who also runs a workshop needs Workshop to Site, and hiding
   // it made the list look shorter than the system's actual capability.
   const allowed = movementsFor(user.role).map((m) => m.key);
 
-  const [held, destinations] = await Promise.all([
+  const [held, destinations, engineerRows] = await Promise.all([
     // The WHOLE fleet, not just this store's shelf. Filtering the query was
     // what made the form look empty: a keeper whose stock was all awaiting
     // approval, or whose units had no currentStoreId, saw nothing at all and
@@ -47,6 +56,22 @@ export default async function StoreTransferPage() {
     prisma.store.findMany({
       where: { active: true, ...(user.storeId ? { id: { not: user.storeId } } : {}) },
       select: { id: true, name: true, kind: true, region: true },
+      orderBy: { name: "asc" },
+    }),
+    // Every active field engineer, for movements that start at a site. NOT
+    // filtered by region here: whoever raises the movement is often not in the
+    // same region as the pole, and a list that silently hides the person who is
+    // actually standing there is worse than a longer list. The active-task
+    // count is what stops a fifth job landing on somebody holding four.
+    prisma.user.findMany({
+      where: { role: "FIELD_ENGINEER", active: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        region: true,
+        _count: { select: { assignedTransformers: true } },
+      },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -86,7 +111,14 @@ export default async function StoreTransferPage() {
           destinations={destinations as Destination[]}
           allowed={allowed}
           heading="Movement"
-          actor={{ role: user.role, storeId: user.storeId ?? null }}
+          actor={{ role: user.role, storeId: user.storeId ?? null, id: user.id }}
+          engineers={engineerRows.map((e) => ({
+            id: e.id,
+            name: e.name,
+            email: e.email,
+            region: e.region,
+            activeTasks: e._count.assignedTransformers,
+          }))}
         />
       )}
     </div>

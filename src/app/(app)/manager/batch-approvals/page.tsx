@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, StatTile } from "@/components/ui";
 import { BatchApprovals, type PendingBatch } from "@/components/manager/BatchApprovals";
-import { canApproveForStore } from "@/lib/region-scope";
+import { canApproveForStore , visibleBatchWhere } from "@/lib/region-scope";
 
 export const metadata: Metadata = { title: "Batch approvals" };
 export const dynamic = "force-dynamic";
@@ -13,10 +13,9 @@ export default async function BatchApprovalsPage() {
   const user = await requireRole("MANAGER", "STORE_MANAGER", "ADMIN");
 
   const pending = await prisma.transformerBatch.findMany({
-    where: {
-      status: "PENDING_APPROVAL",
-      ...(user.role === "STORE_MANAGER" && user.storeId ? { storeId: user.storeId } : {}),
-    },
+    // Was scoped for STORE_MANAGER only, so a regional manager in Nairobi was
+    // also shown Mombasa's consignments — and could release them.
+    where: { status: "PENDING_APPROVAL", ...visibleBatchWhere(user) },
     orderBy: { receivedAt: "asc" },
     include: {
       manufacturer: { select: { name: true } },

@@ -130,7 +130,12 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     from: "SITE",
     to: "WORKSHOP",
     purpose: "REPAIR",
-    initiators: ["FIELD_ENGINEER", "ADMIN"],
+    // Widened: a movement FROM a site may be raised by anybody with the
+    // authority to move stock, not only by an engineer. What CANNOT be
+    // delegated is being at the pole — see presentEngineerId on
+    // TransactionRecord. Whoever raises it names the engineer who is
+    // there, and that engineer has to confirm before the lorry leaves.
+    initiators: ["FIELD_ENGINEER", "STORE_KEEPER", "STORE_MANAGER", "MANAGER", "ADMIN"],
     approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "RECOVERED_FOR_REPAIR",
     allowedFrom: ["FAULTY", "IN_FIELD"],
@@ -143,7 +148,12 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     from: "SITE",
     to: "STORE",
     purpose: "TRANSFER",
-    initiators: ["FIELD_ENGINEER", "ADMIN"],
+    // Widened: a movement FROM a site may be raised by anybody with the
+    // authority to move stock, not only by an engineer. What CANNOT be
+    // delegated is being at the pole — see presentEngineerId on
+    // TransactionRecord. Whoever raises it names the engineer who is
+    // there, and that engineer has to confirm before the lorry leaves.
+    initiators: ["FIELD_ENGINEER", "STORE_KEEPER", "STORE_MANAGER", "MANAGER", "ADMIN"],
     approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     completionEvent: "RECOVERED",
     allowedFrom: ["FAULTY", "IN_FIELD"],
@@ -196,7 +206,12 @@ export const MOVEMENTS: Record<MovementKey, Movement> = {
     from: "SITE",
     to: "SCRAP",
     purpose: "SCRAP",
-    initiators: ["FIELD_ENGINEER", "ADMIN"],
+    // Widened: a movement FROM a site may be raised by anybody with the
+    // authority to move stock, not only by an engineer. What CANNOT be
+    // delegated is being at the pole — see presentEngineerId on
+    // TransactionRecord. Whoever raises it names the engineer who is
+    // there, and that engineer has to confirm before the lorry leaves.
+    initiators: ["FIELD_ENGINEER", "STORE_KEEPER", "STORE_MANAGER", "MANAGER", "ADMIN"],
     // TIGHTENED: not STORE_MANAGER. Condemnation is the only
     // irreversible step in the lifecycle — no event brings a SCRAPPED unit
     // back — and writing an asset off the fleet register is a regional
@@ -286,6 +301,35 @@ export function movementsAvailable(role: Role, status: TransformerStatus): Movem
 
 export function canApprove(movement: Movement, role: Role): boolean {
   return movement.approvers.includes(role);
+}
+
+/**
+ * Does this movement start at a site, and therefore need somebody standing at
+ * the pole?
+ *
+ * DERIVED from `from === "SITE"`, not stored as a separate flag. A flag would
+ * be a second thing to keep in step with the eleven-row catalog, and the day
+ * somebody adds a twelfth movement out of a site and forgets to set it, the
+ * engineer requirement silently does not apply to it. There is nothing to
+ * forget here.
+ */
+export function requiresSiteEngineer(movement: Movement): boolean {
+  return movement.from === "SITE";
+}
+
+/**
+ * Does a transformer physically travel on this movement?
+ *
+ * `requiresVehicle` on the catalog already says so. This wrapper exists so the
+ * driver rule reads as one named idea at every call site rather than as a bare
+ * boolean somebody has to look up.
+ *
+ * SITE_TO_SCRAP is the only false: the unit is written off where it stands,
+ * nothing is carried, and demanding a lorry for it would get a fabricated
+ * plate typed into the register.
+ */
+export function carriesTransformer(movement: Movement): boolean {
+  return movement.requiresVehicle;
 }
 
 export const TRANSACTION_STATUSES = [

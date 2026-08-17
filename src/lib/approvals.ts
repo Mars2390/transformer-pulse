@@ -124,7 +124,11 @@ export const APPROVAL_ACTION_META: Record<ApprovalAction, ApprovalActionMeta> = 
   WORKSHOP_REPAIR: {
     label: "Send to Workshop",
     certificateLine: "Recovery to workshop for repair",
-    requesters: ["FIELD_ENGINEER", "STORE_KEEPER", "ADMIN"],
+    // Widened alongside MOVEMENTS.SITE_TO_WORKSHOP — a recovery may be raised
+    // by anybody with authority over the stock, with the engineer at the pole
+    // named on it. The cross-catalog test in scripts/verify-approvals.mts is
+    // what keeps these two lists in step.
+    requesters: ["FIELD_ENGINEER", "STORE_KEEPER", "STORE_MANAGER", "MANAGER", "ADMIN"],
     approvers: ["MANAGER", "STORE_MANAGER", "ADMIN"],
     description: "Recovers a failed or suspect unit from site or store to a workshop.",
     backedByRecord: true,
@@ -140,7 +144,7 @@ export const APPROVAL_ACTION_META: Record<ApprovalAction, ApprovalActionMeta> = 
   SCRAP: {
     label: "Condemn / Scrap",
     certificateLine: "Condemnation and disposal",
-    requesters: ["FIELD_ENGINEER", "STORE_KEEPER", "ADMIN"],
+    requesters: ["FIELD_ENGINEER", "STORE_KEEPER", "STORE_MANAGER", "MANAGER", "ADMIN"],
     // NOT store managers, and this is the one place the two catalogs were
     // reconciled by TIGHTENING rather than widening.
     //

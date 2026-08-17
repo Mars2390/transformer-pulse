@@ -3,6 +3,8 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, StatTile, Badge, EmptyState, ActionLink } from "@/components/ui";
+import { PendingApprovalsTile } from "@/components/manager/PendingApprovalsTile";
+import { countPendingApprovals } from "@/lib/pending-approvals";
 import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
 import { MAP_POINT_SELECT, toMapPoints } from "@/lib/map-points";
 import { AlertsPanel } from "@/components/manager/AlertsPanel";
@@ -31,7 +33,7 @@ export default async function ManagerDashboard() {
 
   // The alerts panel fetches its own data live on the client, so it is not
   // queried here — the server-rendered snapshot would be stale within seconds.
-  const [counts, transformers, recentEvents, claims] = await Promise.all([
+  const [counts, transformers, recentEvents, claims, pending] = await Promise.all([
     prisma.transformer.groupBy({
       by: ["status"],
       where: scope,
@@ -54,6 +56,11 @@ export default async function ManagerDashboard() {
       where: { status: { in: ["OPEN", "SUBMITTED"] }, transformer: scope },
       select: { claimValueKes: true },
     }),
+    // Rendered on the server so the tile shows a real number on first paint
+    // instead of flashing "Clear" and correcting itself a second later — which
+    // reads as "nothing to do" for exactly long enough to be believed. The
+    // component then keeps it live from the same endpoint the bell polls.
+    countPendingApprovals(user),
   ]);
 
   const countOf = (status: string) =>
@@ -92,6 +99,11 @@ export default async function ManagerDashboard() {
           Every transformer in your region, and what has happened to it.
         </p>
       </div>
+
+      {/* --- What is waiting on this person --------------------------------- */}
+      {/* First, above the fleet counts, because a manager opening this page is
+          more often here to unblock somebody than to read a total. */}
+      <PendingApprovalsTile initialTotal={pending.total} initialItems={pending.items} />
 
       {/* --- Stats ---------------------------------------------------------- */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">

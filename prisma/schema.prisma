@@ -288,6 +288,11 @@ enum AlertType {
   INTAKE_TEST_FAILED
   // A transformer was energised in the field — good news, shown to the manager.
   INSTALLED
+  // A movement reached its destination and the receiving officer signed for it.
+  // Written on arrival, not on departure: a lorry leaving is a plan, a lorry
+  // arriving is a change of custody, and only the second is worth interrupting
+  // a manager for.
+  MOVEMENT_ARRIVED
 
   // --- From EMDis load telemetry -------------------------------------------
   // One phase exceeded its rated current. This is invisible in the kVA figure:
@@ -385,6 +390,8 @@ model User {
   transactionsInitiated TransactionRecord[] @relation("TransactionInitiatedBy")
   transactionsApproved  TransactionRecord[] @relation("TransactionApprovedBy")
   transactionsReceived  TransactionRecord[] @relation("TransactionReceivedBy")
+  transactionsPresentAt TransactionRecord[] @relation("TransactionPresentEngineer")
+  transactionsConfirmed TransactionRecord[] @relation("TransactionPresenceConfirmedBy")
 
   // Approval paperwork: asked for, and signed.
   approvalsRequested ApprovalDocument[] @relation("ApprovalRequestedBy")
@@ -504,6 +511,35 @@ model TransactionRecord {
   driverName   String?
   driverPhone  String?
 
+  /**
+   * The field engineer standing at the site, for movements that start there.
+   *
+   * A movement FROM a site is different in kind from one between two stores.
+   * A store has a counter, a keeper and opening hours; a site is a pole by a
+   * road. Somebody has to be physically present to disconnect the unit and
+   * watch it onto the lorry, and until this release the system did not record
+   * who — a store keeper in an office could raise "Site → Workshop" and the
+   * register would show a transformer leaving a site nobody was at.
+   *
+   * Required whenever MOVEMENTS[movement].from === "SITE". Null otherwise, and
+   * that null is meaningful rather than missing: a store-to-store transfer has
+   * no site and no engineer at one.
+   */
+  presentEngineerId String?
+  presentEngineer   User?   @relation("TransactionPresentEngineer", fields: [presentEngineerId], references: [id])
+
+  /**
+   * The engineer's own confirmation that they are there.
+   *
+   * Deliberately separate from being NAMED on the movement. Anybody with the
+   * right role can name an engineer; only that engineer can confirm they are
+   * standing at the pole. Departure is blocked until this is set, so the
+   * assignment cannot become a fiction typed by somebody in an office.
+   */
+  presenceConfirmedAt   DateTime?
+  presenceConfirmedById String?
+  presenceConfirmedBy   User?     @relation("TransactionPresenceConfirmedBy", fields: [presenceConfirmedById], references: [id])
+
   initiatedById String
   initiatedBy   User     @relation("TransactionInitiatedBy", fields: [initiatedById], references: [id])
   initiatedAt   DateTime @default(now())
@@ -532,6 +568,9 @@ model TransactionRecord {
   @@index([status])
   @@index([initiatedAt])
   @@index([batchRef])
+  // The engineer's "awaiting your confirmation" list is one indexed lookup
+  // rather than a scan of every movement in the region.
+  @@index([presentEngineerId, presenceConfirmedAt])
 }
 
 /**

@@ -24,6 +24,8 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
       initiatedBy: { select: { name: true, role: true } },
       approvedBy: { select: { name: true, role: true } },
       receivedBy: { select: { name: true, role: true } },
+      presentEngineer: { select: { name: true } },
+      presenceConfirmedBy: { select: { name: true } },
     },
   });
   if (!r) notFound();
@@ -101,6 +103,15 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
             status={r.status}
             needsEvidence={needsEvidence}
             toName={r.toName}
+            presence={
+              movement && movement.from === "SITE"
+                ? {
+                    engineerName: r.presentEngineer?.name ?? null,
+                    confirmedAt: r.presenceConfirmedAt?.toISOString() ?? null,
+                    confirmedByName: r.presenceConfirmedBy?.name ?? null,
+                  }
+                : null
+            }
           />
         </div>
       </Card>

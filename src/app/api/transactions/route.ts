@@ -4,7 +4,14 @@ import { requireApiUser } from "@/lib/auth";
 import { apiError } from "@/lib/api";
 import { writeAudit } from "@/lib/audit";
 import { transactionCreateSchema } from "@/lib/validation";
-import { MOVEMENTS, checkEligibility, formatBatchRef, type MovementKey } from "@/lib/transactions";
+import {
+  MOVEMENTS,
+  carriesTransformer,
+  checkEligibility,
+  formatBatchRef,
+  requiresSiteEngineer,
+  type MovementKey,
+} from "@/lib/transactions";
 import { MOVEMENT_ACTION } from "@/lib/approvals";
 import { openApproval } from "@/lib/approval-store";
 
@@ -42,14 +49,80 @@ export async function POST(request: Request) {
       );
     }
 
-    if (movement.requiresVehicle && (!input.vehiclePlate || !input.driverName)) {
+    // --- Driver allocation ---------------------------------------------------
+    // Plate and driver name were already required here. The PHONE was not, and
+    // that is the gap that mattered: when a lorry is three hours late with a
+    // transformer on it, a name in a database is not something anybody can ring.
+    //
+    // Checked again on departure, where the details may also be corrected — see
+    // the leg route. What is recorded there is the lorry that actually went,
+    // not the one somebody expected when they filled this form in on Monday.
+    if (carriesTransformer(movement)) {
+      const missing = {
+        vehiclePlate: input.vehiclePlate ? undefined : "Required.",
+        driverName: input.driverName ? undefined : "Required.",
+        driverPhone: input.driverPhone ? undefined : "Required — somebody has to be able to ring the lorry.",
+      };
+      if (Object.values(missing).some(Boolean)) {
+        return NextResponse.json(
+          {
+            error:
+              "A movement that carries a transformer must record the vehicle, the driver, and a number that reaches them.",
+            fields: missing,
+          },
+          { status: 422 },
+        );
+      }
+    }
+
+    // --- Who is at the pole --------------------------------------------------
+    // A movement OUT of a site needs somebody physically there to disconnect
+    // the unit and watch it onto the lorry. Until now the system did not record
+    // who, so a keeper in an office could raise "Site to Workshop" and the
+    // register would show a transformer leaving a site nobody attended.
+    //
+    // The check is here rather than in the schema because the schema cannot see
+    // which movement was chosen — the catalog is what knows the origin is a
+    // site, and deriving it from `from === "SITE"` means a twelfth movement out
+    // of a site cannot accidentally escape the rule.
+    let presentEngineerId: string | null = null;
+
+    if (requiresSiteEngineer(movement)) {
+      if (!input.presentEngineerId) {
+        return NextResponse.json(
+          {
+            error:
+              "Say which field engineer is at the site. A transformer cannot leave a pole without somebody standing at it.",
+            fields: { presentEngineerId: "Required for any movement out of a site." },
+          },
+          { status: 422 },
+        );
+      }
+
+      const engineer = await prisma.user.findUnique({
+        where: { id: input.presentEngineerId },
+        select: { id: true, name: true, role: true, active: true, region: true },
+      });
+      if (!engineer || engineer.role !== "FIELD_ENGINEER") {
+        return NextResponse.json(
+          { error: "That is not a field engineer.", fields: { presentEngineerId: "Choose a field engineer." } },
+          { status: 422 },
+        );
+      }
+      if (!engineer.active) {
+        return NextResponse.json(
+          { error: `${engineer.name}'s account is disabled.`, fields: { presentEngineerId: "Account disabled." } },
+          { status: 422 },
+        );
+      }
+      presentEngineerId = engineer.id;
+    } else if (input.presentEngineerId) {
+      // Silently ignoring it would leave a name on a movement with no site,
+      // implying somebody attended something that never happened.
       return NextResponse.json(
         {
-          error: "A physical movement must record the vehicle and the driver.",
-          fields: {
-            vehiclePlate: input.vehiclePlate ? undefined : "Required.",
-            driverName: input.driverName ? undefined : "Required.",
-          },
+          error: `A ${movement.label} movement does not start at a site, so there is no engineer to be present at one.`,
+          fields: { presentEngineerId: "Not applicable to this movement." },
         },
         { status: 422 },
       );
@@ -177,6 +250,16 @@ export async function POST(request: Request) {
           driverName: input.driverName || null,
           driverPhone: input.driverPhone || null,
           initiatedById: actor.id,
+          presentEngineerId,
+          // An engineer who raises their OWN site movement is already standing
+          // there — asking them to confirm their own presence on a second
+          // screen is a tap that teaches people the confirmation is a formality.
+          // Anybody else raising it leaves this null, and the named engineer
+          // has to confirm before the lorry may leave.
+          presenceConfirmedAt:
+            presentEngineerId && presentEngineerId === actor.id ? new Date() : null,
+          presenceConfirmedById:
+            presentEngineerId && presentEngineerId === actor.id ? actor.id : null,
           status: "PENDING_APPROVAL",
           notes: [input.reason, input.notes].filter(Boolean).join(" ") || null,
         },

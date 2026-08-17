@@ -25,11 +25,21 @@ export function LegActions({
   status,
   needsEvidence,
   toName,
+  presence,
 }: {
   transactionId: string;
   status: string;
   needsEvidence: boolean;
   toName: string;
+  /**
+   * Site-origin movements only. `null` means this movement does not start at a
+   * site and there is nobody to be present.
+   */
+  presence?: {
+    engineerName: string | null;
+    confirmedAt: string | null;
+    confirmedByName: string | null;
+  } | null;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -98,17 +108,51 @@ export function LegActions({
     <div className="space-y-4">
       {status === "APPROVED" && (
         <>
-          <p className="text-sm text-ink-soft">
-            Approved and ready to leave. Confirm departure when the vehicle actually pulls out — that
-            timestamp is what makes the journey traceable.
-          </p>
+          {/* The gate, stated before the button rather than as an error after
+              it. A control somebody discovers by being refused is a control
+              they resent; one they can see coming is one they plan around. */}
+          {presence && !presence.confirmedAt ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-extrabold text-amber-900">
+                Waiting on the engineer at the site
+              </p>
+              <p className="mt-1 text-xs text-amber-800">
+                {presence.engineerName
+                  ? `${presence.engineerName} has not confirmed they are at the site yet. It appears on their dashboard, and only they can confirm it — nobody can do it on their behalf.`
+                  : "No field engineer is named on this movement, so nothing can leave the site."}
+              </p>
+            </div>
+          ) : (
+            <>
+              {presence?.confirmedAt && (
+                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-900">
+                  {presence.confirmedByName ?? "The engineer"} confirmed presence at the site on{" "}
+                  {new Date(presence.confirmedAt).toLocaleString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  .
+                </p>
+              )}
+              <p className="text-sm text-ink-soft">
+                Approved and ready to leave. Confirm departure when the vehicle actually pulls out —
+                that timestamp is what makes the journey traceable.
+              </p>
+            </>
+          )}
           <button
             type="button"
             onClick={() => send("DEPART")}
-            disabled={busy}
+            disabled={busy || Boolean(presence && !presence.confirmedAt)}
             className="w-full rounded-xl bg-kplc py-3 text-sm font-bold text-white disabled:bg-ink-soft/40"
           >
-            {busy ? "Recording…" : "Confirm departure"}
+            {busy
+              ? "Recording…"
+              : presence && !presence.confirmedAt
+                ? "Blocked until the engineer confirms"
+                : "Confirm departure"}
           </button>
         </>
       )}

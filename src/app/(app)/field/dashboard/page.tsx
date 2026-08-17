@@ -16,6 +16,9 @@ import {
   IconArrowRight,
 } from "@/components/marketing/icons";
 import { regionWhere } from "@/lib/region-scope";
+import { PresenceConfirmList, type PresenceRow } from "@/components/field/PresenceConfirmList";
+import { MOVEMENTS, type MovementKey } from "@/lib/transactions";
+import { formatRating as fmtRating } from "@/lib/format";
 
 export const metadata: Metadata = { title: "My work" };
 export const dynamic = "force-dynamic";
@@ -31,7 +34,7 @@ export default async function FieldDashboard() {
   const scope = regionWhere(user.region, user.role);
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
-  const [inTransit, inField, nearby, myInstalls, myInspections, myFaults] = await Promise.all([
+  const [inTransit, inField, nearby, myInstalls, myInspections, myFaults, awaitingPresence] = await Promise.all([
     // Everything on the way to my region — split below by whether it has been
     // received on site yet.
     prisma.transformer.findMany({
@@ -67,7 +70,38 @@ export default async function FieldDashboard() {
     prisma.lifecycleEvent.count({ where: { userId: user.id, type: "INSTALLED", occurredAt: { gte: monthStart } } }),
     prisma.lifecycleEvent.count({ where: { userId: user.id, type: "INSPECTED", occurredAt: { gte: monthStart } } }),
     prisma.lifecycleEvent.count({ where: { userId: user.id, type: "FAULT_REPORTED", occurredAt: { gte: monthStart } } }),
+    // Site movements naming ME, that I have not yet confirmed. Indexed on
+    // (presentEngineerId, presenceConfirmedAt), so this is a lookup rather than
+    // a scan of every movement in the region.
+    prisma.transactionRecord.findMany({
+      where: {
+        presentEngineerId: user.id,
+        presenceConfirmedAt: null,
+        status: { in: ["PENDING_APPROVAL", "APPROVED"] },
+      },
+      orderBy: { initiatedAt: "asc" },
+      include: {
+        transformer: { select: { id: true, gNumber: true, serialNumber: true, ratingKva: true } },
+        initiatedBy: { select: { name: true } },
+      },
+    }),
   ]);
+
+  const presenceRows: PresenceRow[] = awaitingPresence.map((r) => ({
+    id: r.id,
+    transformerId: r.transformer.id,
+    label: r.transformer.gNumber ?? r.transformer.serialNumber,
+    rating: fmtRating(r.transformer.ratingKva),
+    movementLabel: MOVEMENTS[r.movement as MovementKey]?.label ?? r.movement,
+    fromName: r.fromName,
+    toName: r.toName,
+    raisedByName: r.initiatedBy.name,
+    raisedAt: r.initiatedAt.toISOString(),
+    status: r.status,
+    vehiclePlate: r.vehiclePlate,
+    driverName: r.driverName,
+    driverPhone: r.driverPhone,
+  }));
 
   // In transit splits two ways by its latest event: not yet received (confirm
   // arrival) versus received but not yet installed (install now).
@@ -205,6 +239,19 @@ export default async function FieldDashboard() {
           <IconArrowRight />
         </span>
       </Link>
+
+      {/* --- Confirm you are at the pole ------------------------------------- */}
+      {/* Placed above everything else on purpose: a lorry and a crew are
+          standing still until this is tapped, which makes it the most expensive
+          thing on the page to leave undone. */}
+      {presenceRows.length > 0 && (
+        <Card>
+          <CardHeader
+            title={`Movements awaiting your confirmation (${presenceRows.length})`}
+          />
+          <PresenceConfirmList rows={presenceRows} />
+        </Card>
+      )}
 
       {/* --- Awaiting receipt ------------------------------------------------ */}
       {/* --- Assigned to you ------------------------------------------------ */}

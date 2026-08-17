@@ -6,7 +6,13 @@ import { inputClass, FormError } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
 import { Badge } from "@/components/ui";
 import { formatRating, STATUS_META } from "@/lib/format";
-import { MOVEMENTS, checkEligibility, type Movement, type MovementKey } from "@/lib/transactions";
+import {
+  MOVEMENTS,
+  checkEligibility,
+  requiresSiteEngineer,
+  type Movement,
+  type MovementKey,
+} from "@/lib/transactions";
 import type { Role, TransformerStatus } from "@/generated/prisma/enums";
 
 export type MovableUnit = {
@@ -48,18 +54,29 @@ const STATUS_FILTERS: { key: string; label: string }[] = [
  * from the same checkEligibility() the API uses, so what the screen says is
  * what the server would have replied.
  */
+export type SiteEngineer = {
+  id: string;
+  name: string;
+  email: string;
+  region: string | null;
+  activeTasks: number;
+};
+
 export function TransactionForm({
   units,
   destinations,
   allowed,
   heading,
   actor,
+  engineers = [],
 }: {
   units: MovableUnit[];
   destinations: Destination[];
   allowed: MovementKey[];
   heading: string;
-  actor: { role: Role; storeId: string | null };
+  actor: { role: Role; storeId: string | null; id?: string };
+  /** Every active field engineer, for movements that start at a site. */
+  engineers?: SiteEngineer[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -77,6 +94,8 @@ export function TransactionForm({
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [driverName, setDriverName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
+  const [presentEngineerId, setPresentEngineerId] = useState("");
+  const [engineerQuery, setEngineerQuery] = useState("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -121,7 +140,9 @@ export function TransactionForm({
   const canSubmit =
     selected.size > 0 &&
     (needsStore ? toStoreId !== "" : toName.trim() !== "") &&
-    (!movement.requiresVehicle || (vehiclePlate.trim() !== "" && driverName.trim() !== "")) &&
+    (!movement.requiresVehicle ||
+      (vehiclePlate.trim() !== "" && driverName.trim() !== "" && driverPhone.trim() !== "")) &&
+    (!requiresSiteEngineer(movement) || presentEngineerId !== "") &&
     !busy;
 
   function toggle(id: string) {
@@ -157,6 +178,7 @@ export function TransactionForm({
           vehiclePlate: vehiclePlate || undefined,
           driverName: driverName || undefined,
           driverPhone: driverPhone || undefined,
+          presentEngineerId: requiresSiteEngineer(movement) ? presentEngineerId : undefined,
           reason: reason || undefined,
           notes: notes || undefined,
         }),
@@ -188,6 +210,11 @@ export function TransactionForm({
           value={movementKey}
           onChange={(e) => {
             setMovementKey(e.target.value as MovementKey);
+            // Clearing this on a movement change is not tidiness. Leaving a
+            // stale engineer selected on a store-to-store transfer would post a
+            // name the API refuses, and the person would see an error about a
+            // field that is no longer on screen.
+            setPresentEngineerId("");
             setSelected(new Set());
             setToStoreId("");
             setToName("");
@@ -347,6 +374,86 @@ export function TransactionForm({
         {fieldErrors.toName && <p className="mt-1 text-xs font-semibold text-red-700">{fieldErrors.toName}</p>}
       </section>
 
+      {/* --- Who is at the pole -------------------------------------------- */}
+      {requiresSiteEngineer(movement) && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
+          <h2 className="text-sm font-bold text-navy">Which field engineer is at the site?</h2>
+          <p className="mt-1 text-xs text-ink-soft">
+            A transformer cannot leave a pole without somebody standing at it. You may raise this
+            movement from anywhere, but the engineer you name has to confirm on their own phone
+            before the lorry is allowed to depart — and nobody can confirm on their behalf.
+          </p>
+
+          {engineers.length === 0 ? (
+            <p className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-800">
+              No active field engineer exists. An admin has to create one before anything can be
+              moved off a site.
+            </p>
+          ) : (
+            <>
+              <input
+                value={engineerQuery}
+                onChange={(e) => setEngineerQuery(e.target.value)}
+                placeholder="Search by name, email or region"
+                className={`${inputClass} mt-3 py-2 text-sm`}
+              />
+              <ul className="mt-2 max-h-56 divide-y divide-line overflow-y-auto rounded-xl border border-line bg-white">
+                {engineers
+                  .filter((e) => {
+                    const q = engineerQuery.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      e.name.toLowerCase().includes(q) ||
+                      e.email.toLowerCase().includes(q) ||
+                      (e.region ?? "").toLowerCase().includes(q)
+                    );
+                  })
+                  .map((e) => (
+                    <li key={e.id}>
+                      <button
+                        type="button"
+                        onClick={() => setPresentEngineerId(e.id)}
+                        className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-surface ${
+                          e.id === presentEngineerId ? "bg-kplc/5" : ""
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span
+                            className={`block truncate text-sm ${
+                              e.id === presentEngineerId ? "font-bold text-navy" : "text-ink"
+                            }`}
+                          >
+                            {e.name}
+                            {actor.id === e.id ? " (you)" : ""}
+                          </span>
+                          <span className="block truncate text-xs text-ink-soft">
+                            {e.email} · {e.region ?? "no region"}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold text-ink-soft">
+                          {e.activeTasks} active
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+              {fieldErrors.presentEngineerId && (
+                <p className="mt-1 text-xs font-semibold text-red-700">
+                  {fieldErrors.presentEngineerId}
+                </p>
+              )}
+              {presentEngineerId && (
+                <p className="mt-2 text-xs font-bold text-navy">
+                  {actor.id === presentEngineerId
+                    ? "You are naming yourself, so presence is confirmed as you raise it."
+                    : `${engineers.find((e) => e.id === presentEngineerId)?.name} will see this on their dashboard and must confirm before departure.`}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
       {/* --- 4. Vehicle ---------------------------------------------------- */}
       {movement.requiresVehicle && (
         <section className="rounded-2xl border border-line bg-white p-4">
@@ -387,7 +494,9 @@ export function TransactionForm({
               )}
             </div>
             <div>
-              <label className="block text-xs font-bold text-ink-soft" htmlFor="driverPhone">Driver phone</label>
+              <label className="block text-xs font-bold text-ink-soft" htmlFor="driverPhone">
+                Driver phone <span className="text-red-600">*</span>
+              </label>
               <input
                 id="driverPhone"
                 value={driverPhone}
@@ -396,6 +505,12 @@ export function TransactionForm({
                 placeholder="0722000000"
                 className={`${inputClass} mt-1 text-base`}
               />
+              {fieldErrors.driverPhone && (
+                <p className="mt-1 text-xs font-semibold text-red-700">{fieldErrors.driverPhone}</p>
+              )}
+              <p className="mt-1 text-[11px] text-ink-soft">
+                When a lorry is three hours late, a name is not something anybody can ring.
+              </p>
             </div>
           </div>
         </section>

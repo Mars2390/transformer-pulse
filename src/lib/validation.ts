@@ -528,9 +528,27 @@ export const transactionCreateSchema = z.object({
   /** Free text - used when the destination is a site, a manufacturer, or scrap. */
   toName: z.string().trim().max(160).optional().or(z.literal("")),
 
+  /**
+   * Optional HERE, required at DEPARTURE.
+   *
+   * A transfer raised on Monday and approved on Wednesday has no lorry assigned
+   * on Monday. Demanding one at this point does not produce a vehicle — it
+   * produces "TBD" and invented plates in the asset register, which is worse
+   * than a blank because a blank is honest about not knowing. The rule is
+   * enforced where the lorry actually exists: see transactionLegSchema and the
+   * DEPART branch of the leg route.
+   */
   vehiclePlate: vehiclePlateField.optional().or(z.literal("")),
   driverName: z.string().trim().max(80).optional().or(z.literal("")),
   driverPhone: kenyanPhoneField.optional().or(z.literal("")),
+
+  /**
+   * The field engineer standing at the pole. Required by the API for every
+   * movement whose origin is a SITE — see requiresSiteEngineer(). Not enforced
+   * here because this schema cannot see which movement was chosen until the
+   * route has looked it up in the catalog.
+   */
+  presentEngineerId: z.string().trim().optional().or(z.literal("")),
 
   reason: z.string().trim().max(300).optional().or(z.literal("")),
   notes: z.string().trim().max(500).optional().or(z.literal("")),
@@ -568,6 +586,19 @@ export const transactionLegSchema = z.object({
   accuracyM: z.coerce.number().int().min(0).max(10000).optional(),
   photoUrls: z.array(z.string().min(1)).max(5).optional(),
   notes: z.string().trim().max(300).optional().or(z.literal("")),
+
+  /**
+   * Who is actually driving, supplied at the moment of departure.
+   *
+   * These can be given when the movement is raised, but they are only REQUIRED
+   * here, on the DEPART leg — because this is the first moment a real vehicle
+   * and a real driver exist. Anything supplied now overwrites what was planned,
+   * so what ends up in the register is the lorry that went, not the lorry
+   * somebody expected days earlier.
+   */
+  vehiclePlate: vehiclePlateField.optional().or(z.literal("")),
+  driverName: z.string().trim().max(80).optional().or(z.literal("")),
+  driverPhone: kenyanPhoneField.optional().or(z.literal("")),
 });
 
 export type TransactionLegInput = z.infer<typeof transactionLegSchema>;
@@ -669,3 +700,25 @@ export const approvalDecideSchema = z
   });
 
 export type ApprovalDecideInput = z.infer<typeof approvalDecideSchema>;
+
+
+// --- Confirming presence at a site -----------------------------------------
+
+/**
+ * A field engineer confirming they are standing at the pole.
+ *
+ * GPS is optional, deliberately. Requiring a fix would make the confirmation
+ * impossible in the places it matters most — a valley with no signal, a phone
+ * with location switched off — and an engineer who cannot confirm will simply
+ * telephone the store and have somebody else press the button, which is the
+ * exact fiction this control exists to prevent. When a fix IS available it is
+ * recorded, so the honest cases carry more evidence than the rest.
+ */
+export const presenceConfirmSchema = z.object({
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
+  accuracyM: z.coerce.number().int().min(0).max(10_000).optional(),
+  notes: z.string().trim().max(300).optional().or(z.literal("")),
+});
+
+export type PresenceConfirmInput = z.infer<typeof presenceConfirmSchema>;

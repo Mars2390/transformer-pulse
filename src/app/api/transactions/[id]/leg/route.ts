@@ -5,7 +5,7 @@ import { apiError } from "@/lib/api";
 import { recordEvent } from "@/lib/events";
 import { writeAudit } from "@/lib/audit";
 import { transactionLegSchema } from "@/lib/validation";
-import { MOVEMENTS, type MovementKey } from "@/lib/transactions";
+import { MOVEMENTS, carriesTransformer, requiresSiteEngineer, type MovementKey } from "@/lib/transactions";
 
 /**
  * POST /api/transactions/[id]/leg — the lorry left, or the lorry arrived.
@@ -30,7 +30,10 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
     const record = await prisma.transactionRecord.findUnique({
       where: { id },
-      include: { transformer: { select: { id: true, gNumber: true, serialNumber: true, status: true } } },
+      include: {
+        transformer: { select: { id: true, gNumber: true, serialNumber: true, status: true, region: true } },
+        presentEngineer: { select: { name: true } },
+      },
     });
     if (!record) return NextResponse.json({ error: "Movement not found." }, { status: 404 });
 
@@ -53,9 +56,58 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         );
       }
 
+      // --- Somebody has to be at the pole ------------------------------------
+      // An approval says the movement MAY happen. It does not say anybody was
+      // there when it did. For a movement out of a site those are different
+      // claims, and only the engineer standing at the pole can make the second.
+      if (requiresSiteEngineer(movement) && !record.presenceConfirmedAt) {
+        return NextResponse.json(
+          {
+            error: record.presentEngineerId
+              ? `${record.presentEngineer?.name ?? "The named engineer"} has not confirmed they are at ${record.fromName}. The lorry cannot leave a site nobody is attending.`
+              : "No field engineer is named on this movement, so nothing can leave the site.",
+            needsPresence: true,
+          },
+          { status: 409 },
+        );
+      }
+
+      // --- The lorry that is actually going -----------------------------------
+      // Plate and driver were required when this was raised, but that was the
+      // PLANNED lorry and days may have passed. Anything supplied now replaces
+      // it, so the register ends up holding the vehicle that went rather than
+      // the one somebody expected.
+      const plate = input.vehiclePlate || record.vehiclePlate;
+      const driver = input.driverName || record.driverName;
+      const phone = input.driverPhone || record.driverPhone;
+
+      if (carriesTransformer(movement)) {
+        const missing = {
+          vehiclePlate: plate ? undefined : "Required.",
+          driverName: driver ? undefined : "Required.",
+          driverPhone: phone ? undefined : "Required — somebody has to be able to ring the lorry.",
+        };
+        if (Object.values(missing).some(Boolean)) {
+          return NextResponse.json(
+            {
+              error:
+                "Nothing leaves without a vehicle, a driver, and a number that reaches them. This movement predates that rule — fill them in here.",
+              fields: missing,
+            },
+            { status: 422 },
+          );
+        }
+      }
+
       await prisma.transactionRecord.update({
         where: { id },
-        data: { status: "IN_TRANSIT", departedAt: new Date() },
+        data: {
+          status: "IN_TRANSIT",
+          departedAt: new Date(),
+          vehiclePlate: plate,
+          driverName: driver,
+          driverPhone: phone,
+        },
       });
 
       await writeAudit({
@@ -65,8 +117,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         targetId: record.transformer.id,
         targetLabel: label,
         details: `${actor.name} confirmed departure of ${label} from ${record.fromName} towards ${record.toName}${
-          record.vehiclePlate ? ` on ${record.vehiclePlate}` : ""
-        }.`,
+          plate ? ` on ${plate}` : ""
+        }${driver ? `, driver ${driver}${phone ? ` (${phone})` : ""}` : ""}.`,
       });
 
       return NextResponse.json({ status: "IN_TRANSIT", message: `${label} has left ${record.fromName}.` });
@@ -145,6 +197,35 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       targetId: record.transformer.id,
       targetLabel: label,
       details: `${actor.name} received ${label} at ${record.toName}. Movement ${movement.label} complete; chain event ${result.eventId}.`,
+    });
+
+    // --- Tell the manager it landed ------------------------------------------
+    // Arrival is the moment custody changes hands, and it is the one moment in
+    // a movement a manager genuinely wants pushed at them: they authorised a
+    // transformer to travel and now it is somewhere else. Departure gets no
+    // alert on purpose — a lorry leaving is a plan, and an alert per leg is how
+    // a bell becomes noise somebody stops reading.
+    //
+    // A STORED row, unlike the pending-approval counts, because this is a fact
+    // that happened at a time rather than a count of outstanding work. It stays
+    // until a manager acknowledges it.
+    //
+    // Region is read from the transformer AFTER recordEvent, not before: the
+    // movement may have just changed it, and an alert filed under where the
+    // unit used to be would land in the wrong manager's list.
+    const landed = await prisma.transformer.findUnique({
+      where: { id: record.transformer.id },
+      select: { region: true, status: true },
+    });
+
+    await prisma.alert.create({
+      data: {
+        transformerId: record.transformer.id,
+        type: "MOVEMENT_ARRIVED",
+        severity: "INFO",
+        region: landed?.region ?? record.transformer.region ?? null,
+        message: `${label} arrived at ${record.toName}. ${movement.label} complete — the unit is now ${(landed?.status ?? result.toStatus).replace(/_/g, " ").toLowerCase()}. Received by ${actor.name}.`,
+      },
     });
 
     return NextResponse.json({
