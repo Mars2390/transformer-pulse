@@ -59,7 +59,7 @@ export default async function ManufacturerPerformancePage() {
             {rows.map((r) => (
               <tr key={r.id} className="hover:bg-surface">
                 <td className="px-3 py-2">
-                  <Link href={`/manager/manufacturers/${r.id}`} className="font-bold text-navy hover:text-kplc">
+                  <Link href={`/manager/manufacturers/${r.id}`} className="inline-flex min-h-11 items-center font-bold text-navy hover:text-kplc">
                     {r.name}
                   </Link>
                   {r.country && <span className="ml-2 text-ink-soft">{r.country}</span>}

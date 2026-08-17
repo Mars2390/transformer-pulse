@@ -188,7 +188,7 @@ export function ApprovalQueue({
                   <td className="px-3 py-2.5">
                     <Link
                       href={`/transformers/${u.id}`}
-                      className="font-bold text-navy hover:text-kplc"
+                      className="inline-flex min-h-11 items-center font-bold text-navy hover:text-kplc"
                     >
                       {u.gNumber ?? u.serialNumber}
                     </Link>

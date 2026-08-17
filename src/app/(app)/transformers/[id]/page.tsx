@@ -505,7 +505,7 @@ export default async function StoryPage({
                   href={tx.fatReportUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-bold text-navy hover:text-kplc"
+                  className="inline-flex min-h-11 items-center font-bold text-navy hover:text-kplc"
                 >
                   FAT Report
                 </a>
@@ -581,7 +581,7 @@ export default async function StoryPage({
                       {mv.receivedBy ? ` · received by ${mv.receivedBy.name}` : ""}
                     </p>
                   </div>
-                  <Link href={`/transactions/${mv.id}`} className="shrink-0 inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline">
+                  <Link href={`/transactions/${mv.id}`} className="shrink-0 inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-bold text-kplc hover:underline">
                     Track
                   </Link>
                 </li>

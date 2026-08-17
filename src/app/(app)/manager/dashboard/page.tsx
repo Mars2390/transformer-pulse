@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, StatTile, Badge, EmptyState, ActionLink } from "@/components/ui";
 import { PendingApprovalsTile } from "@/components/manager/PendingApprovalsTile";
 import { countPendingApprovals } from "@/lib/pending-approvals";
+import { summariseExpiring, CRITICAL_DAYS } from "@/lib/warranty-sweep";
 import { TransformerMap, type MapPoint } from "@/components/map/TransformerMap";
 import { MAP_POINT_SELECT, toMapPoints } from "@/lib/map-points";
 import { AlertsPanel } from "@/components/manager/AlertsPanel";
@@ -86,6 +87,19 @@ export default async function ManagerDashboard() {
     return expiry.getTime() > Date.now();
   }).length;
 
+  // Warranty cover about to lapse. Counted in JS for the same reason
+  // underWarranty above is: expiry depends on each unit's own warrantyMonths,
+  // so there is no single date SQL can compare against.
+  const expiring = await summariseExpiring(scope);
+
+  // Everything on a workshop floor, and the part of it nobody has started.
+  const [inWorkshop, pendingRepair] = await Promise.all([
+    prisma.transformer.count({ where: { ...scope, status: "AT_WORKSHOP" } }),
+    prisma.repairRecord.count({
+      where: { transformer: { ...scope, status: "AT_WORKSHOP" }, status: "QUEUED" },
+    }),
+  ]);
+
   const points: MapPoint[] = toMapPoints(transformers);
 
   return (
@@ -108,9 +122,37 @@ export default async function ManagerDashboard() {
       {/* --- Stats ---------------------------------------------------------- */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatTile label="Total" value={formatNumber(total)} hint="On the register" />
-        <StatTile label="In store" value={formatNumber(countOf("IN_STORE"))} tone="info" hint="Ready to dispatch" />
         <StatTile label="In field" value={formatNumber(countOf("IN_FIELD"))} tone="success" hint="Energised" />
+        <StatTile label="In store" value={formatNumber(countOf("IN_STORE"))} tone="info" hint="Ready to dispatch" />
+        <StatTile
+          label="In workshop"
+          value={formatNumber(inWorkshop)}
+          tone={inWorkshop ? "warning" : "neutral"}
+          hint="Off the pole, on a bench"
+          href="/store/workshop"
+        />
         <StatTile label="Faulty" value={formatNumber(countOf("FAULTY"))} tone="danger" hint="Needs action" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <StatTile
+          label="Pending repair"
+          value={formatNumber(pendingRepair)}
+          tone={pendingRepair ? "warning" : "neutral"}
+          hint={pendingRepair ? "queued, nobody started" : "queue is clear"}
+          href="/store/workshop"
+        />
+        <StatTile
+          label={`Warranties expiring (${CRITICAL_DAYS}d)`}
+          value={formatNumber(expiring.within30)}
+          tone={expiring.within30 ? "danger" : "neutral"}
+          hint={
+            expiring.within30
+              ? `${formatKesCompact(expiring.atRiskKes)} of cover about to lapse`
+              : `${expiring.within90} within 90 days`
+          }
+          href="/manager/warranty"
+        />
         <StatTile
           label="Recoverable"
           value={formatKesCompact(recoverable)}
@@ -166,7 +208,7 @@ export default async function ManagerDashboard() {
                   <div className="min-w-0 flex-1">
                     <Link
                       href={`/transformers/${event.transformer.id}`}
-                      className="text-sm font-semibold text-navy hover:text-kplc"
+                      className="inline-flex min-h-11 items-center text-sm font-semibold text-navy hover:text-kplc"
                     >
                       {event.transformer.gNumber} · {formatRating(event.transformer.ratingKva)}
                     </Link>

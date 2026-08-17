@@ -101,7 +101,7 @@ export function AlertsPanel() {
                 <button
                   type="button"
                   onClick={() => acknowledge(alert.id)}
-                  className="text-[11px] font-bold text-ink-soft hover:text-navy"
+                  className="inline-flex min-h-11 items-center px-2 text-[11px] font-bold text-ink-soft hover:text-navy"
                 >
                   Acknowledge
                 </button>

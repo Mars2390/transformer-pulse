@@ -140,7 +140,7 @@ export default async function TransactionsPage({
                   <div className="min-w-0 flex-1">
                     <Link
                       href={`/transformers/${r.transformer.id}`}
-                      className="text-sm font-semibold text-navy hover:text-kplc"
+                      className="inline-flex min-h-11 items-center text-sm font-semibold text-navy hover:text-kplc"
                     >
                       {r.transformer.gNumber ?? r.transformer.serialNumber}
                     </Link>
@@ -155,7 +155,7 @@ export default async function TransactionsPage({
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-ink-soft">{formatRelative(r.initiatedAt)}</span>
-                  <Link href={`/transactions/${r.id}`} className="shrink-0 inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline">
+                  <Link href={`/transactions/${r.id}`} className="shrink-0 inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-bold text-kplc hover:underline">
                     Track
                   </Link>
                 </li>

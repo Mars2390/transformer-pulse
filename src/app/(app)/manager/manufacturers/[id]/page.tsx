@@ -64,7 +64,7 @@ export default async function ManufacturerDetailPage({ params }: { params: Promi
               {transformers.map((t) => (
                 <tr key={t.id} className={t.faultCount > 0 ? "bg-red-50/30" : undefined}>
                   <td className="px-3 py-2">
-                    <Link href={`/transformers/${t.id}`} className="font-bold text-navy hover:text-kplc">
+                    <Link href={`/transformers/${t.id}`} className="inline-flex min-h-11 items-center font-bold text-navy hover:text-kplc">
                       {t.gNumber ? `G-${t.gNumber}` : t.serialNumber}
                     </Link>
                   </td>

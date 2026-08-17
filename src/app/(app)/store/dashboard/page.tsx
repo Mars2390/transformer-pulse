@@ -229,7 +229,7 @@ export default async function StoreDashboard() {
             {expiringSoon.map(({ tx, w }) => (
               <li key={tx.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
                 <div>
-                  <Link href={`/transformers/${tx.id}`} className="font-mono text-sm font-bold text-navy hover:text-kplc">
+                  <Link href={`/transformers/${tx.id}`} className="inline-flex min-h-11 items-center font-mono text-sm font-bold text-navy hover:text-kplc">
                     {tx.gNumber ?? tx.serialNumber}
                   </Link>
                   <p className="text-xs text-ink-soft">
@@ -305,7 +305,7 @@ export default async function StoreDashboard() {
                     )}
                     <Link
                       href={`/store/test/${tx.id}`}
-                      className="rounded-lg bg-kplc px-3 py-2 text-[11px] font-bold text-white transition-colors hover:bg-kplc-light"
+                      className="inline-flex min-h-11 items-center rounded-lg bg-kplc px-4 text-[11px] font-bold text-white transition-colors hover:bg-kplc-light"
                     >
                       Record test
                     </Link>

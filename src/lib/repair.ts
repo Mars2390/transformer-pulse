@@ -118,6 +118,7 @@ export async function closeRepair(
   const repair = await prisma.repairRecord.findUnique({
     where: { id: repairId },
     include: {
+      technician: { select: { id: true, name: true } },
       transformer: {
         select: {
           id: true, gNumber: true, serialNumber: true, ratingKva: true,
@@ -131,6 +132,17 @@ export async function closeRepair(
 
   const tx = repair.transformer;
   const label = tx.gNumber ?? tx.serialNumber;
+
+  // Accountability, not bureaucracy. An outcome recorded against a job nobody
+  // ever started is a repair with no named hands on it — and the confirmed
+  // fault cause, which is the most valuable field in this whole record, has
+  // nobody standing behind it. Records imported before technicians were
+  // tracked carry a free-text name instead and are let through.
+  if (repair.status === "QUEUED" && !repair.technicianId && !repair.workshopTechnician) {
+    throw new Error(
+      "Nobody has started work on this unit. Assign a technician and start the job before recording an outcome.",
+    );
+  }
   const completedAt = new Date();
   const turnaroundDays = Math.round(
     (completedAt.getTime() - repair.receivedAtWorkshop.getTime()) / 86_400_000,
@@ -169,7 +181,11 @@ export async function closeRepair(
       repairWarrantyMonths: input.repairWarrantyMonths ?? 3,
       repairSuccessful: input.successful,
       failureReason: input.successful ? null : (input.failureReason ?? "Not stated"),
-      workshopTechnician: input.workshopTechnician ?? actor.name,
+      // The bench state ends here. REPAIRED and BEYOND_REPAIR both mean "off
+      // the bench, awaiting movement" — the transformer is still physically at
+      // the workshop until a WORKSHOP_TO_* movement carries it out.
+      status: input.successful ? "REPAIRED" : "BEYOND_REPAIR",
+      workshopTechnician: input.workshopTechnician ?? repair.technician?.name ?? actor.name,
       notes: input.notes ?? null,
     },
   });
@@ -183,7 +199,7 @@ export async function closeRepair(
 
   // --- Successful --------------------------------------------------------
   if (input.successful) {
-    await recordEvent(
+    const repairedEvent = await recordEvent(
       tx.id,
       {
         type: "REPAIRED",
@@ -203,6 +219,21 @@ export async function closeRepair(
       },
       actor,
     );
+
+    // The state machine has just written a TestRecord against that event.
+    // Linking it here is what makes postRepairTestId mean something: without
+    // it the column exists, the test exists, and nothing joins them, so the
+    // dossier cannot show the readings that justified releasing the unit.
+    const postTest = await prisma.testRecord.findFirst({
+      where: { eventId: repairedEvent.eventId },
+      select: { id: true },
+    });
+    if (postTest) {
+      await prisma.repairRecord.update({
+        where: { id: repairId },
+        data: { postRepairTestId: postTest.id },
+      });
+    }
 
     alerts.push({
       transformerId: tx.id,

@@ -85,7 +85,7 @@ export function ActionChooser() {
               <li key={r.id} className="rounded-2xl border border-line bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <Link href={`/transformers/${r.id}`} className="font-mono text-sm font-bold text-navy hover:text-kplc">
+                    <Link href={`/transformers/${r.id}`} className="inline-flex min-h-11 items-center font-mono text-sm font-bold text-navy hover:text-kplc">
                       {r.gNumber ?? r.serialNumber}
                     </Link>
                     <p className="text-xs text-ink-soft">

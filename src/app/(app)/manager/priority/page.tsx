@@ -144,7 +144,7 @@ export default async function PriorityPage({
               <tr key={r.id} className={bandOf(r.priority) === "RED" ? "bg-red-50/40" : undefined}>
                 <td className="px-3 py-2 font-mono text-ink-soft">{i + 1}</td>
                 <td className="px-3 py-2">
-                  <Link href={`/transformers/${r.id}`} className="font-bold text-navy hover:text-kplc">
+                  <Link href={`/transformers/${r.id}`} className="inline-flex min-h-11 items-center font-bold text-navy hover:text-kplc">
                     {r.gNumber ? `G-${r.gNumber}` : r.serialNumber}
                   </Link>
                   <span className="ml-2 text-ink-soft">{r.ratingKva} kVA</span>

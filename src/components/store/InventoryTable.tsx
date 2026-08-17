@@ -94,7 +94,7 @@ export function InventoryTable({ rows }: { rows: InventoryRow[] }) {
         <button
           type="button"
           onClick={() => toggleSort(sort)}
-          className="inline-flex items-center gap-1 text-[11px] font-bold tracking-wide text-ink-soft transition-colors hover:text-navy"
+          className="inline-flex min-h-11 items-center gap-1 text-[11px] font-bold tracking-wide text-ink-soft transition-colors hover:text-navy"
         >
           {label}
           <span className={sortKey === sort ? "text-kplc" : "text-ink-soft/30"}>
@@ -222,7 +222,7 @@ export function InventoryTable({ rows }: { rows: InventoryRow[] }) {
                           {row.testState !== "PASSED" && (
                             <Link
                               href={`/store/test/${row.id}`}
-                              className="rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-bold text-navy transition-colors hover:border-kplc hover:text-kplc"
+                              className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-[11px] font-bold text-navy transition-colors hover:border-kplc hover:text-kplc"
                             >
                               Test
                             </Link>

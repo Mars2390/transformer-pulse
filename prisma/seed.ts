@@ -179,6 +179,35 @@ async function main() {
       region: "Nairobi North",
     },
   });
+  // --- Workshop technicians ------------------------------------------------
+  // A technician is a STORE_KEEPER whose store is a WORKSHOP. There is no
+  // separate role: see lib/workshop.ts for why. Two of them, because the
+  // one-job-at-a-time rule and the queue it creates are invisible with one.
+  await prisma.user.create({
+    data: {
+      name: "Peter Mwangi",
+      email: "tech1@kplc.co.ke",
+      staffNumber: "KP-TCH-071",
+      phone: "0726071445",
+      pinHash: await hash("600600"),
+      role: "STORE_KEEPER",
+      region: "Nairobi North",
+      storeId: embakasiWorkshop.id,
+    },
+  });
+  await prisma.user.create({
+    data: {
+      name: "Susan Achieng",
+      email: "tech2@kplc.co.ke",
+      staffNumber: "KP-TCH-083",
+      phone: "0737083220",
+      pinHash: await hash("700700"),
+      role: "STORE_KEEPER",
+      region: "Nairobi North",
+      storeId: embakasiWorkshop.id,
+    },
+  });
+
   // A STORE_MANAGER scoped to the Embakasi workshop. The role has its own
   // approval queue, its own bell and its own store-level scoping rule, and
   // without an account none of that can be seen — the scoping story is one of
@@ -248,10 +277,11 @@ async function main() {
     ],
   });
 
-  const [users, stores, workshops, manufacturers, transformers] = await Promise.all([
+  const [users, stores, workshops, technicians, manufacturers, transformers] = await Promise.all([
     prisma.user.count(),
     prisma.store.count({ where: { kind: "STORE" } }),
     prisma.store.count({ where: { kind: "WORKSHOP" } }),
+    prisma.user.count({ where: { active: true, store: { kind: "WORKSHOP" }, role: "STORE_KEEPER" } }),
     prisma.manufacturer.count(),
     prisma.transformer.count(),
   ]);
@@ -261,6 +291,7 @@ async function main() {
     Staff accounts .. ${users}
     Stores .......... ${stores}
     Workshops ....... ${workshops}
+    Technicians ..... ${technicians}
     Manufacturers ... ${manufacturers}
     Transformers .... ${transformers}   (empty — real data is entered by real users)
 
@@ -270,6 +301,8 @@ async function main() {
     storemanager@kplc.co.ke   PIN 500500   Store Manager (Embakasi Workshop — approvals)
     store@kplc.co.ke          PIN 300300   Store Keeper (Ruaraka)
     field@kplc.co.ke          PIN 400400   Field Engineer (Nairobi North)
+    tech1@kplc.co.ke          PIN 600600   Workshop Technician (Embakasi)
+    tech2@kplc.co.ke          PIN 700700   Workshop Technician (Embakasi)
   `);
 }
 

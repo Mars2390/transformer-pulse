@@ -31,7 +31,6 @@ enum Role {
    * A store's own approver. Sees exactly one store and nothing else: the
    * pending queue for that store, its inventory, its movements, its batches.
    * Approves; never edits, never deletes, never records a field event.
-   *
    * Deliberately NOT a Manager with a narrower where clause. A manager's scope
    * is a REGION, which is free text matched with `contains`; a store manager's
    * scope is a foreign key. Conflating them is how somebody ends up seeing a
@@ -263,6 +262,26 @@ enum McpAuthMethod {
   NONE
 }
 
+/**
+ * Where a unit actually is on the workshop floor.
+ * Until now this was INFERRED — the workshop list called a repair "in progress"
+ * if faultCauseConfirmed happened to be non-null, and "queued" otherwise. That
+ * is a proxy, not a state: a technician who opens a job and types nothing for a
+ * day is working, and the board said he was not. A bench needs a real status
+ * that somebody sets deliberately.
+ * Deliberately separate from TransformerStatus. The transformer's status stays
+ * AT_WORKSHOP throughout all four of these — custody has not changed, the
+ * chain has nothing new to say, and only the workshop cares which bench state
+ * it is in. Conflating them would put "queued" on the custody chain, which is
+ * not a change of custody.
+ */
+enum WorkshopRepairStatus {
+  QUEUED // received, no technician free or none assigned yet
+  IN_REPAIR // a named technician has started work
+  REPAIRED // work finished and proved by a post-repair test
+  BEYOND_REPAIR // opened, diagnosed, condemned
+}
+
 enum ConflictStatus {
   OPEN
   RESOLVED
@@ -380,8 +399,14 @@ model User {
   transformersSubmitted Transformer[] @relation("TransformerSubmittedBy")
   transformersApproved  Transformer[] @relation("TransformerApprovedBy")
 
-  /** Units dispatched to this engineer and not yet confirmed received. */
-  assignedTransformers Transformer[] @relation("TransformerAssignedEngineer")
+  /**
+   * Units dispatched to this engineer and not yet confirmed received.
+   */
+  assignedTransformers Transformer[]  @relation("TransformerAssignedEngineer")
+  /**
+   * Bench jobs this user is the named technician for.
+   */
+  repairsAssigned      RepairRecord[] @relation("RepairTechnician")
 
   batchesReceived TransformerBatch[] @relation("BatchReceivedBy")
   batchesApproved TransformerBatch[] @relation("BatchApprovedBy")
@@ -432,23 +457,21 @@ model AuditLog {
 }
 
 model Store {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  region    String
-  county    String
-  lat       Float?
-  lng       Float?
+  id     String @id @default(cuid())
+  name   String
+  code   String @unique
+  region String
+  county String
+  lat    Float?
+  lng    Float?
 
   /**
    * STORE or WORKSHOP.
-   *
    * A workshop is not a different kind of thing from a store in any way this
    * system cares about: it receives units, holds them, has a custodian, sits in
    * a region, and dispatches them again. Modelling it as a second table would
    * mean a second foreign key on Transformer, a second set of CRUD screens and
    * a second scoping rule, all to express "this shed repairs things".
-   *
    * So it is one column, and currentStoreId points at a workshop exactly as it
    * points at a store. The AT_WORKSHOP status still says what is happening to
    * the unit; this says where it physically is.
@@ -460,30 +483,32 @@ model Store {
    * nothing is deleted, because a transformer that passed through here still
    * needs somewhere for its chain to point.
    */
-  active Boolean @default(true)
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
   users        User[]
   transformers Transformer[]
   batches      TransformerBatch[]
+
+  /**
+   * Bench jobs at this store, when its kind is WORKSHOP.
+   */
+  workshopRepairs RepairRecord[] @relation("WorkshopRepairs")
 }
 
 /**
  * One transformer, moving from one place to another, with a paper trail.
- *
  * The LifecycleEvent chain already records that a movement HAPPENED and refuses
  * illegal ones. What it cannot hold is the part that happens around a movement:
  * who asked for it, who authorised it, which lorry, which driver, when it left
  * and when it turned up. That is this table. It is the envelope; the chain is
  * still the letter.
- *
  * ONE ROW PER TRANSFORMER, never one row for a lorry-load. Five units on the
  * same truck share a batchRef, and each keeps its own approval, its own
  * departure and its own arrival — because in practice a checker refuses one
  * unit out of five, and one unit out of five fails to arrive. A shared row
  * cannot say that without a join table, which is the same thing with more
  * moving parts.
- *
  * fromId / toId point at Store rows, which now include workshops (Store.kind).
  * They are null for a SITE (a pole is not a record) and for a MANUFACTURER
  * endpoint, where the Manufacturer table is the counterparty instead.
@@ -493,10 +518,14 @@ model TransactionRecord {
   transformerId String
   transformer   Transformer @relation(fields: [transformerId], references: [id])
 
-  /** Groups a lorry-load. "T-2026-0042". One transformer still gets one row. */
+  /**
+   * Groups a lorry-load. "T-2026-0042". One transformer still gets one row.
+   */
   batchRef String?
 
-  /** One of the movement keys in src/lib/transactions.ts — the single catalog. */
+  /**
+   * One of the movement keys in src/lib/transactions.ts — the single catalog.
+   */
   movement String
 
   fromType String // MANUFACTURER | STORE | WORKSHOP | SITE
@@ -513,14 +542,12 @@ model TransactionRecord {
 
   /**
    * The field engineer standing at the site, for movements that start there.
-   *
    * A movement FROM a site is different in kind from one between two stores.
    * A store has a counter, a keeper and opening hours; a site is a pole by a
    * road. Somebody has to be physically present to disconnect the unit and
    * watch it onto the lorry, and until this release the system did not record
    * who — a store keeper in an office could raise "Site → Workshop" and the
    * register would show a transformer leaving a site nobody was at.
-   *
    * Required whenever MOVEMENTS[movement].from === "SITE". Null otherwise, and
    * that null is meaningful rather than missing: a store-to-store transfer has
    * no site and no engineer at one.
@@ -530,7 +557,6 @@ model TransactionRecord {
 
   /**
    * The engineer's own confirmation that they are there.
-   *
    * Deliberately separate from being NAMED on the movement. Anybody with the
    * right role can name an engineer; only that engineer can confirm they are
    * standing at the pole. Departure is blocked until this is set, so the
@@ -555,10 +581,14 @@ model TransactionRecord {
   receivedBy   User?     @relation("TransactionReceivedBy", fields: [receivedById], references: [id])
   receivedAt   DateTime?
 
-  /** PENDING_APPROVAL | APPROVED | IN_TRANSIT | COMPLETED | REJECTED */
+  /**
+   * PENDING_APPROVAL | APPROVED | IN_TRANSIT | COMPLETED | REJECTED
+   */
   status String @default("PENDING_APPROVAL")
 
-  /** The chain event written when the movement actually completes. */
+  /**
+   * The chain event written when the movement actually completes.
+   */
   completionEventId String?
 
   notes     String?
@@ -575,17 +605,14 @@ model TransactionRecord {
 
 /**
  * One delivery, received as a group and tested as a sample.
- *
  * KPLC does not test every transformer in a lorry-load; it tests a few and
  * releases the rest on the strength of them. That practice is real and is not
  * going to change, so the system records it honestly rather than pretending
  * each unit was individually proved.
- *
  * The batch exists to hold two things the individual records cannot: what the
  * delivery note CLAIMED arrived, and one approval decision covering the whole
  * consignment. Everything else — status, chain, warranty — stays on each
  * transformer, because each transformer is what ends up on a pole.
- *
  * Note what is NOT stored here: testedCount and untestedCount. Those drift the
  * first time a unit is tested after approval. They are counted from the
  * transformers, and only totalCount is kept — as the delivery note's claim, so
@@ -598,18 +625,24 @@ model TransformerBatch {
   manufacturerId String
   manufacturer   Manufacturer @relation(fields: [manufacturerId], references: [id])
 
-  /** What the delivery note said. Compared against the rows actually entered. */
+  /**
+   * What the delivery note said. Compared against the rows actually entered.
+   */
   totalCount Int
 
   receivedAt   DateTime @default(now())
   receivedById String
   receivedBy   User     @relation("BatchReceivedBy", fields: [receivedById], references: [id])
 
-  /** Where it landed. A batch belongs to a store, which is who approves it. */
+  /**
+   * Where it landed. A batch belongs to a store, which is who approves it.
+   */
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
 
-  /** PENDING_APPROVAL | APPROVED | REJECTED */
+  /**
+   * PENDING_APPROVAL | APPROVED | REJECTED
+   */
   status String @default("PENDING_APPROVAL")
 
   approvedById String?
@@ -807,7 +840,9 @@ model Transformer {
   approvedBy   User?     @relation("TransformerApprovedBy", fields: [approvedById], references: [id])
   approvedAt   DateTime?
 
-  /** Why a checker refused it. Required when rejecting; never cleared. */
+  /**
+   * Why a checker refused it. Required when rejecting; never cleared.
+   */
   rejectionReason String?
 
   // --- Dispatch assignment ---------------------------------------------------
@@ -828,7 +863,9 @@ model Transformer {
   batchId String?
   batch   TransformerBatch? @relation(fields: [batchId], references: [id])
 
-  /** True when this unit was one of the few actually tested for its batch. */
+  /**
+   * True when this unit was one of the few actually tested for its batch.
+   */
   sampleTested Boolean @default(false)
 
   createdAt DateTime @default(now())
@@ -857,18 +894,15 @@ model Transformer {
 
 /**
  * The document number counter, one row per calendar year.
- *
  * The obvious implementation — count the rows so far and add one — is wrong
  * under concurrency, and it was wrong here until a test caught it. Eight
  * simultaneous requests all read the same count, seven collide on the UNIQUE
  * reference, and retrying does not help because every retry re-reads a count
  * that is still stale for everybody else. Measured: 3 of 8 failed outright.
- *
  * This row is incremented with a single atomic statement instead
  * (INSERT ... ON CONFLICT DO UPDATE SET value = value + 1 RETURNING value), so
  * every caller gets a distinct number in one round trip with no retry loop and
  * no lost requests.
- *
  * Numbers restart each January, which is what the reference format implies and
  * what the filing cabinet expects. A gap can still appear if a transaction
  * rolls back after taking a number — that is unavoidable with any counter, and
@@ -882,7 +916,6 @@ model ApprovalCounter {
 
 /**
  * One approval cycle, and the document that represents it.
- *
  * WHY THIS IS NOT A SECOND APPROVAL ENGINE
  * ----------------------------------------
  * Approvals were already enforced in four separate places before this table
@@ -890,20 +923,17 @@ model ApprovalCounter {
  * (TransformerBatch.approvedById), movements (TransactionRecord.approvedById),
  * and the lifecycle rules themselves. Those four remain AUTHORITATIVE. Nothing
  * reads this table to decide whether an action is permitted.
- *
  * What this table is, is the PAPERWORK — the thing a utility can print, file,
  * hand to an auditor and staple to a delivery note. It exists because KPLC
  * needs one document format across all of those subsystems, and because a
  * request that has not yet been decided has no home in any of them: today an
  * approval only becomes a record at the moment somebody approves it, so the
  * question "what is Peter waiting on?" cannot be answered.
- *
  * ONE ROW, TWO FACES. It opens as a REQUEST (status PENDING) and becomes a
  * CERTIFICATE when decided. The PDF route renders whichever face matches the
  * current status. That is deliberate: a real utility's approval certificate
  * carries the SAME reference number as the request that preceded it, so the
  * two can be filed together. Two tables would have produced two numbers.
- *
  * If this table and the authoritative record ever disagree, the authoritative
  * record wins and this one is the bug. That direction is stated here because a
  * document store that quietly becomes a decision store is how permission bugs
@@ -912,10 +942,14 @@ model ApprovalCounter {
 model ApprovalDocument {
   id String @id @default(cuid())
 
-  /** APR-2026-00042. Printed on the request and on the certificate. */
+  /**
+   * APR-2026-00042. Printed on the request and on the certificate.
+   */
   reference String @unique
 
-  /** An ApprovalAction key — see src/lib/approvals.ts, which is the catalog. */
+  /**
+   * An ApprovalAction key — see src/lib/approvals.ts, which is the catalog.
+   */
   action String
 
   transformerId String
@@ -932,13 +966,19 @@ model ApprovalDocument {
   requestedBy   User     @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
   requestedAt   DateTime @default(now())
 
-  /** Why the requester says it is needed. Printed on the request PDF. */
+  /**
+   * Why the requester says it is needed. Printed on the request PDF.
+   */
   justification String?
 
-  /** Free-text snapshot of the destination/purpose at request time. */
+  /**
+   * Free-text snapshot of the destination/purpose at request time.
+   */
   contextLabel String?
 
-  /** PENDING | APPROVED | REJECTED | WITHDRAWN | SUPERSEDED */
+  /**
+   * PENDING | APPROVED | REJECTED | WITHDRAWN | SUPERSEDED
+   */
   status String @default("PENDING")
 
   decidedById String?
@@ -1634,6 +1674,55 @@ model RepairRecord {
   repairSuccessful Boolean?
   failureReason    String? // "winding damage too extensive to rewind economically"
 
+  /**
+   * The bench state. QUEUED on arrival, IN_REPAIR once a technician starts,
+   * then REPAIRED or BEYOND_REPAIR when the outcome is recorded.
+   */
+  status WorkshopRepairStatus @default(QUEUED)
+
+  /**
+   * Which workshop, as a foreign key rather than the free-text name below.
+   * A workshop is a Store with kind = WORKSHOP, so this needs no second table.
+   * Having the key is what lets a STORE_MANAGER scoped to a workshop see their
+   * own bench and nobody else's — the same foreign-key scoping the role already
+   * uses everywhere else.
+   */
+  workshopStoreId String?
+  workshopStore   Store?  @relation("WorkshopRepairs", fields: [workshopStoreId], references: [id])
+
+  /**
+   * The person doing the work.
+   * A technician is an active user attached to a Store whose kind is WORKSHOP —
+   * see lib/workshop.ts. This is a real reference, not the free-text
+   * workshopTechnician below, so "who has too much on" is a query rather than a
+   * conversation.
+   */
+  technicianId String?
+  technician   User?   @relation("RepairTechnician", fields: [technicianId], references: [id])
+
+  /**
+   * When a technician was named. Distinct from when they actually started.
+   */
+  assignedAt DateTime?
+
+  /**
+   * When work actually began. The gap between assignedAt and startedAt is
+   * queue time that looks like repair time on every report that does not
+   * separate them.
+   */
+  startedAt DateTime?
+
+  /**
+   * NOTE: the completion timestamp is `repairCompletedAt` above, which already
+   * existed and is what every existing query, report and index uses. A second
+   * `completedAt` column meaning the same thing would be two fields that must
+   * agree forever, and they would stop agreeing the first time one write path
+   * missed one. There is one completion time, and it is repairCompletedAt.
+   */
+
+  /**
+   * Free text kept for records imported before technicianId existed.
+   */
   workshopTechnician String?
   notes              String?
 
@@ -1643,6 +1732,11 @@ model RepairRecord {
   @@index([transformerId, receivedAtWorkshop])
   @@index([repairSuccessful])
   @@index([repairCompletedAt])
+  @@index([status])
+  // "What is this technician holding right now" — the one-job-at-a-time rule
+  // is enforced by this lookup on every assignment.
+  @@index([technicianId, status])
+  @@index([workshopStoreId, status])
 }
 
 /**
@@ -1781,7 +1875,6 @@ model Allocation {
  */
 /**
  * Small, admin-editable settings that are not worth a table each.
- *
  * Currently one row, holding the QR access PIN. Stored as a HASH, never in
  * clear — a four-digit shared secret is weak enough already without also
  * sitting readable in the database and in every backup of it.
@@ -1789,7 +1882,9 @@ model Allocation {
 model AppSetting {
   id String @id @default("singleton")
 
-  /** bcrypt hash of the 4-digit PIN typed before the in-app QR scanner opens. */
+  /**
+   * bcrypt hash of the 4-digit PIN typed before the in-app QR scanner opens.
+   */
   qrAccessPinHash String?
 
   updatedAt   DateTime @updatedAt

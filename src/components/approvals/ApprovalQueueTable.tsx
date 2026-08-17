@@ -264,7 +264,7 @@ export function ApprovalQueueTable({ approvals }: { approvals: PendingApproval[]
             </div>
             <a
               href={`/api/pdf/approval/${a.id}`}
-              className="shrink-0 inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline"
+              className="shrink-0 inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-bold text-kplc hover:underline"
             >
               Request PDF
             </a>

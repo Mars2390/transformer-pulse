@@ -4,17 +4,21 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { RepairForm } from "@/components/store/RepairForm";
+import { TechnicianAssign } from "@/components/store/TechnicianAssign";
+import { listTechnicians } from "@/lib/workshop";
 
 export const metadata: Metadata = { title: "Record repair outcome" };
 export const dynamic = "force-dynamic";
 
 export default async function RepairPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole("STORE_KEEPER", "ADMIN");
+  await requireRole("STORE_KEEPER", "STORE_MANAGER", "ADMIN");
   const { id } = await params;
 
   const repair = await prisma.repairRecord.findUnique({
     where: { id },
     include: {
+      technician: { select: { id: true, name: true } },
+      workshopStore: { select: { id: true, name: true } },
       transformer: {
         select: {
           id: true, gNumber: true, serialNumber: true, ratingKva: true,
@@ -27,6 +31,8 @@ export default async function RepairPage({ params }: { params: Promise<{ id: str
   if (!repair) notFound();
 
   const t = repair.transformer;
+  const technicians = await listTechnicians(repair.workshopStoreId);
+  const started = repair.status === "IN_REPAIR";
 
   // A closed repair is history, not a form. Re-opening it to "correct" an
   // outcome would rewrite what the workshop said, and the chain event is
@@ -72,7 +78,24 @@ export default async function RepairPage({ params }: { params: Promise<{ id: str
         </h1>
       </div>
 
-      <RepairForm
+      {/* --- Who is doing the work ---------------------------------------- */}
+      <div className="rounded-2xl border border-line bg-white p-5">
+        <TechnicianAssign
+          repairId={repair.id}
+          assignedId={repair.technicianId}
+          started={started}
+          technicians={technicians.map((tech) => ({
+            id: tech.id,
+            name: tech.name,
+            available: tech.available,
+            activeJobs: tech.activeJobs,
+            currentJobLabel: tech.currentJob?.label ?? null,
+          }))}
+        />
+      </div>
+
+      {started ? (
+        <RepairForm
         repairId={repair.id}
         transformer={{
           id: t.id,
@@ -85,6 +108,13 @@ export default async function RepairPage({ params }: { params: Promise<{ id: str
           daysOnBench: Math.floor((Date.now() - repair.receivedAtWorkshop.getTime()) / 86_400_000),
         }}
       />
+      ) : (
+        <p className="rounded-2xl border border-line bg-surface-2 px-4 py-4 text-xs text-ink-soft">
+          The outcome form appears once work has started. An outcome recorded against a job nobody
+          opened is a repair with no named hands on it, and the confirmed fault cause — the most
+          useful field in this record — would have nobody standing behind it.
+        </p>
+      )}
     </div>
   );
 }

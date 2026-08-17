@@ -15,6 +15,8 @@ import { recordEvent } from "@/lib/events";
 
 const schema = z.object({
   transformerId: z.string().min(1),
+  /** The workshop as a Store id. Preferred over the free-text name below. */
+  workshopStoreId: z.string().min(1).optional(),
   workshopName: z.string().trim().max(120).optional(),
   faultCauseReported: z.string().trim().max(400).optional(),
   notes: z.string().trim().max(1000).optional(),
@@ -22,8 +24,31 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const actor = await requireApiRole("STORE_KEEPER", "ADMIN");
+    const actor = await requireApiRole("STORE_KEEPER", "STORE_MANAGER", "ADMIN");
     const input = schema.parse(await request.json().catch(() => null));
+
+    // Resolve the workshop to a real Store row when one was named, so the bench
+    // is scopeable. Falls back to the booking-in officer's own store, which for
+    // a workshop keeper is the workshop they are standing in.
+    const workshop = await prisma.store.findFirst({
+      where: {
+        kind: "WORKSHOP",
+        active: true,
+        ...(input.workshopStoreId
+          ? { id: input.workshopStoreId }
+          : actor.storeId
+            ? { id: actor.storeId }
+            : {}),
+      },
+      select: { id: true, name: true },
+    });
+
+    if (input.workshopStoreId && !workshop) {
+      return NextResponse.json(
+        { error: "That workshop does not exist, or is no longer active." },
+        { status: 422 },
+      );
+    }
 
     const tx = await prisma.transformer.findUnique({
       where: { id: input.transformerId },
@@ -54,24 +79,50 @@ export async function POST(request: Request) {
         type: "RECEIVED_AT_WORKSHOP",
         occurredAt: receivedAt,
         notes:
-          `Booked in at ${input.workshopName ?? "the workshop"}.` +
+          `Booked in at ${workshop?.name ?? input.workshopName ?? "the workshop"}.` +
           (input.faultCauseReported ? ` Reported fault: ${input.faultCauseReported}.` : ""),
       },
       actor,
     );
+
+    // Custody moves to the workshop.
+    //
+    // Without this the transformer is at a workshop by status but held by
+    // nobody by foreign key, and canMove() then refuses WORKSHOP_TO_STORE with
+    // "Not held at any store, so there is nothing for you to load" — a repaired
+    // unit that physically cannot be sent back to stock. Booking a unit in IS
+    // a change of custody, and the record has to say so.
+    if (workshop) {
+      await prisma.transformer.update({
+        where: { id: tx.id },
+        data: { currentStoreId: workshop.id },
+      });
+    }
 
     const repair = await prisma.repairRecord.create({
       data: {
         transformerId: tx.id,
         lifecycleEventId: event.eventId,
         receivedAtWorkshop: receivedAt,
-        workshopName: input.workshopName ?? null,
+        // Arrives in the queue. Nobody is working on it until somebody says so —
+        // which is the whole point of the bench status existing.
+        status: "QUEUED",
+        workshopStoreId: workshop?.id ?? null,
+        workshopName: workshop?.name ?? input.workshopName ?? null,
         faultCauseReported: input.faultCauseReported ?? null,
         notes: input.notes ?? null,
       },
     });
 
-    return NextResponse.json({ repairId: repair.id, eventId: event.eventId }, { status: 201 });
+    return NextResponse.json(
+      {
+        repairId: repair.id,
+        eventId: event.eventId,
+        status: "QUEUED",
+        workshop: workshop ? { id: workshop.id, name: workshop.name } : null,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     return apiError(error);
   }

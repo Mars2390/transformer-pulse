@@ -101,7 +101,7 @@ function LayerToggle({ layer, setLayer }: { layer: BaseLayer; setLayer: (l: Base
           <button
             key={o.key}
             onClick={() => setLayer(o.key)}
-            className={`px-2.5 py-1.5 transition-colors ${
+            className={`inline-flex min-h-11 items-center px-3 transition-colors ${
               layer === o.key ? "bg-[#0a1a4f] text-white" : "text-[#0a1a4f] hover:bg-black/5"
             }`}
           >
