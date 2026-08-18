@@ -30,3 +30,23 @@ export function assertSameOrigin(request: Request): boolean {
     return false;
   }
 }
+
+/**
+ * The same Origin rule as assertSameOrigin(), for callers holding a Headers bag
+ * rather than a Request. requireApiUser() reads next/headers, so it has headers
+ * and no Request; same rule, same reasoning, different input.
+ *
+ * It returns a boolean like its sibling rather than throwing, which keeps this
+ * file free of imports and so unable to form a cycle with auth.ts. The caller
+ * decides what a false is worth.
+ */
+export function assertSameOriginFromHeaders(h: Headers): boolean {
+  const origin = h.get("origin");
+  if (!origin) return true; // Same-origin form posts and server-to-server calls send none.
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false; // An unparseable Origin is not this site.
+  }
+}
