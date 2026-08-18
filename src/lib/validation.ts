@@ -92,9 +92,16 @@ export const createUserSchema = z.object({
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 
 /**
- * Kenyan number plates: three letters, three digits, optional trailing letter
- * (KDG 456T, KAA 123A). Normalised to uppercase with no spaces, so "kdg 456t"
- * and "KDG456T" are stored identically and a search finds both.
+ * Kenyan number plates: three letters, three digits, one trailing letter —
+ * seven characters, KDA 123A. Spaces and hyphens are how people write them, not
+ * part of the plate, so they are stripped before counting and the stored form is
+ * always the seven characters.
+ *
+ * The trailing letter is now REQUIRED where it used to be optional. A six-
+ * character plate was accepted and then never matched the vehicle it was typed
+ * for, because current civilian series all carry it. GK and diplomatic plates do
+ * not follow this pattern; if those ever enter the fleet this rule needs a branch,
+ * not a loosening.
  */
 export const vehiclePlateField = z
   .string()
@@ -104,13 +111,31 @@ export const vehiclePlateField = z
   .pipe(
     z
       .string()
-      .regex(/^K[A-Z]{2}\d{3}[A-Z]?$/, "Enter a valid Kenyan plate, e.g. KDG 456T."),
+      .length(
+        7,
+        "A number plate is 7 characters — 3 letters, 3 digits, 1 letter, e.g. KDA 123A. Spaces don't count.",
+      )
+      .regex(/^K[A-Z]{2}\d{3}[A-Z]$/, "That isn't a Kenyan plate. It should read like KDA 123A."),
   );
 
+/**
+ * A Kenyan mobile number is ten digits: 0 then 7 or 1 then eight more.
+ *
+ * +254 is the same number written for an international dialler, so it is folded
+ * to the local form rather than rejected — a driver reading his own phone back
+ * often reads the +254. One stored shape means a search finds the number however
+ * it was typed.
+ */
 export const kenyanPhoneField = z
   .string()
   .trim()
-  .regex(/^(\+254|0)[17]\d{8}$/, "Enter a valid Kenyan number, e.g. 0722123456.");
+  .transform((v) => v.replace(/[\s-]/g, "").replace(/^\+?254/, "0"))
+  .pipe(
+    z
+      .string()
+      .length(10, "A phone number is 10 digits, e.g. 0722123456. You have entered too many.")
+      .regex(/^0[17]\d{8}$/, "That isn't a Kenyan mobile number. It starts 07 or 01, e.g. 0722123456."),
+  );
 
 /** G-Number: G-YYYY-NNNNN. Accepts sloppy input, stores one canonical form. */
 export const gNumberField = z
@@ -552,6 +577,8 @@ export const transactionDecisionSchema = z
       .max(200, "Decide at most 200 at a time."),
     decision: z.enum(["APPROVE", "REJECT"]),
     reason: z.string().trim().max(300).optional().or(z.literal("")),
+    // Spent again at the moment of signature — see requirePinConfirmation().
+    pin: pinField,
   })
   .refine((v) => v.decision !== "REJECT" || (v.reason && v.reason.trim().length >= 3), {
     message: "Say why it is being refused. A rejection with no reason cannot be acted on.",
@@ -678,6 +705,8 @@ export const approvalDecideSchema = z
       .max(200, "Decide at most 200 at a time."),
     decision: z.enum(["APPROVE", "REJECT"]),
     notes: z.string().trim().max(600).optional().or(z.literal("")),
+    // Spent again at the moment of signature — see requirePinConfirmation().
+    pin: pinField,
   })
   .refine((v) => v.decision !== "REJECT" || (v.notes && v.notes.trim().length >= 3), {
     message: "Say why it is being refused. A rejection with no reason cannot be acted on.",

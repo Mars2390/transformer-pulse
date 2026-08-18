@@ -26,6 +26,8 @@ export async function GET() {
             id: true, hash: true, prevHash: true, transformerId: true,
             type: true, toStatus: true, userId: true, occurredAt: true,
             lat: true, lng: true, vehiclePlate: true, driverName: true, notes: true,
+            // v2 hashes fromStatus, and verifyChain reads the version off the row.
+            fromStatus: true, hashVersion: true,
           },
         },
       },

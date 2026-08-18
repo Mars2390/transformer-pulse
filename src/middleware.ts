@@ -29,6 +29,27 @@ function isProtected(pathname: string): boolean {
   );
 }
 
+/**
+ * Publishes the method and the path as request headers.
+ *
+ * headers() inside a route hands back the REQUEST headers, so anything a route
+ * needs to know about the request that is not already a header has to be put
+ * there by the only code that runs first. The perimeter in requireApiUser()
+ * needs the method to decide whether the Origin rule applies, and the path to
+ * log which route was throttled.
+ *
+ * Both are always overwritten, never merged, so a client cannot pre-set them.
+ * Every NextResponse.next() in this file goes through here — including the
+ * fail-safe in the catch — because a request that arrives unannotated is one
+ * whose Origin the perimeter would not check.
+ */
+function annotate(request: NextRequest, pathname: string) {
+  const forward = new Headers(request.headers);
+  forward.set("x-http-method", request.method);
+  forward.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers: forward } });
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -37,12 +58,29 @@ export async function middleware(request: NextRequest) {
       request.cookies.get(SESSION_COOKIE)?.value,
     );
 
-    // Already signed in and heading to /login? Send them where they belong.
+    // Already signed in and heading to /login? Send them where they belong —
+    // UNLESS requireUser() sent them here because their session is dead.
+    //
+    // This branch trusts the token, which is all Edge can check. A token whose
+    // UserSession row has been revoked or timed out still verifies, so without the
+    // ?expired=1 marker this redirect fought requireUser() forever: here to the
+    // dashboard, dashboard back to here, until the browser stopped and rendered a
+    // white page. That was the white screen, and every user met it once the
+    // thirty-minute idle timeout or the three-session cap caught up with them.
+    //
+    // On the marker we do the opposite of redirecting: let the login page render,
+    // and take the dead cookie off them on the way through, so the next request
+    // starts clean instead of walking back into the same trap.
     if (pathname === "/login" && session) {
+      if (request.nextUrl.searchParams.has("expired")) {
+        const response = annotate(request, pathname);
+        response.cookies.delete(SESSION_COOKIE);
+        return response;
+      }
       return NextResponse.redirect(new URL(roleHome(session.role), request.url));
     }
 
-    if (!isProtected(pathname)) return NextResponse.next();
+    if (!isProtected(pathname)) return annotate(request, pathname);
 
     // Not signed in — remember where they were going, then send them to login.
     if (!session) {
@@ -62,7 +100,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL(roleHome(session.role), request.url));
     }
 
-    return NextResponse.next();
+    return annotate(request, pathname);
   } catch (error) {
     // A throw in Edge middleware returns MIDDLEWARE_INVOCATION_FAILED for the
     // WHOLE SITE — the landing page included, which needs no session at all.
@@ -76,12 +114,15 @@ export async function middleware(request: NextRequest) {
     if (isProtected(pathname)) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-    return NextResponse.next();
+    return annotate(request, pathname);
   }
 }
 
 export const config = {
-  // Skip Next internals, the API (routes guard themselves, and must return 401
-  // JSON rather than a redirect), and static files.
-  matcher: ["/((?!api|_next/static|_next/image|images|favicon.ico|.*\\.png$).*)"],
+  // The API is no longer excluded. Middleware never redirects an API request —
+  // isProtected() covers page prefixes only, so an API path falls straight
+  // through to annotate() — but it does have to run there, because the method
+  // and path headers the perimeter reads can only be set by the layer that runs
+  // before the route. Next internals and static files stay out.
+  matcher: ["/((?!_next/static|_next/image|images|favicon.ico|.*\\.png$).*)"],
 };

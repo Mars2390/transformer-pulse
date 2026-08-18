@@ -7,7 +7,7 @@ import { parseEmdisBlocks, normaliseSerialForMatch, type EmdisBlock } from "./em
 import { parseFlatTable, headerSignature } from "./flat-import";
 import { mapColumns, detectFormat, type CanonField, type ColumnMapping, type FormatDetection } from "./universal-columns";
 import { analyseReading, ratedPhaseCurrent, NOMINAL_VLL, LIMITS } from "./load-analysis";
-import { computeEventHash } from "./chain";
+import { computeEventHash, CURRENT_HASH_VERSION } from "./chain";
 import { refreshCachedScores } from "./combined-health";
 import { deriveHealthStatus } from "./health-status";
 
@@ -629,6 +629,7 @@ async function writeLoadCheckEvent(
   const hash = computeEventHash(t.lastEventHash, {
     transformerId,
     type: "LOAD_CHECK_RECORDED",
+    fromStatus: t.status,
     toStatus: "IN_FIELD",
     userId,
     occurredAt,
@@ -646,6 +647,7 @@ async function writeLoadCheckEvent(
         occurredAt,
         notes,
         hash,
+        hashVersion: CURRENT_HASH_VERSION,
         prevHash: t.lastEventHash,
       },
     });

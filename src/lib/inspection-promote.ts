@@ -1,7 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "./prisma";
-import { computeEventHash } from "./chain";
+import { computeEventHash, CURRENT_HASH_VERSION } from "./chain";
 
 /**
  * Promoting staged inspections into real transformers.
@@ -301,6 +301,7 @@ export async function promoteUnits(
         const hash = computeEventHash(null, {
           transformerId: created.id,
           type: "ONBOARDED_EXISTING",
+          fromStatus: null,
           toStatus: "IN_FIELD",
           userId: actor.id,
           occurredAt,
@@ -318,6 +319,7 @@ export async function promoteUnits(
             locationName: unit.locationNote ?? unit.substationName,
             notes,
             hash,
+            hashVersion: CURRENT_HASH_VERSION,
             prevHash: null,
           },
         });

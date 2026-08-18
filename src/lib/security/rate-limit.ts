@@ -29,15 +29,46 @@ export type RateLimitRule = {
   windowSeconds: number;
 };
 
-/** The tuned rules. Anything not listed falls back to GENERIC. */
+/**
+ * The tuned rules. Anything not listed falls back to GENERIC.
+ *
+ * THESE CEILINGS ARE SET FOR AN ATTACK, NOT FOR A BUSY DAY.
+ *
+ * LOGIN was 5 per 15 minutes keyed on the IP address alone, and it counted every
+ * attempt including the SUCCESSFUL ones. Two consequences, both bad:
+ *
+ *   A store where six keepers share one office connection ran out of sign-ins
+ *   before the last two had started work.
+ *
+ *   Anyone testing roles, or simply signing in and out through the morning, was
+ *   refused on the sixth try while typing an entirely correct PIN.
+ *
+ * Neither is the attack this was aimed at, and a control that stops the work it
+ * was meant to protect gets switched off wholesale — which is a far worse outcome
+ * than a generous limit. So the ceiling is now high enough that no human being
+ * reaches it, and low enough to still cap a script.
+ *
+ * What actually stops PIN guessing is UNCHANGED and is the stronger control:
+ * MAX_FAILED_ATTEMPTS locks the ACCOUNT after five wrong PINs, per account, no
+ * matter which address they come from, and progressiveDelayMs() makes each
+ * attempt cost real wall-clock time. This table is only the outer bound.
+ */
 export const RATE_LIMITS = {
-  LOGIN: { name: "login", limit: 5, windowSeconds: 15 * 60 },
+  // 1000 per 15 minutes: roughly one sign-in per second, sustained. A shift
+  // handover on a shared connection cannot reach it. A scripted run does.
+  LOGIN: { name: "login", limit: 1000, windowSeconds: 15 * 60 },
   PIN: { name: "pin", limit: 5, windowSeconds: 15 * 60 },
   APPROVAL_PIN: { name: "approval-pin", limit: 5, windowSeconds: 15 * 60 },
   REPORTS: { name: "reports", limit: 20, windowSeconds: 60 * 60 },
   UPLOADS: { name: "uploads", limit: 10, windowSeconds: 60 * 60 },
   SEARCH: { name: "search", limit: 30, windowSeconds: 60 },
-  GENERIC: { name: "generic", limit: 60, windowSeconds: 60 },
+  // GENERIC is charged on EVERY authenticated API call by the perimeter in
+  // requireApiUser(). At 60 a minute a single dashboard opening several panels at
+  // once could spend a visible share of the budget, and the person would be
+  // refused for using the application normally. 1200 a minute is twenty requests
+  // a second from one signed-in user on one address: unreachable by hand,
+  // and still a ceiling.
+  GENERIC: { name: "generic", limit: 1200, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitVerdict = {

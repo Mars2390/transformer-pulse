@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/auth";
+import { requirePinConfirmation } from "@/lib/security/step-up";
 import { apiError } from "@/lib/api";
 import { writeAudit } from "@/lib/audit";
 import { transactionDecisionSchema } from "@/lib/validation";
@@ -29,6 +30,9 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     const input = transactionDecisionSchema.parse(body);
+
+    // Before the loop, so a wrong PIN refuses the whole batch rather than half of it.
+    await requirePinConfirmation(actor.id, input.pin);
     const isApprove = input.decision === "APPROVE";
     const reason = input.reason?.trim() || null;
 

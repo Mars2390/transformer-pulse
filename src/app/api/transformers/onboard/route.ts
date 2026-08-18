@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/auth";
 import { apiError } from "@/lib/api";
-import { computeEventHash } from "@/lib/chain";
+import { computeEventHash, CURRENT_HASH_VERSION } from "@/lib/chain";
 import { onboardTransformerSchema } from "@/lib/validation";
 import { DATA_SOURCE_META } from "@/lib/format";
 
@@ -136,6 +136,7 @@ export async function POST(request: Request) {
       const hash = computeEventHash(null, {
         transformerId: created.id,
         type: "ONBOARDED_EXISTING",
+        fromStatus: null,
         toStatus: "IN_FIELD",
         userId: actor.id,
         occurredAt,
@@ -157,6 +158,7 @@ export async function POST(request: Request) {
           locationName: input.locationDescription,
           notes,
           hash,
+          hashVersion: CURRENT_HASH_VERSION,
           prevHash: null,
         },
       });

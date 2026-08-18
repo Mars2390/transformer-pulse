@@ -159,15 +159,24 @@ export function DispatchForm({
             htmlFor="vehiclePlate"
             required
             error={fields.vehiclePlate}
-            hint="Kenyan format, e.g. KDG 456T"
+            hint={`${plate.replace(/\s/g, "").length}/7 characters — e.g. KDA 123A`}
           >
             <input
               id="vehiclePlate"
               name="vehiclePlate"
               required
               value={plate}
-              onChange={(e) => setPlate(e.target.value.toUpperCase())}
-              placeholder="KDG 456T"
+              // Seven characters, and the space is presentation: typing is capped
+              // at seven real characters while the space is re-inserted for
+              // reading, so the box shows KDA 123A and sends KDA123A.
+              onChange={(e) => {
+                const raw = e.target.value
+                  .toUpperCase()
+                  .replace(/[^A-Z0-9]/g, "")
+                  .slice(0, 7);
+                setPlate(raw.length > 3 ? `${raw.slice(0, 3)} ${raw.slice(3)}` : raw);
+              }}
+              placeholder="KDA 123A"
               className={`${inputClass} font-mono uppercase`}
             />
           </Field>
@@ -176,8 +185,25 @@ export function DispatchForm({
             <input id="driverName" name="driverName" required placeholder="Peter Mwangi" className={inputClass} />
           </Field>
 
-          <Field label="Driver phone" htmlFor="driverPhone" error={fields.driverPhone}>
-            <input id="driverPhone" name="driverPhone" inputMode="tel" placeholder="0722123456" className={inputClass} />
+          <Field label="Driver phone" htmlFor="driverPhone" error={fields.driverPhone} hint="10 digits, e.g. 0722123456">
+            <input
+              id="driverPhone"
+              name="driverPhone"
+              inputMode="numeric"
+              maxLength={10}
+              // Ten digits is the whole number, so the eleventh keystroke is
+              // always a mistake. This box is uncontrolled, so the value is
+              // corrected in place rather than through state — same rule the
+              // server applies, applied at the keyboard instead of after a round
+              // trip.
+              onChange={(e) => {
+                e.currentTarget.value = e.currentTarget.value
+                  .replace(/\D/g, "")
+                  .slice(0, 10);
+              }}
+              placeholder="0722123456"
+              className={inputClass}
+            />
           </Field>
         </div>
 
