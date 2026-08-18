@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { AuthError } from "./auth";
+import { AuthError, TooManyRequestsError } from "./auth";
 import { LifecycleError } from "./events";
 import { fieldErrors } from "./validation";
 
@@ -10,6 +10,15 @@ import { fieldErrors } from "./validation";
  */
 
 export function apiError(error: unknown): NextResponse {
+  // Above the AuthError branch: a throttled caller needs the Retry-After that
+  // tells it when to come back, and AuthError has no room for a 429.
+  if (error instanceof TooManyRequestsError) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: 429, headers: { "Retry-After": String(error.retryAfterSeconds) } },
+    );
+  }
+
   if (error instanceof AuthError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
