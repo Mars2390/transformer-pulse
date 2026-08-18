@@ -79,10 +79,35 @@ export async function getSession(): Promise<SessionUser | null> {
   return user;
 }
 
-/** For pages: returns the user, or sends them to the login page. */
+/**
+ * For pages: returns the user, or sends them to the login page.
+ *
+ * THE WHITE SCREEN.
+ *
+ * getSession() answers no in two very different situations, and until now both
+ * redirected to the same place. A visitor with no cookie at all needs the login
+ * form. A visitor whose cookie STILL VERIFIES but whose UserSession row is gone —
+ * idle past thirty minutes, revoked by the three-session cap when they signed in
+ * somewhere else, or ended by a PIN change — needs the login form AND needs that
+ * dead cookie taken off them.
+ *
+ * Sending the second case to a bare /login produced an infinite redirect, because
+ * middleware verifies the token and nothing else: the token verified, so
+ * middleware bounced them to their dashboard, the dashboard called this function,
+ * this function sent them back to /login, and round it went until the browser gave
+ * up and painted nothing. That is the white screen, and note what it is NOT — it
+ * is not the rate limiter, which returns a red "too many requests" message the
+ * login form displays perfectly well.
+ *
+ * So the two cases are now told apart by whether a cookie was presented at all,
+ * and the stale case is marked with ?expired=1. Middleware reads that marker,
+ * stops redirecting, and clears the cookie. The loop cannot form.
+ */
 export async function requireUser(): Promise<SessionUser> {
+  const store = await cookies();
+  const hadToken = Boolean(store.get(SESSION_COOKIE)?.value);
   const user = await getSession();
-  if (!user) redirect("/login");
+  if (!user) redirect(hadToken ? "/login?expired=1" : "/login");
   return user;
 }
 
