@@ -170,7 +170,7 @@ export function TransactionApprovals({ movements }: { movements: PendingMovement
             </div>
             <Link
               href={`/transactions/${m.id}`}
-              className="shrink-0 text-xs font-bold text-kplc hover:underline"
+              className="shrink-0 inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline"
             >
               Details
             </Link>

@@ -94,7 +94,7 @@ export function AlertsPanel() {
               <div className="mt-2.5 flex items-center gap-3">
                 <Link
                   href={`/transformers/${alert.transformerId}`}
-                  className="text-[11px] font-bold text-kplc hover:underline"
+                  className="inline-flex min-h-11 items-center text-[11px] font-bold text-kplc hover:underline"
                 >
                   View transformer →
                 </Link>

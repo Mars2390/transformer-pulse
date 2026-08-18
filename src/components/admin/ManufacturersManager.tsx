@@ -29,7 +29,7 @@ export function ManufacturersManager({ manufacturers }: { manufacturers: AdminMa
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="rounded-xl bg-kplc px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
+          className="inline-flex min-h-11 items-center rounded-xl bg-kplc px-4 text-sm font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
         >
           + Add manufacturer
         </button>
@@ -58,7 +58,7 @@ export function ManufacturersManager({ manufacturers }: { manufacturers: AdminMa
                 <td className="px-4 py-3 font-semibold text-navy">{m.transformerCount}</td>
                 <td className="px-4 py-3">{m.claimCount > 0 ? <Badge tone="warning">{m.claimCount}</Badge> : <span className="text-ink-soft">—</span>}</td>
                 <td className="px-4 py-3 text-right">
-                  <button type="button" onClick={() => setEditing(m)} className="rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-bold text-navy hover:border-kplc hover:text-kplc">Edit</button>
+                  <button type="button" onClick={() => setEditing(m)} className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-[11px] font-bold text-navy hover:border-kplc hover:text-kplc">Edit</button>
                 </td>
               </tr>
             ))}

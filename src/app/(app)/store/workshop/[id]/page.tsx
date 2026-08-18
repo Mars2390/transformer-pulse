@@ -34,7 +34,7 @@ export default async function RepairPage({ params }: { params: Promise<{ id: str
   if (repair.repairCompletedAt) {
     return (
       <div className="mx-auto max-w-lg space-y-4">
-        <Link href="/store/workshop" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/store/workshop" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← Workshop
         </Link>
         <div className="rounded-2xl border border-line bg-white p-6">
@@ -52,7 +52,7 @@ export default async function RepairPage({ params }: { params: Promise<{ id: str
           </p>
           <Link
             href={`/transformers/${t.id}`}
-            className="mt-4 inline-block rounded-lg bg-kplc px-4 py-2 text-xs font-bold text-white"
+            className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-kplc px-4 text-xs font-bold text-white"
           >
             View full story
           </Link>
@@ -64,7 +64,7 @@ export default async function RepairPage({ params }: { params: Promise<{ id: str
   return (
     <div className="mx-auto max-w-lg space-y-5">
       <div>
-        <Link href="/store/workshop" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/store/workshop" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← Workshop
         </Link>
         <h1 className="mt-2 text-xl font-extrabold tracking-tight text-navy">

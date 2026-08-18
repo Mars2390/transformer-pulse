@@ -62,7 +62,7 @@ export default async function WorkshopPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/store/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+          <Link href="/store/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
             ← Store
           </Link>
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Workshop</h1>

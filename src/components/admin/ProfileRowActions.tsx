@@ -22,7 +22,7 @@ export function ProfileRowActions({ id, name }: { id: string; name: string }) {
     return (
       <button
         onClick={() => setConfirming(true)}
-        className="text-xs font-bold text-red-700 hover:underline"
+        className="inline-flex min-h-11 items-center px-2 text-xs font-bold text-red-700 hover:underline"
       >
         Delete profile
       </button>
@@ -32,10 +32,10 @@ export function ProfileRowActions({ id, name }: { id: string; name: string }) {
   return (
     <span className="flex items-center gap-2 text-xs">
       <span className="text-ink-soft">Delete “{name}”?</span>
-      <button onClick={remove} disabled={busy} className="font-bold text-red-700 hover:underline disabled:opacity-50">
+      <button onClick={remove} disabled={busy} className="inline-flex min-h-11 items-center px-2 font-bold text-red-700 hover:underline disabled:opacity-50">
         {busy ? "Deleting…" : "Yes, delete"}
       </button>
-      <button onClick={() => setConfirming(false)} className="text-ink-soft hover:underline">Cancel</button>
+      <button onClick={() => setConfirming(false)} className="inline-flex min-h-11 items-center px-2 text-ink-soft hover:underline">Cancel</button>
     </span>
   );
 }

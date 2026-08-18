@@ -107,14 +107,14 @@ export function AppShell({
             onClick={() => setOpen(true)}
             aria-label="Open menu"
             aria-expanded={open}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-navy hover:bg-surface-2 lg:hidden"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-navy hover:bg-surface-2 lg:hidden"
           >
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
             </svg>
           </button>
 
-          <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5">
+          <Link href="/dashboard" className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2.5">
             <KplcMark className="h-9 w-9" />
             <span className="hidden text-[15px] font-extrabold tracking-tight text-navy sm:block">
               Transformer<span className="text-gold">DNA</span>
@@ -151,7 +151,7 @@ export function AppShell({
               </p>
             </div>
             <span
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-kplc text-xs font-bold text-white"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-kplc text-xs font-bold text-white"
               aria-hidden="true"
             >
               {user.initials}
@@ -195,7 +195,7 @@ export function AppShell({
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close menu"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-surface-2"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-surface-2"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />

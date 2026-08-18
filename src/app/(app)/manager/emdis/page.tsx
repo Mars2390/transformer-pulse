@@ -15,7 +15,7 @@ export default async function EmdisPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/manager/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/manager/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← Dashboard
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Load data</h1>

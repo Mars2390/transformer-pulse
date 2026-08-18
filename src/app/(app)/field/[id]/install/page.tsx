@@ -40,7 +40,7 @@ export default async function InstallPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto max-w-2xl">
-      <Link href="/field/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+      <Link href="/field/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
         ← My work
       </Link>
       <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-navy">Install transformer</h1>

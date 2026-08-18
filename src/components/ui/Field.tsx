@@ -2,8 +2,9 @@
 
 /** Form primitives. One place to change how every input in the app looks. */
 
-export const inputClass =
-  "w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-navy outline-none transition-colors placeholder:text-ink-soft/45 focus:border-kplc focus:ring-4 focus:ring-kplc/10 disabled:bg-surface-2 disabled:text-ink-soft";
+// Re-exported so existing client imports keep working unchanged.
+import { inputClass } from "./input-class";
+export { inputClass };
 
 export function Field({
   label,

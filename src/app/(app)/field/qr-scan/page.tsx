@@ -14,7 +14,7 @@ export default async function QrScanPage() {
   return (
     <div className="mx-auto max-w-md space-y-5 pb-24">
       <div>
-        <Link href="/field/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/field/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← My work
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Scan a tag</h1>

@@ -104,7 +104,7 @@ export function AlertBell() {
         }}
         aria-label={`${badge} notifications`}
         aria-expanded={open}
-        className="relative grid h-9 w-9 place-items-center rounded-lg text-ink-soft transition-colors hover:bg-surface-2 hover:text-navy"
+        className="relative grid h-11 w-11 place-items-center rounded-lg text-ink-soft transition-colors hover:bg-surface-2 hover:text-navy"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5" aria-hidden="true">
           <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />

@@ -231,7 +231,7 @@ export function BatchApprovals({ batches }: { batches: PendingBatch[] }) {
             <button
               type="button"
               onClick={() => setOpenId(openId === b.id ? null : b.id)}
-              className="mt-2 text-xs font-bold text-kplc hover:underline"
+              className="mt-2 inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline"
             >
               {openId === b.id ? "Hide" : "Show"} the {b.entered} units
             </button>

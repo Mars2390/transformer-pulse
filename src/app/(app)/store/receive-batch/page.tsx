@@ -17,7 +17,7 @@ export default async function ReceiveBatchPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div>
-        <Link href="/store/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/store/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← Store
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Receive a batch</h1>

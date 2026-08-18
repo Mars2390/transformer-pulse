@@ -25,7 +25,7 @@ export default async function FieldOnboardPage() {
 
   return (
     <div className="mx-auto max-w-lg pb-20">
-      <Link href="/field/dashboard" className="text-xs font-bold text-ink-soft transition-colors hover:text-kplc">
+      <Link href="/field/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft transition-colors hover:text-kplc">
         ← My work
       </Link>
 

@@ -52,7 +52,7 @@ export default async function DispatchPage({
   if (!intake || !intake.passed) {
     return (
       <div className="mx-auto max-w-2xl">
-        <Link href="/store/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/store/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← Store
         </Link>
         <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-6">
@@ -79,7 +79,7 @@ export default async function DispatchPage({
 
   return (
     <div className="mx-auto max-w-4xl">
-      <Link href="/store/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+      <Link href="/store/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
         ← Store
       </Link>
 

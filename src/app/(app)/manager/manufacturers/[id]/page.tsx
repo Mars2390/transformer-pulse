@@ -33,7 +33,7 @@ export default async function ManufacturerDetailPage({ params }: { params: Promi
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/manager/manufacturers" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/manager/manufacturers" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← Manufacturer performance
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">{manufacturer.name}</h1>

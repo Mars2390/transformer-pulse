@@ -9,21 +9,40 @@ import { computeThermal, LIMIT_HOTSPOT_C, LIMIT_TOP_OIL_C } from "@/lib/transfor
 import { ROLE_LABELS } from "@/lib/format";
 
 /**
- * GET /api/pdf/control-report — the 24-hour monitoring report.
+ * GET /api/pdf/control-report?dataset=<id> — the 24-hour monitoring report.
  *
  * Recomputes the whole day server-side from the stored readings rather than
  * taking numbers from the browser: the report has to stand on its own, and a
  * client-supplied figure is not evidence.
+ *
+ * `dataset` is honoured. It used to be accepted and ignored — the route always
+ * used the ACTIVE dataset — so choosing an older upload and exporting it handed
+ * you a different day's report with nothing on the page saying so. A report
+ * that silently answers a question you did not ask is worse than an error.
  */
 
 const AMBIENT_C = 28;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requireApiRole("MANAGER", "ADMIN");
 
-    const dataset = await prisma.meterDataset.findFirst({ where: { active: true } });
-    if (!dataset) return NextResponse.json({ error: "No meter data loaded." }, { status: 404 });
+    const requestedId = new URL(request.url).searchParams.get("dataset");
+
+    const dataset = requestedId
+      ? await prisma.meterDataset.findUnique({ where: { id: requestedId } })
+      : await prisma.meterDataset.findFirst({ where: { active: true } });
+
+    if (!dataset) {
+      return NextResponse.json(
+        {
+          error: requestedId
+            ? "That meter dataset no longer exists. It may have been deleted since the page was loaded."
+            : "No meter data loaded.",
+        },
+        { status: 404 },
+      );
+    }
 
     // Aggregate per interval in SQL — pulling 96,000 rows into Node to sum them
     // would be slow and pointless.
@@ -53,6 +72,25 @@ export async function GET() {
       };
     });
 
+    // A dataset row can exist with no readings behind it — an upload that
+    // parsed to zero rows leaves exactly that. Without this guard `rows[0]` is
+    // undefined, the reduce returns undefined, and the first `peak.kva` below
+    // throws, which surfaced as a bare HTTP 500.
+    //
+    // The honest answer is the same 404 this route already gives when there is
+    // no dataset at all, worded so an operator can tell the two apart. A
+    // 24-hour monitoring report with nothing measured is not a document worth
+    // handing anybody.
+    if (rows.length === 0) {
+      return NextResponse.json(
+        {
+          error: `"${dataset.name}" has no meter readings, so there is nothing to report on. Re-upload the interval file — the last upload parsed to zero rows.`,
+        },
+        { status: 404 },
+      );
+    }
+
+    // Safe: rows.length > 0 is established above.
     const peak = rows.reduce((a, b) => (b.kva > a.kva ? b : a), rows[0]);
     const overloads = rows.filter((r) => r.kva > dataset.ratingKva);
     const hotspotBreaches = rows.filter((r) => r.thermal.hotspotC > LIMIT_HOTSPOT_C);

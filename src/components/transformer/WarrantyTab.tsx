@@ -142,7 +142,7 @@ export function WarrantyTab({
           </ul>
           <Link
             href="/manager/warranty"
-            className="block border-t border-line px-5 py-3 text-xs font-bold text-kplc hover:underline"
+            className="block border-t border-line px-5 py-3 inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline"
           >
             Manage claims →
           </Link>

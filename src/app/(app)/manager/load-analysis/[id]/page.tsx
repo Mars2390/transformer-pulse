@@ -53,7 +53,7 @@ export default async function LoadAnalysisPage({
     <div className="space-y-6">
       {/* --- Header --------------------------------------------------------- */}
       <div>
-        <Link href="/manager/emdis" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/manager/emdis" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← Load data
         </Link>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">

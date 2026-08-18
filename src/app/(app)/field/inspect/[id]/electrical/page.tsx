@@ -39,7 +39,7 @@ export default async function ElectricalTestPage({
   return (
     <div className="mx-auto max-w-lg space-y-5">
       <div>
-        <Link href={`/transformers/${tx.id}`} className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href={`/transformers/${tx.id}`} className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← {label}
         </Link>
         <h1 className="mt-2 text-xl font-extrabold tracking-tight text-navy">

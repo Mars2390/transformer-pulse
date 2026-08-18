@@ -133,7 +133,7 @@ export function OnboardExisting({
             <h1 className="text-base font-extrabold tracking-tight text-navy">Onboard existing transformer</h1>
             <p className="text-[11px] text-ink-soft">Already on a pole — not passing through the store.</p>
           </div>
-          <Link href="/store/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+          <Link href="/store/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
             Close
           </Link>
         </div>
@@ -276,7 +276,7 @@ export function OnboardExisting({
 }
 
 const inputCls =
-  "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-kplc";
+  "min-h-11 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-kplc";
 
 function Field({
   label, hint, error, children,

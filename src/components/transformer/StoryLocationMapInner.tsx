@@ -141,7 +141,7 @@ export default function StoryLocationMapInner({
         <span className="font-mono text-xs text-ink-soft">
           {lat.toFixed(5)}, {lng.toFixed(5)}
         </span>
-        <button onClick={locate} className="text-xs font-bold text-kplc hover:underline">
+        <button onClick={locate} className="inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline">
           📍 Navigate to this transformer
         </button>
       </div>

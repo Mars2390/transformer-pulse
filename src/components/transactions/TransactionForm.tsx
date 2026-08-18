@@ -94,7 +94,14 @@ export function TransactionForm({
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [driverName, setDriverName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
-  const [presentEngineerId, setPresentEngineerId] = useState("");
+  // Preselect the signed-in user when they are themselves one of the active
+  // field engineers. On /field/recover that is the whole story — the person
+  // filling the form is the person standing at the pole — and making them
+  // pick their own name off a list is friction for nothing. A store keeper
+  // or manager is never in this list, so for them it correctly stays blank.
+  const [presentEngineerId, setPresentEngineerId] = useState(() =>
+    actor.id && engineers.some((e) => e.id === actor.id) ? actor.id : "",
+  );
   const [engineerQuery, setEngineerQuery] = useState("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
@@ -262,12 +269,14 @@ export function TransactionForm({
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-xs font-semibold text-ink-soft">
+          {/* min-h-11 on the LABEL, not the box: the tick stays visually small
+              while the whole "Only show ones I can move now" strip is tappable. */}
+          <label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-ink-soft">
             <input
               type="checkbox"
               checked={onlyEligible}
               onChange={(e) => setOnlyEligible(e.target.checked)}
-              className="h-4 w-4"
+              className="h-5 w-5"
             />
             Only show ones I can move now
           </label>
@@ -275,7 +284,7 @@ export function TransactionForm({
             type="button"
             onClick={selectAllShown}
             disabled={eligibleCount === 0}
-            className="text-xs font-bold text-kplc hover:underline disabled:text-ink-soft disabled:no-underline"
+            className="inline-flex min-h-11 items-center px-2 text-xs font-bold text-kplc hover:underline disabled:text-ink-soft disabled:no-underline"
           >
             Select all {eligibleCount} eligible
           </button>
@@ -295,7 +304,7 @@ export function TransactionForm({
             {rows.map(({ unit, verdict }) => (
               <li key={unit.id} className={verdict.ok ? "" : "bg-surface/70"}>
                 <label
-                  className={`flex items-start gap-3 px-3 py-2.5 ${
+                  className={`flex min-h-11 items-start gap-3 px-3 py-3 ${
                     verdict.ok ? "cursor-pointer hover:bg-surface" : "cursor-not-allowed"
                   }`}
                 >
@@ -304,7 +313,7 @@ export function TransactionForm({
                     checked={selected.has(unit.id)}
                     onChange={() => toggle(unit.id)}
                     disabled={!verdict.ok}
-                    className="mt-1 h-4 w-4"
+                    className="mt-0.5 h-5 w-5"
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">

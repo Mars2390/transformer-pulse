@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Fragment, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
+import { tapTarget } from "@/components/ui";
 
 export type AdminStoreUser = {
   id: string;
@@ -64,7 +65,7 @@ export function StoresManager({ stores }: { stores: AdminStore[] }) {
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="rounded-xl bg-kplc px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
+          className="inline-flex min-h-11 items-center rounded-xl bg-kplc px-4 text-sm font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
         >
           + Add store
         </button>
@@ -105,7 +106,7 @@ export function StoresManager({ stores }: { stores: AdminStore[] }) {
                       <button
                         type="button"
                         onClick={() => setExpanded(expanded === s.id ? null : s.id)}
-                        className="text-xs font-bold text-kplc hover:underline"
+                        className={`${tapTarget} px-2 text-xs font-bold text-kplc hover:underline`}
                       >
                         {s.users.length} {expanded === s.id ? "▲" : "▼"}
                       </button>
@@ -121,7 +122,7 @@ export function StoresManager({ stores }: { stores: AdminStore[] }) {
                           type="button"
                           onClick={() => setEditing(s)}
                           disabled={busyId === s.id}
-                          className="text-xs font-bold text-kplc hover:underline disabled:opacity-40"
+                          className={`${tapTarget} px-2 text-xs font-bold text-kplc hover:underline disabled:opacity-40`}
                         >
                           Edit
                         </button>
@@ -129,7 +130,7 @@ export function StoresManager({ stores }: { stores: AdminStore[] }) {
                           type="button"
                           onClick={() => patch(s, { active: !s.active })}
                           disabled={busyId === s.id}
-                          className="text-xs font-bold text-amber-700 hover:underline disabled:opacity-40"
+                          className={`${tapTarget} px-2 text-xs font-bold text-amber-700 hover:underline disabled:opacity-40`}
                         >
                           {s.active ? "Disable" : "Enable"}
                         </button>
@@ -138,7 +139,7 @@ export function StoresManager({ stores }: { stores: AdminStore[] }) {
                           onClick={() => remove(s)}
                           disabled={busyId === s.id || !deletable}
                           title={deletable ? "Nothing is linked to this store" : "Has transformers, staff or movement history — disable it instead"}
-                          className="text-xs font-bold text-red-700 hover:underline disabled:cursor-not-allowed disabled:text-ink-soft disabled:no-underline"
+                          className={`${tapTarget} px-2 text-xs font-bold text-red-700 hover:underline disabled:cursor-not-allowed disabled:text-ink-soft disabled:no-underline`}
                         >
                           Delete
                         </button>

@@ -316,10 +316,10 @@ export function ImportWizard() {
           Or upload your existing sheet — the importer recognises most common column names on its own.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <a href="/api/import/template?type=quick&format=xlsx" className="rounded-lg bg-kplc px-4 py-2.5 text-xs font-bold text-white hover:bg-kplc-light">Quick template (XLSX)</a>
-          <a href="/api/import/template?type=quick&format=csv" className="rounded-lg border border-line px-4 py-2.5 text-xs font-bold text-navy hover:border-kplc">Quick (CSV)</a>
-          <a href="/api/import/template?type=full&format=xlsx" className="rounded-lg border border-line px-4 py-2.5 text-xs font-bold text-navy hover:border-kplc">Full template (XLSX)</a>
-          <a href="/api/import/template?type=full&format=csv" className="rounded-lg border border-line px-4 py-2.5 text-xs font-bold text-navy hover:border-kplc">Full (CSV)</a>
+          <a href="/api/import/template?type=quick&format=xlsx" className="inline-flex min-h-11 items-center rounded-lg bg-kplc px-4 text-xs font-bold text-white hover:bg-kplc-light">Quick template (XLSX)</a>
+          <a href="/api/import/template?type=quick&format=csv" className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-xs font-bold text-navy hover:border-kplc">Quick (CSV)</a>
+          <a href="/api/import/template?type=full&format=xlsx" className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-xs font-bold text-navy hover:border-kplc">Full template (XLSX)</a>
+          <a href="/api/import/template?type=full&format=csv" className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-xs font-bold text-navy hover:border-kplc">Full (CSV)</a>
         </div>
       </div>
 

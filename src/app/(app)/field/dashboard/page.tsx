@@ -418,8 +418,8 @@ export default async function FieldDashboard() {
         <div className="mb-2 flex items-center justify-between px-1">
           <p className="text-xs font-bold tracking-[0.1em] text-ink-soft">MY PERFORMANCE THIS MONTH</p>
           <div className="flex gap-2">
-            <a href="/api/reports/engineer-performance?format=csv" className="text-[11px] font-bold text-kplc hover:underline">Export mine</a>
-            <a href="/api/reports/locations" className="text-[11px] font-bold text-kplc hover:underline">Locations CSV</a>
+            <a href="/api/reports/engineer-performance?format=csv" className="inline-flex min-h-11 items-center text-[11px] font-bold text-kplc hover:underline">Export mine</a>
+            <a href="/api/reports/locations" className="inline-flex min-h-11 items-center text-[11px] font-bold text-kplc hover:underline">Locations CSV</a>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-3">
@@ -434,7 +434,7 @@ export default async function FieldDashboard() {
         <CardHeader
           title={`Near me (${points.length})`}
           action={
-            <Link href="/field/map" className="text-xs font-bold text-kplc hover:underline">
+            <Link href="/field/map" className="inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline">
               Full map →
             </Link>
           }

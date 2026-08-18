@@ -110,7 +110,7 @@ export function UsersManager({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="rounded-xl bg-kplc px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
+          className="inline-flex min-h-11 items-center rounded-xl bg-kplc px-4 text-sm font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
         >
           + Add user
         </button>
@@ -205,7 +205,9 @@ function ActionBtn({ children, onClick, disabled, tone }: { children: React.Reac
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition-colors disabled:opacity-50 ${
+      // min-h-11: these sit in a table row on a phone, and one of them deletes
+      // a user account.
+      className={`inline-flex min-h-11 items-center justify-center rounded-lg border px-3 text-[11px] font-bold transition-colors disabled:opacity-50 ${
         tone === "danger" ? "border-red-200 text-red-700 hover:bg-red-50" : "border-line text-navy hover:border-kplc hover:text-kplc"
       }`}
     >

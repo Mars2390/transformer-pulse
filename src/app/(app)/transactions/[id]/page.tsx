@@ -45,7 +45,7 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <Link href="/manager/transactions" className="text-xs font-bold text-ink-soft hover:text-kplc">
+      <Link href="/manager/transactions" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
         ← All movements
       </Link>
 

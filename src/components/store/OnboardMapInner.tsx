@@ -90,7 +90,7 @@ export default function OnboardMapInner({
         <button
           type="submit"
           disabled={searching}
-          className="shrink-0 rounded-lg bg-navy px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-navy px-4 text-sm font-bold text-white disabled:opacity-50"
         >
           {searching ? "Searching…" : "Search"}
         </button>

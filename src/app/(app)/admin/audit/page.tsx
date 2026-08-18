@@ -46,7 +46,7 @@ export default async function AuditPage({
   });
 
   const inputClass =
-    "rounded-lg border border-line bg-white px-3 py-2 text-xs text-navy outline-none focus:border-kplc";
+    "min-h-11 rounded-lg border border-line bg-white px-3 py-2 text-xs text-navy outline-none focus:border-kplc";
 
   return (
     <div className="space-y-6">
@@ -60,7 +60,7 @@ export default async function AuditPage({
         </div>
         <a
           href="/api/admin/audit/export"
-          className="rounded-xl border border-line bg-white px-4 py-2.5 text-xs font-bold text-navy transition-colors hover:border-navy/30"
+          className="inline-flex min-h-11 items-center rounded-xl border border-line bg-white px-4 text-xs font-bold text-navy transition-colors hover:border-navy/30"
         >
           Export CSV
         </a>
@@ -84,7 +84,7 @@ export default async function AuditPage({
           TO
           <input type="date" name="to" defaultValue={params.to} className={inputClass} />
         </label>
-        <button type="submit" className="rounded-lg bg-kplc px-4 py-2 text-xs font-bold text-white hover:bg-kplc-light">
+        <button type="submit" className="inline-flex min-h-11 items-center rounded-lg bg-kplc px-4 text-xs font-bold text-white hover:bg-kplc-light">
           Apply
         </button>
         {(params.role || params.from || params.to) && (

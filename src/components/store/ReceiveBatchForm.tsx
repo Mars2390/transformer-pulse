@@ -208,12 +208,12 @@ export function ReceiveBatchForm({
                   className={`${inputClass} py-2 text-sm`}
                 />
               </div>
-              <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-navy">
+              <label className="mt-2 flex min-h-11 items-center gap-2 text-xs font-semibold text-navy">
                 <input
                   type="checkbox"
                   checked={r.sampleTested}
                   onChange={(e) => update(r.key, { sampleTested: e.target.checked })}
-                  className="h-4 w-4"
+                  className="h-5 w-5"
                 />
                 Test this one
               </label>
@@ -222,10 +222,10 @@ export function ReceiveBatchForm({
         </ul>
 
         <div className="mt-3 flex gap-2">
-          <button type="button" onClick={() => addRow(1)} className="rounded-lg border border-line px-3 py-2 text-xs font-bold text-navy">
+          <button type="button" onClick={() => addRow(1)} className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-xs font-bold text-navy">
             + Add one
           </button>
-          <button type="button" onClick={() => addRow(5)} className="rounded-lg border border-line px-3 py-2 text-xs font-bold text-navy">
+          <button type="button" onClick={() => addRow(5)} className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-xs font-bold text-navy">
             + Add five
           </button>
         </div>

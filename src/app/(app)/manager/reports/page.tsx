@@ -91,7 +91,7 @@ export default async function ReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/manager/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/manager/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← Dashboard
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Reports</h1>
@@ -115,7 +115,7 @@ export default async function ReportsPage() {
                 <a
                   key={f.label}
                   href={f.href}
-                  className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors ${
+                  className={`inline-flex min-h-11 items-center rounded-lg px-4 text-xs font-bold transition-colors ${
                     report.accent
                       ? "bg-gold text-navy-dark hover:bg-gold-dark"
                       : "bg-kplc text-white hover:bg-kplc-light"

@@ -129,7 +129,7 @@ export default async function ManagerDashboard() {
           <CardHeader
             title={`Field map — ${points.length} located`}
             action={
-              <Link href="/manager/map" className="text-xs font-bold text-kplc hover:underline">
+              <Link href="/manager/map" className="inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline">
                 Full map →
               </Link>
             }
@@ -258,7 +258,7 @@ async function KplcFindings({ region }: { region: string | null }) {
     <div>
       <div className="mb-2 flex items-baseline justify-between px-1">
         <p className="text-xs font-bold tracking-[0.1em] text-ink-soft">FROM KPLC DATA</p>
-        <Link href="/manager/priority" className="text-xs font-bold text-kplc hover:underline">
+        <Link href="/manager/priority" className="inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline">
           Repair priority →
         </Link>
       </div>

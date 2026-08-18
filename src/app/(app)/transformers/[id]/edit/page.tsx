@@ -41,7 +41,7 @@ export default async function EditTransformerPage({ params }: { params: Promise<
 
   return (
     <div className="mx-auto max-w-4xl">
-      <Link href={`/transformers/${id}`} className="text-xs font-bold text-ink-soft transition-colors hover:text-kplc">
+      <Link href={`/transformers/${id}`} className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft transition-colors hover:text-kplc">
         ← Back to story
       </Link>
       <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-navy">Edit nameplate</h1>

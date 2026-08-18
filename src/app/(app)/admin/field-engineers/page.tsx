@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, StatTile, EmptyState, Badge } from "@/components/ui";
-import { inputClass } from "@/components/ui/Field";
+import { inputClass } from "@/components/ui/input-class";
 import { formatRelative } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Field engineers" };
@@ -91,7 +91,7 @@ export default async function FieldEngineersPage({
             <option key={r} value={r}>{r}</option>
           ))}
         </select>
-        <button type="submit" className="rounded-xl bg-kplc px-4 py-2 text-xs font-bold text-white">
+        <button type="submit" className="inline-flex min-h-11 items-center rounded-xl bg-kplc px-4 text-xs font-bold text-white">
           Filter
         </button>
       </form>

@@ -167,7 +167,7 @@ export async function ManagerInsights({
         <Card>
           <CardHeader
             title={`Warranty expiring in 90 days (${expSoon.length})`}
-            action={<Link href="/manager/warranty" className="text-xs font-bold text-kplc hover:underline">Claims →</Link>}
+            action={<Link href="/manager/warranty" className="inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline">Claims →</Link>}
           />
           {expByMonth.size === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-ink-soft">No warranties expiring in the next 90 days.</p>

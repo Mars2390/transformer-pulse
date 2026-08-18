@@ -258,7 +258,7 @@ export default async function StoryPage({
 
   return (
     <div className="mx-auto max-w-4xl">
-      <Link href="/transformers" className="text-xs font-bold text-ink-soft transition-colors hover:text-kplc">
+      <Link href="/transformers" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft transition-colors hover:text-kplc">
         ← All transformers
       </Link>
 
@@ -475,7 +475,7 @@ export default async function StoryPage({
               <div className="flex items-center justify-between">
                 <p className="text-[11px] font-bold tracking-wide text-ink-soft">NAMEPLATE</p>
                 {canEditNameplate && missing > 0 && (
-                  <Link href={`/transformers/${id}/edit`} className="text-[11px] font-bold text-kplc hover:underline">
+                  <Link href={`/transformers/${id}/edit`} className="inline-flex min-h-11 items-center text-[11px] font-bold text-kplc hover:underline">
                     {missing} field{missing === 1 ? "" : "s"} blank — complete it →
                   </Link>
                 )}
@@ -581,7 +581,7 @@ export default async function StoryPage({
                       {mv.receivedBy ? ` · received by ${mv.receivedBy.name}` : ""}
                     </p>
                   </div>
-                  <Link href={`/transactions/${mv.id}`} className="shrink-0 text-xs font-bold text-kplc hover:underline">
+                  <Link href={`/transactions/${mv.id}`} className="shrink-0 inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline">
                     Track
                   </Link>
                 </li>

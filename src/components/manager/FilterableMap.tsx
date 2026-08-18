@@ -293,7 +293,7 @@ export function FilterableMap({
           )}
         </p>
         {anyActive && (
-          <button onClick={clearAll} className="text-xs font-bold text-kplc hover:underline">
+          <button onClick={clearAll} className="inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline">
             Clear all filters
           </button>
         )}
@@ -309,7 +309,7 @@ export function FilterableMap({
             </p>
             <button
               onClick={clearAll}
-              className="rounded-xl bg-kplc px-4 py-2 text-xs font-bold text-white transition-transform active:scale-[0.98]"
+              className="inline-flex min-h-11 items-center rounded-xl bg-kplc px-4 text-xs font-bold text-white transition-transform active:scale-[0.98]"
             >
               Clear all filters
             </button>

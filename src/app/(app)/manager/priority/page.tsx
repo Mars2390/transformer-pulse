@@ -60,7 +60,7 @@ export default async function PriorityPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/manager/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+          <Link href="/manager/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
             ← Dashboard
           </Link>
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Repair priority</h1>
@@ -71,9 +71,9 @@ export default async function PriorityPage({
           </p>
         </div>
         <div className="flex gap-2">
-          <a href={`/api/reports/priority?format=xlsx${qs({}).replace("?", "&")}`} className="rounded-lg border border-line bg-white px-4 py-2 text-xs font-bold text-navy hover:border-kplc">XLSX</a>
-          <a href={`/api/reports/priority?format=csv${qs({}).replace("?", "&")}`} className="rounded-lg border border-line bg-white px-4 py-2 text-xs font-bold text-navy hover:border-kplc">CSV</a>
-          <a href="/api/pdf/priority" className="rounded-lg bg-kplc px-4 py-2 text-xs font-bold text-white hover:bg-kplc-dark">PDF</a>
+          <a href={`/api/reports/priority?format=xlsx${qs({}).replace("?", "&")}`} className="inline-flex min-h-11 items-center rounded-lg border border-line bg-white px-4 text-xs font-bold text-navy hover:border-kplc">XLSX</a>
+          <a href={`/api/reports/priority?format=csv${qs({}).replace("?", "&")}`} className="inline-flex min-h-11 items-center rounded-lg border border-line bg-white px-4 text-xs font-bold text-navy hover:border-kplc">CSV</a>
+          <a href={`/api/pdf/priority${qs({})}`} className="inline-flex min-h-11 items-center rounded-lg bg-kplc px-4 text-xs font-bold text-white hover:bg-kplc-dark">PDF</a>
         </div>
       </div>
 
@@ -222,7 +222,7 @@ function Chip({ href, active, children }: { href: string; active: boolean; child
   return (
     <Link
       href={href}
-      className={`rounded-lg px-3 py-1.5 text-xs font-bold ${active ? "bg-navy text-white" : "border border-line bg-white text-ink-soft hover:text-navy"}`}
+      className={`inline-flex min-h-11 items-center rounded-lg px-4 text-xs font-bold ${active ? "bg-navy text-white" : "border border-line bg-white text-ink-soft hover:text-navy"}`}
     >
       {children}
     </Link>

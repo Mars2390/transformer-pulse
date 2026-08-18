@@ -64,11 +64,11 @@ export function MeterDataUploader({ existing }: { existing: Existing }) {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href="/kplc-control" className="rounded-xl bg-kplc px-4 py-2.5 text-xs font-bold text-white hover:bg-kplc-light">
+              <Link href="/kplc-control" className="inline-flex min-h-11 items-center rounded-xl bg-kplc px-4 text-xs font-bold text-white hover:bg-kplc-light">
                 Open control centre
               </Link>
               <button type="button" onClick={clearData} disabled={busy}
-                className="rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                className="inline-flex min-h-11 items-center rounded-xl border border-red-200 px-4 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50">
                 Delete data
               </button>
             </div>

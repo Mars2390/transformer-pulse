@@ -70,7 +70,7 @@ export default async function SubstationPage({
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <Link href="/transformers" className="text-xs font-bold text-ink-soft transition-colors hover:text-kplc">
+      <Link href="/transformers" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft transition-colors hover:text-kplc">
         ← All transformers
       </Link>
 

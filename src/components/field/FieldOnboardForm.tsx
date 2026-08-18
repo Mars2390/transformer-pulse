@@ -184,7 +184,7 @@ export function FieldOnboardForm({
                 setPositionMode(opt.mode);
                 if (opt.mode === "auto" && state.status !== "ready") capture();
               }}
-              className={`rounded-lg py-2 text-xs font-bold transition-colors ${
+              className={`inline-flex min-h-11 items-center justify-center rounded-lg text-xs font-bold transition-colors ${
                 positionMode === opt.mode ? "bg-white text-navy shadow-sm" : "text-ink-soft"
               }`}
             >

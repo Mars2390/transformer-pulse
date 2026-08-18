@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { qrDataUrl, siteUrl, transformerQrUrl } from "@/lib/qr";
 import { formatRating } from "@/lib/format";
-import { inputClass } from "@/components/ui/Field";
+import { inputClass } from "@/components/ui/input-class";
 import Link from "next/link";
 
 export const metadata: Metadata = { title: "QR labels" };
@@ -83,7 +83,7 @@ export default async function QrCodesPage({
             placeholder="🔍 G-Number, serial or site"
             className={`${inputClass} w-64 py-2 text-xs`}
           />
-          <button type="submit" className="rounded-xl bg-kplc px-4 py-2 text-xs font-bold text-white">
+          <button type="submit" className="inline-flex min-h-11 items-center rounded-xl bg-kplc px-4 text-xs font-bold text-white">
             Filter
           </button>
           <span className="self-center text-xs text-ink-soft">

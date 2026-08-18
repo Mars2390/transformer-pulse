@@ -16,7 +16,7 @@ export default async function ImportPage() {
       <div>
         <Link
           href={user.role === "ADMIN" ? "/admin/dashboard" : "/store/dashboard"}
-          className="text-xs font-bold text-ink-soft transition-colors hover:text-kplc"
+          className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft transition-colors hover:text-kplc"
         >
           ← Back
         </Link>

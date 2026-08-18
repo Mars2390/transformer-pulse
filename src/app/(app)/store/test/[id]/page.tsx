@@ -44,7 +44,7 @@ export default async function IntakeTestPage({
     <div className="mx-auto max-w-5xl">
       <Link
         href="/store/dashboard"
-        className="text-xs font-bold text-ink-soft transition-colors hover:text-kplc"
+        className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft transition-colors hover:text-kplc"
       >
         ← Store
       </Link>

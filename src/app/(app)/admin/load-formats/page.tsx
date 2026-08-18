@@ -19,7 +19,7 @@ export default async function LoadFormatsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/admin/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/admin/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← Admin
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Load-data formats</h1>
@@ -39,7 +39,7 @@ export default async function LoadFormatsPage() {
           </p>
           <Link
             href="/manager/emdis"
-            className="mt-4 inline-block rounded-lg bg-kplc px-4 py-2 text-xs font-bold text-white hover:bg-kplc-dark"
+            className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-kplc px-4 text-xs font-bold text-white hover:bg-kplc-dark"
           >
             Go to load data
           </Link>

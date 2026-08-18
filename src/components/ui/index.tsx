@@ -121,6 +121,25 @@ export function EmptyState({ message }: { message: string }) {
   );
 }
 
+// --- Touch targets ----------------------------------------------------------
+
+/**
+ * The minimum comfortable tap target: 44 x 44 CSS pixels.
+ *
+ * This is not a style preference. A store keeper uses these screens standing in
+ * a yard holding a phone in one hand, and a 16px-tall Delete button is both the
+ * smallest thing to hit and the least forgiving thing to hit by accident.
+ *
+ * `tapTarget` keeps a control looking like a compact text button while making
+ * the HIT AREA 44px — the padding does the work, so a table row does not grow
+ * a visual gap it does not need. Use `tapRow` on a label wrapping a checkbox,
+ * where the box itself must stay small but the whole row should be tappable.
+ */
+export const tapTarget = "inline-flex min-h-11 min-w-11 items-center justify-center";
+
+/** A whole row made tappable — for checkboxes and radio labels. */
+export const tapRow = "flex min-h-11 items-center gap-3";
+
 // --- Buttons ----------------------------------------------------------------
 
 export function ActionLink({

@@ -53,7 +53,7 @@ export default async function FieldMapPage() {
             {user.region ?? "All regions"} · {points.length} located
           </p>
         </div>
-        <Link href="/field/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+        <Link href="/field/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
           ← My work
         </Link>
       </div>

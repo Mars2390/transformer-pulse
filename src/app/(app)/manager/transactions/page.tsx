@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, Badge, StatTile, EmptyState } from "@/components/ui";
 import { formatRelative } from "@/lib/format";
-import { inputClass } from "@/components/ui/Field";
+import { inputClass } from "@/components/ui/input-class";
 import {
   MOVEMENTS,
   MOVEMENT_KEYS,
@@ -73,7 +73,7 @@ export default async function TransactionsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Link href="/manager/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+          <Link href="/manager/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
             ← Dashboard
           </Link>
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Movements</h1>
@@ -83,7 +83,7 @@ export default async function TransactionsPage({
         </div>
         <Link
           href="/manager/transactions/approvals"
-          className="rounded-xl bg-kplc px-4 py-2.5 text-xs font-bold text-white"
+          className="inline-flex min-h-11 items-center rounded-xl bg-kplc px-4 text-xs font-bold text-white"
         >
           Approvals ({countOf("PENDING_APPROVAL")})
         </Link>
@@ -155,7 +155,7 @@ export default async function TransactionsPage({
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-ink-soft">{formatRelative(r.initiatedAt)}</span>
-                  <Link href={`/transactions/${r.id}`} className="shrink-0 text-xs font-bold text-kplc hover:underline">
+                  <Link href={`/transactions/${r.id}`} className="shrink-0 inline-flex min-h-11 items-center text-xs font-bold text-kplc hover:underline">
                     Track
                   </Link>
                 </li>

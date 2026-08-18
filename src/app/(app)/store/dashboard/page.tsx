@@ -126,37 +126,37 @@ export default async function StoreDashboard() {
         <div className="flex flex-wrap gap-2">
           <a
             href="/api/reports/intake-tests?format=xlsx"
-            className="rounded-xl border border-line bg-white px-4 py-2.5 text-xs font-bold text-navy transition-colors hover:border-navy/30"
+            className="inline-flex min-h-11 items-center rounded-xl border border-line bg-white px-4 text-xs font-bold text-navy transition-colors hover:border-navy/30"
           >
             Intake register (XLSX)
           </a>
           <a
             href="/api/reports/dispatch-log?format=csv"
-            className="rounded-xl border border-line bg-white px-4 py-2.5 text-xs font-bold text-navy transition-colors hover:border-navy/30"
+            className="inline-flex min-h-11 items-center rounded-xl border border-line bg-white px-4 text-xs font-bold text-navy transition-colors hover:border-navy/30"
           >
             Dispatch log (CSV)
           </a>
           <Link
             href="/store/import"
-            className="rounded-xl border border-kplc/30 bg-kplc/5 px-4 py-2.5 text-xs font-bold text-kplc transition-colors hover:bg-kplc/10"
+            className="inline-flex min-h-11 items-center rounded-xl border border-kplc/30 bg-kplc/5 px-4 text-xs font-bold text-kplc transition-colors hover:bg-kplc/10"
           >
             Import transformers
           </Link>
           <Link
             href="/store/workshop"
-            className="rounded-xl border border-line bg-white px-4 py-2.5 text-xs font-bold text-navy transition-colors hover:border-kplc hover:text-kplc"
+            className="inline-flex min-h-11 items-center rounded-xl border border-line bg-white px-4 text-xs font-bold text-navy transition-colors hover:border-kplc hover:text-kplc"
           >
             🔧 Workshop
           </Link>
           <Link
             href="/store-onboard"
-            className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-100"
+            className="inline-flex min-h-11 items-center rounded-xl border border-amber-300 bg-amber-50 px-4 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-100"
           >
             📍 Onboard existing transformer
           </Link>
           <Link
             href="/store/receive"
-            className="rounded-xl bg-kplc px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
+            className="inline-flex min-h-11 items-center rounded-xl bg-kplc px-4 text-xs font-bold text-white shadow-lg shadow-kplc/20 transition-colors hover:bg-kplc-light"
           >
             + Receive transformer
           </Link>

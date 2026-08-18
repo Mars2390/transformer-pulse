@@ -58,7 +58,7 @@ export default async function WarrantyPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/manager/dashboard" className="text-xs font-bold text-ink-soft hover:text-kplc">
+          <Link href="/manager/dashboard" className="inline-flex min-h-11 min-w-11 items-center text-xs font-bold text-ink-soft hover:text-kplc">
             ← Dashboard
           </Link>
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-navy">Warranty claims</h1>
@@ -67,13 +67,13 @@ export default async function WarrantyPage() {
         <div className="flex flex-wrap gap-2">
           <a
             href="/api/pdf/warranty-pack"
-            className="rounded-xl bg-gold px-4 py-2.5 text-xs font-bold text-navy-dark shadow-lg shadow-gold/20 transition-colors hover:bg-gold-dark"
+            className="inline-flex min-h-11 items-center rounded-xl bg-gold px-4 text-xs font-bold text-navy-dark shadow-lg shadow-gold/20 transition-colors hover:bg-gold-dark"
           >
             Export claim pack (PDF)
           </a>
           <a
             href="/api/reports/warranty-pack?format=xlsx"
-            className="rounded-xl border border-line bg-white px-4 py-2.5 text-xs font-bold text-navy transition-colors hover:border-navy/30"
+            className="inline-flex min-h-11 items-center rounded-xl border border-line bg-white px-4 text-xs font-bold text-navy transition-colors hover:border-navy/30"
           >
             XLSX
           </a>
