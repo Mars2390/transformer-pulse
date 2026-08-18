@@ -541,6 +541,12 @@ async function runProofs() {
 
   // This is a real DELETE. It runs inside a transaction that is rolled back
   // unconditionally, including on the success path, so no row is ever removed.
+  //
+  // 23503 is the only pass. refuse_mutation(), installed by
+  // scripts/apply-security-hardening.mts, raises check_violation (23514) when
+  // it refuses a DELETE on LifecycleEvent. So if the FK were still CASCADE the
+  // cascaded delete would fail too, and would read as "blocked" while proving
+  // nothing about the foreign key. Those outcomes are reported separately.
   await client.query('BEGIN');
   try {
     const del = await client.query(`DELETE FROM "Transformer" WHERE id = $1`, [victim]);
@@ -556,12 +562,12 @@ async function runProofs() {
     if (e.code === '23503') {
       console.log(`${OK} blocked by foreign key violation (SQLSTATE 23503) — correct`);
       console.log(`       ${c.dim(e.message)}`);
-    } else if (e.code === 'P0001') {
+    } else if (e.code === '23514' || e.code === 'P0001') {
       console.log(
-        `${WARN} blocked, but by a trigger (SQLSTATE P0001), not a foreign key.`,
+        `${WARN} blocked by a trigger (SQLSTATE ${e.code}), not a foreign key.`,
       );
       console.log(
-        `       ${c.yellow('That is lifecycleevent_immutable refusing a cascaded DELETE,')}`,
+        `       ${c.yellow('That is refuse_mutation() refusing the cascaded DELETE,')}`,
       );
       console.log(
         `       ${c.yellow('which means the FK is still CASCADE. Trust proof 3, not this.')}`,
