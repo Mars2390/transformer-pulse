@@ -46,7 +46,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     workbook.creator = "Transformer DNA";
     workbook.created = new Date();
 
-    // --- Sheet 1: Phase distribution ---------------------------------------
     const sheet = workbook.addWorksheet("Phase Distribution", {
       views: [{ state: "frozen", ySplit: 5 }],
     });
@@ -121,7 +120,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     sheet.addRow([]);
 
-    // --- Before / after balancing -------------------------------------------
     const beforeAfterHeader = sheet.addRow(["Phase", "Now (A)", "Now (%)", "After balancing (A)", "After (%)"]);
     beforeAfterHeader.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
     beforeAfterHeader.eachCell((c) => { c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: KPLC_NAVY } }; });

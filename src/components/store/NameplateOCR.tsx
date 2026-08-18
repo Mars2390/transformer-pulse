@@ -84,7 +84,6 @@ function extractFields(rawText: string, manufacturers: { id: string; name: strin
   const text = normaliseOcrText(rawText);
   const upper = text.toUpperCase();
 
-  // --- Serial number ---------------------------------------------------
   let serialNumber: OcrFieldValue<string | null> = { value: null, confidence: "low" };
   const serialLabelled = text.match(/(?:SERIAL(?:\s*NO\.?)?|S[\/.]?N[o°]?)\s*[:\-.]?\s*([A-Z0-9][A-Z0-9\-\/]{3,19})/i);
   if (serialLabelled) {
@@ -97,7 +96,6 @@ function extractFields(rawText: string, manufacturers: { id: string; name: strin
     if (loose) serialNumber = { value: loose[0].toUpperCase(), confidence: "low" };
   }
 
-  // --- Manufacturer ------------------------------------------------------
   let manufacturerId: OcrFieldValue<string | null> = { value: null, confidence: "low" };
   let manufacturerLabel: OcrFieldValue<string | null> = { value: null, confidence: "low" };
   for (const m of manufacturers) {
@@ -116,7 +114,6 @@ function extractFields(rawText: string, manufacturers: { id: string; name: strin
     }
   }
 
-  // --- Rating (kVA / MVA) -------------------------------------------------
   let ratingKva: OcrFieldValue<number | null> = { value: null, confidence: "low" };
   const kva = matchNumber(text, /(\d{1,5}(?:[.,]\d+)?)\s*[-]?\s*k\s?VA\b/i);
   if (kva != null) {
@@ -126,7 +123,6 @@ function extractFields(rawText: string, manufacturers: { id: string; name: strin
     if (mva != null) ratingKva = { value: Math.round(mva * 1000), confidence: "medium" };
   }
 
-  // --- Voltage (e.g. "11/0.433", "33/0.433", "11000/433") ---------------
   let primaryKv: OcrFieldValue<number | null> = { value: null, confidence: "low" };
   let secondaryKv: OcrFieldValue<number | null> = { value: null, confidence: "low" };
   const voltage = text.match(/(\d{2,6}(?:\.\d+)?)\s*\/\s*(\d{2,6}(?:\.\d+)?)\s*(?:k\s?V|VOLTS?|V)?\b/i);
@@ -143,7 +139,6 @@ function extractFields(rawText: string, manufacturers: { id: string; name: strin
     }
   }
 
-  // --- Year of manufacture -------------------------------------------------
   let yearOfManufacture: OcrFieldValue<number | null> = { value: null, confidence: "low" };
   const labelledYear = text.match(/(?:YOM|YEAR(?:\s*OF\s*MANUFACTURE)?|MFG(?:\s*DATE)?)\s*[:\-.]?\s*(19|20)(\d{2})/i);
   if (labelledYear) {
@@ -153,32 +148,26 @@ function extractFields(rawText: string, manufacturers: { id: string; name: strin
     if (bareYear) yearOfManufacture = { value: Number(bareYear[1]), confidence: "medium" };
   }
 
-  // --- Frequency -----------------------------------------------------------
   let frequencyHz: OcrFieldValue<number | null> = { value: null, confidence: "low" };
   const freq = matchNumber(text, /\b(50|60)\s*Hz\b/i);
   if (freq != null) frequencyHz = { value: freq, confidence: "high" };
 
-  // --- Cooling ---------------------------------------------------------
   let coolingType: OcrFieldValue<string | null> = { value: null, confidence: "low" };
   const cooling = upper.match(/\b(ONAN|ONAF|OFAF|OFAN|KNAN|KNAF|AN|AF)\b/);
   if (cooling) coolingType = { value: cooling[1], confidence: "high" };
 
-  // --- Oil volume ------------------------------------------------------
   let oilVolumeLitres: OcrFieldValue<number | null> = { value: null, confidence: "low" };
   const oil = matchNumber(text, /(\d{2,6})\s*(?:LITRES?|LITERS?|L)\b(?!\w)/i);
   if (oil != null) oilVolumeLitres = { value: Math.round(oil), confidence: "medium" };
 
-  // --- Weight ------------------------------------------------------------
   let totalWeightKg: OcrFieldValue<number | null> = { value: null, confidence: "low" };
   const weight = matchNumber(text, /(\d{2,6})\s*(?:KGS?|KG)\b/i);
   if (weight != null) totalWeightKg = { value: Math.round(weight), confidence: "medium" };
 
-  // --- Vector group ------------------------------------------------------
   let vectorGroup: OcrFieldValue<string | null> = { value: null, confidence: "low" };
   const vector = text.match(/\b(D\s?yn\s?\d{1,2}|Y\s?yn\s?\d{1,2}|Y\s?zn\s?\d{1,2}|D\s?d\s?\d{1,2}|Y\s?y\s?\d{1,2})\b/i);
   if (vector) vectorGroup = { value: vector[1].replace(/\s+/g, ""), confidence: "high" };
 
-  // --- Impedance -----------------------------------------------------------
   let impedancePct: OcrFieldValue<number | null> = { value: null, confidence: "low" };
   const imp = matchNumber(text, /(\d{1,2}(?:\.\d+)?)\s*%/);
   if (imp != null && imp <= 30) impedancePct = { value: imp, confidence: "medium" };
@@ -350,7 +339,6 @@ export function NameplateOCR({
     }
   }
 
-  // --- Idle: the entry point ---------------------------------------------
   if (stage === "idle") {
     return (
       <div className="rounded-2xl border border-line bg-white p-5">
@@ -389,7 +377,6 @@ export function NameplateOCR({
     );
   }
 
-  // --- Resizing / reading — a simple progress state -----------------------
   if (stage === "resizing" || stage === "reading") {
     return (
       <div className="rounded-2xl border border-line bg-white p-8 text-center">
@@ -407,7 +394,6 @@ export function NameplateOCR({
     );
   }
 
-  // --- Uploading (after confirm) ------------------------------------------
   if (stage === "uploading") {
     return (
       <div className="rounded-2xl border border-line bg-white p-8 text-center">
@@ -417,7 +403,6 @@ export function NameplateOCR({
     );
   }
 
-  // --- Review: split screen -------------------------------------------
   if (stage === "review" && extraction && form) {
     const set = <K extends keyof ConfirmedNameplateData>(key: K, value: ConfirmedNameplateData[K]) =>
       setForm((prev) => (prev ? { ...prev, [key]: value } : prev));

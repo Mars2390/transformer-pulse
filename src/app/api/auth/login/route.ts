@@ -74,7 +74,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // --- Locked out? ---------------------------------------------------------
   if (user.lockedUntil && user.lockedUntil > new Date()) {
     const minutes = Math.ceil(
       (user.lockedUntil.getTime() - Date.now()) / 60_000,
@@ -87,7 +86,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // --- Check the PIN -------------------------------------------------------
   const valid = await verifyPin(pin, user.pinHash);
 
   if (!valid) {
@@ -122,7 +120,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // --- Success -------------------------------------------------------------
   await prisma.user.update({
     where: { id: user.id },
     data: { failedAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },

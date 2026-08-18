@@ -55,7 +55,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const label = tx.gNumber ?? tx.serialNumber;
 
-    // --- Derived values ----------------------------------------------------
     const lowestIr = [input.irHvEarthMohm, input.irLvEarthMohm, input.irHvLvMohm]
       .filter((v): v is number => v != null)
       .sort((a, b) => a - b)[0];
@@ -71,7 +70,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const lvDeviation = wrDeviationPct([input.wrLvL1, input.wrLvL2, input.wrLvL3]);
     const worstDeviation = [hvDeviation, lvDeviation].filter((v): v is number => v != null).sort((a, b) => b - a)[0] ?? null;
 
-    // --- Verdict -----------------------------------------------------------
     const findings: string[] = [];
     let passed = true;
 
@@ -130,7 +128,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       },
     });
 
-    // --- Alerts ------------------------------------------------------------
     const alerts = [];
     if (irCorrectedTo20C != null && irCorrectedTo20C < IR_LIMITS.criticalMohm) {
       alerts.push({

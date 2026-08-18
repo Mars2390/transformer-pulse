@@ -77,7 +77,6 @@ export async function GET(request: Request) {
 
     const content: Content[] = [];
 
-    // --- What this list is --------------------------------------------------
     content.push(sectionTitle("Summary"));
     content.push({
       columns: [
@@ -111,7 +110,6 @@ export async function GET(request: Request) {
       margin: [0, 0, 0, 6],
     });
 
-    // --- Act now ------------------------------------------------------------
     const actNow = rows.filter((r) => bandOf(r.priority) === "RED");
     if (actNow.length > 0) {
       content.push({ text: "Act now", style: "h2", margin: [0, 14, 0, 6] });
@@ -132,7 +130,6 @@ export async function GET(request: Request) {
       );
     }
 
-    // --- The ranked list ----------------------------------------------------
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle(`Ranked repair queue (${rows.length})`));
 
@@ -173,7 +170,6 @@ export async function GET(request: Request) {
       ),
     );
 
-    // --- Findings, in words -------------------------------------------------
     // The table above ranks. This says WHY, which is what a planning meeting
     // actually argues about.
     const withReasons = rows.filter((r) => r.reasons.length > 0);

@@ -94,8 +94,6 @@ export async function buildLookup() {
   return { byGNumber, bySerial, bySubstation };
 }
 
-// --- Reading the file -------------------------------------------------------
-
 export type PreviewRow = {
   reportId: number;
   inspectedOn: string;
@@ -255,8 +253,6 @@ export async function previewInspections(
   };
 }
 
-// --- Committing -------------------------------------------------------------
-
 export type CommitResult = {
   batchId: string;
   imported: number;
@@ -371,7 +367,6 @@ export async function commitInspections(
     await prisma.substationInspection.createMany({ data: rowsData.slice(i, i + CHUNK) });
   }
 
-  // --- Roll condition forward onto the transformers -------------------------
   // Only the newest inspection per transformer matters for cached state.
   const newestPerTransformer = new Map<string, ParsedInspection>();
   for (const { row, res } of work) {
@@ -394,7 +389,6 @@ export async function commitInspections(
     });
   }
 
-  // --- Raise conflicts ------------------------------------------------------
   const conflicts = await raiseConflicts(work);
 
   await prisma.importBatch.update({
@@ -408,7 +402,6 @@ export async function commitInspections(
     },
   });
 
-  // --- Auto-status: rescore every transformer this register touched ---------
   const healthUpdates: CommitResult["healthUpdates"] = [];
   if (newestPerTransformer.size) {
     const ids = [...newestPerTransformer.keys()];

@@ -47,7 +47,6 @@ export async function POST(
       );
     }
 
-    // --- Who is receiving it -------------------------------------------------
     // Checked here, not only in the form. An engineer must exist, be active,
     // and be a field engineer; and their region must match where the unit is
     // going, because an assignment to somebody 300 km away is the same as no

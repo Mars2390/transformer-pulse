@@ -42,7 +42,6 @@ export async function burnTime(): Promise<void> {
   await bcrypt.compare("000000", DUMMY_HASH);
 }
 
-// --- Lockout policy ---------------------------------------------------------
 // Six digits is one million combinations. A script clears that in hours without
 // these two numbers.
 export const MAX_FAILED_ATTEMPTS = 5;

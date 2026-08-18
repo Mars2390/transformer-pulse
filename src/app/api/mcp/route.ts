@@ -205,7 +205,6 @@ export async function POST(request: Request) {
   const url = new URL(request.url);
   const origin = url.origin;
 
-  // --- Auth ------------------------------------------------------------------
   const credential = extractCredential(request, url);
   if (!credential) {
     // Every client's very first contact looks like this — no token yet. Log
@@ -254,7 +253,6 @@ export async function POST(request: Request) {
     ));
   }
 
-  // --- JSON-RPC ----------------------------------------------------------------
   let body: JsonRpcRequest;
   try {
     body = await request.json();

@@ -36,7 +36,6 @@ export function ReceiveForm({
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [fatReportUrl, setFatReportUrl] = useState<string | null>(null);
 
-  // --- Nameplate scan: shown first, hands its result to the form below ----
   // Manual entry is the primary path and the default. The scanner is an
   // optional accelerant: on a rusty plate photographed at an angle it saves
   // nothing, and a keeper who has to dismiss it before every receipt will

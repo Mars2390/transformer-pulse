@@ -54,7 +54,6 @@ export async function GET(
 
     const content: Content[] = [];
 
-    // --- Asset summary ------------------------------------------------------
     content.push(sectionTitle("Asset summary"));
     content.push(detailTable([
       ["G-Number", tx.gNumber ?? "Not assigned"],
@@ -79,7 +78,6 @@ export async function GET(
       ["Health score", `${health.score} / 100 — ${HEALTH_BAND_META[health.band].label}`],
     ]));
 
-    // --- Nameplate ----------------------------------------------------------
     const plate: [string, string | number | null][] = [
       ["Frequency", unit(tx.frequencyHz, "Hz")],
       ["Duty", tx.duty],
@@ -105,7 +103,6 @@ export async function GET(
       });
     }
 
-    // --- Timeline -----------------------------------------------------------
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Timeline — the complete story"));
     content.push({
@@ -161,7 +158,6 @@ export async function GET(
       });
     }
 
-    // --- Test history -------------------------------------------------------
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Test history"));
     content.push(dataTable(
@@ -189,7 +185,6 @@ export async function GET(
       ],
     });
 
-    // --- Warranty & chain ---------------------------------------------------
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Warranty"));
     content.push(detailTable([
@@ -240,7 +235,6 @@ export async function GET(
     ));
     content.push({ text: `Verified ${new Date().toLocaleString("en-GB")}`, style: "muted", margin: [0, 6, 0, 0] });
 
-    // --- Photographs --------------------------------------------------------
     const withPhotos = tx.events.filter((e) => e.photoUrls.length > 0);
     const flat = withPhotos.flatMap((e) => e.photoUrls.map((url) => ({ url, caption: `${EVENT_META[e.type].label} — ${dmy(e.occurredAt)}` })));
     const embedded = await embedPhotos(flat.map((f) => f.url));

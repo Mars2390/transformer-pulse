@@ -60,7 +60,6 @@ export type FullAnalysis = {
   thermalByKva: ThermalResult;
   thermalByPhase: ThermalResult;
 
-  // --- The prescriptive layer ---------------------------------------------
   /** The ambient and voltage the analysis actually used, so a reader can see
    *  they were derived, not assumed. */
   environment: { voltLL: number; voltSource: string; ambientC: number; ambientSource: string };
@@ -108,7 +107,6 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
   const ratingKva = ds.transformer?.ratingKva ?? ds.ratingKvaAsRecorded ?? 200;
   const insp = ds.transformer?.inspections?.[0] ?? null;
 
-  // --- Voltage, now dynamic ------------------------------------------------
   // The rated current every per-phase judgement hangs on depends on the line
   // voltage. EMDis is LV-side metering, so the transformer's secondary voltage
   // is the right basis; fall back to the dataset's stored value, then to 415 V.
@@ -131,7 +129,6 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
 
   const pf = analysis.powerFactor?.median ?? 0.95;
 
-  // --- Ambient, now dynamic ------------------------------------------------
   // A hardcoded 28 C makes the hot-spot optimistic on a hot afternoon. Keyed on
   // the month the data was actually recorded, a Nairobi seasonal figure is
   // closer to the truth, and still falls back to 28 C when the month is unknown.
@@ -139,7 +136,6 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
 
   const iRated = ratedPhaseCurrent(ratingKva, voltLL);
 
-  // --- The worst single minute, for the balancing plan ---------------------
   // Balancing is planned against the actual currents at the peak, not against
   // three separate per-phase peaks that never happened at the same instant.
   let worst = rows[0];
@@ -149,7 +145,6 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
   const balance = planBalance(worstCurrents, ratingKva, voltLL, ASSUMED_CUSTOMER_AMPS);
   const capacity = assessCapacity(worstCurrents, ratingKva, voltLL, ASSUMED_CUSTOMER_AMPS);
 
-  // --- Prognosis over the whole window -------------------------------------
   const perReadingHotspot = rows.map((r) => {
     const t = computeThermal({
       loadKva: ((r.maxPhasePctRated ?? 0) / 100) * ratingKva,
@@ -160,7 +155,6 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
   const prognosis = prognose(perReadingHotspot, analysis.spanHours);
   const money = priceLossOfLife(prognosis.avgAgeingRate, estimateNewUnitCostKes(ratingKva), analysis.spanHours);
 
-  // --- What-if, precomputed for the two obvious interventions --------------
   const baseThermal = computeThermal({
     loadKva: (analysis.peakPhasePctRated / 100) * ratingKva, ratingKva, ambientC, powerFactor: pf,
   });
@@ -173,7 +167,6 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
     ? whatIfUprate(worstCurrents, nextSize[ratingKva], voltLL, ambientC, pf, baselineForWhatIf)
     : null;
 
-  // --- Voltage-quality scorecard -------------------------------------------
   const scorecard = scoreVoltageQuality({
     minVoltage: analysis.voltage?.min ?? null,
     maxVoltage: analysis.voltage?.max ?? null,

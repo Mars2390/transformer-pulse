@@ -76,7 +76,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const content: Content[] = [];
 
-    // === Birth certificate + service summary + health status ================
     content.push(sectionTitle("Birth certificate"));
     content.push(detailTable([
       ["G-Number", tx.gNumber ?? "Not assigned"],
@@ -131,7 +130,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ["Current loss-of-life cost", serviceSummary.lossOfLifeCostKesPerHour != null ? `${formatKes(serviceSummary.lossOfLifeCostKesPerHour)}/hour` : "no load data yet"],
     ]));
 
-    // === Complete life history ===============================================
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Complete life history"));
     content.push({
@@ -183,7 +181,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       });
     }
 
-    // === Test history with trends ============================================
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Test history"));
     content.push(dataTable(
@@ -212,7 +209,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ],
     });
 
-    // === Load analysis summary (EMDis) =======================================
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Load analysis summary"));
     if (latestHour) {
@@ -229,7 +225,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       content.push({ text: "No EMDis load telemetry is linked to this transformer yet.", style: "muted" });
     }
 
-    // === Inspection history (KYN) =============================================
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Inspection history (KYN register)"));
     if (inspections.length) {
@@ -247,7 +242,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       content.push({ text: "No KYN inspection records are linked to this transformer yet.", style: "muted" });
     }
 
-    // === Warranty timeline + claims ===========================================
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Warranty"));
     content.push(detailTable([
@@ -270,7 +264,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ));
     }
 
-    // === Photo gallery ========================================================
     const withPhotos = tx.events.filter((e) => e.photoUrls.length > 0);
     const flat = withPhotos.flatMap((e) => e.photoUrls.map((url) => ({ url, caption: `${EVENT_META[e.type].label} — ${dmy(e.occurredAt)}` })));
     const embedded = await embedPhotos(flat.map((f) => f.url));
@@ -289,7 +282,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       }
     }
 
-    // === Chain verification + audit log summary ==============================
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Custody chain verification"));
     content.push({
@@ -311,7 +303,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       [20, "auto", "auto", "*", "*"],
     ));
 
-    // === Manufacturer comparison ==============================================
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Manufacturer comparison"));
     const mRow = manufacturerRows.find((m) => m.id === tx.manufacturerId);

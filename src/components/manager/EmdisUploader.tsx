@@ -143,7 +143,6 @@ export function EmdisUploader() {
     setHits(data.results ?? []);
   }
 
-  // --- Upload state ----------------------------------------------------------
   if (!preview && !done) {
     return (
       <div className="space-y-4">
@@ -177,7 +176,6 @@ export function EmdisUploader() {
     );
   }
 
-  // --- Done state ------------------------------------------------------------
   if (done) {
     return (
       <div className="rounded-2xl border border-kplc/30 bg-kplc/5 p-6">
@@ -192,7 +190,6 @@ export function EmdisUploader() {
     );
   }
 
-  // --- Preview / confirm state ----------------------------------------------
   const p = preview!;
   const mappedFields = new Set(p.columnMapping.columns.map((c) => c.mappedTo).filter(Boolean) as CanonField[]);
   const measures = [

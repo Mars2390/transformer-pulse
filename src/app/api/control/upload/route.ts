@@ -133,7 +133,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `That file has ${dataRows.length} rows; the limit is ${MAX_ROWS}.` }, { status: 413 });
     }
 
-    // --- Group rows into intervals by their timestamp ----------------------
     type Parsed = { meterId: string; ts: Date; voltage: number; current: number; power: number; pf: number };
     const parsed: Parsed[] = [];
     const tsKeys = new Set<string>();

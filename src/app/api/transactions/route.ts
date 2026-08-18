@@ -49,7 +49,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // --- Driver allocation ---------------------------------------------------
     // Plate and driver name were already required here. The PHONE was not, and
     // that is the gap that mattered: when a lorry is three hours late with a
     // transformer on it, a name in a database is not something anybody can ring.
@@ -75,7 +74,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // --- Who is at the pole --------------------------------------------------
     // A movement OUT of a site needs somebody physically there to disconnect
     // the unit and watch it onto the lorry. Until now the system did not record
     // who, so a keeper in an office could raise "Site to Workshop" and the
@@ -128,7 +126,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // --- Destination ---------------------------------------------------------
     // A store or workshop destination is a row; a site, a manufacturer or scrap
     // is free text, because a pole is not a record.
     let toId: string | null = null;

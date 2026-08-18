@@ -47,7 +47,6 @@ export async function GET(request: Request) {
 
     const content: Content[] = [];
 
-    // --- Cover letter -------------------------------------------------------
     content.push({ text: "Warranty Claim Submission", style: "section", margin: [0, 0, 0, 4] });
     content.push({ text: `Reference: ${reference}`, style: "muted", margin: [0, 0, 0, 16] });
     content.push({
@@ -91,7 +90,6 @@ export async function GET(request: Request) {
       ["auto", "auto", "*", "auto", "auto", "auto"],
     ));
 
-    // --- One page per claim -------------------------------------------------
     for (const c of claims) {
       const tx = c.transformer;
       const chain = verifyChain(tx.events as unknown as ChainLink[]);
@@ -166,7 +164,6 @@ export async function GET(request: Request) {
       }
     }
 
-    // --- Closing summary ----------------------------------------------------
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Summary of claims"));
     content.push(dataTable(

@@ -70,7 +70,6 @@ export default async function StoryPage({
 
   if (!tx) notFound();
 
-  // --- Auto-link status: is EMDis and/or KYN data actually linked here? -----
   const [emdisAgg, inspectionCount, movements, priorityRows, approvalDocs] = await Promise.all([
     prisma.emdisDataset.aggregate({
       where: { transformerId: id },
@@ -102,11 +101,9 @@ export default async function StoryPage({
   ]);
   const emdisReadingCount = emdisAgg._sum.readingCount ?? 0;
 
-  // --- Chain verification (oldest first) ------------------------------------
   const chronological = [...tx.events].reverse();
   const verification = verifyChain(chronological as unknown as ChainLink[]);
 
-  // --- Warranty -------------------------------------------------------------
   const w = computeWarranty(tx.warrantyStart, tx.warrantyMonths);
   const monthsUsed =
     w.state === "NOT_STARTED"
@@ -122,7 +119,6 @@ export default async function StoryPage({
     claimable: w.claimable,
   };
 
-  // --- Health (derived, never stored) --------------------------------------
   const latestTest = tx.tests[0] ?? null;
   const failureCount = tx.events.filter((e) => e.type === "FAULT_REPORTED").length;
   const ageYears =
@@ -130,7 +126,6 @@ export default async function StoryPage({
     (1000 * 60 * 60 * 24 * 365.25);
   const health = computeHealth({ latestTest, failureCount, ageYears });
 
-  // --- 5-level health status (electrical/physical, min-dominates, then DECEASED override) ---
   const priorityRow = priorityRows[0] ?? null;
   const healthStatus = deriveHealthStatus({
     electrical: priorityRow?.electrical ?? null,
@@ -139,7 +134,6 @@ export default async function StoryPage({
     reasons: priorityRow?.reasons ?? [],
   });
 
-  // --- Service summary — every time/cost metric, derived from the chain ----
   const serviceSummary = await computeServiceSummary({
     transformer: {
       id: tx.id, ratingKva: tx.ratingKva, secondaryKv: tx.secondaryKv,
@@ -176,7 +170,6 @@ export default async function StoryPage({
       : null,
   }));
 
-  // --- Serialise for the client tabs ---------------------------------------
   const events: StoryEvent[] = tx.events.map((e) => {
     const t = e.tests[0];
     return {

@@ -404,7 +404,6 @@ export async function commitEmdis(
       },
     });
 
-    // --- Rows, with the analysis baked in ---------------------------------
     const rows: Prisma.EmdisReadingCreateManyInput[] = sorted.map((r) => {
       const a = analyseReading(r, ratingKva, voltLL);
       return {
@@ -430,7 +429,6 @@ export async function commitEmdis(
     }
     imported += rows.length;
 
-    // --- Hourly rollup ------------------------------------------------------
     const buckets = new Map<number, typeof rows>();
     for (const row of rows) {
       const h = Math.floor(row.recordedAt instanceof Date ? row.recordedAt.getTime() / 3.6e6 : 0);
@@ -477,7 +475,6 @@ export async function commitEmdis(
       await prisma.emdisHourly.createMany({ data: hourly.slice(i, i + 500), skipDuplicates: true });
     }
 
-    // --- Chain event and alerts, only for a matched transformer -------------
     let alertsRaised = 0;
     const matchedTransformerId = m.transformerId;
     if (matchedTransformerId) {
@@ -514,7 +511,6 @@ export async function commitEmdis(
     },
   });
 
-  // --- Auto-status: rescore every transformer this upload touched -----------
   const healthUpdates: EmdisCommitResult["healthUpdates"] = [];
   if (alertsByTransformer.size) {
     const scored = await refreshCachedScores({ transformerIds: [...alertsByTransformer.keys()] });

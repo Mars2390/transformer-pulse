@@ -17,9 +17,7 @@ import { computeThermal } from "./transformer-thermal";
 /** IEC 60076-7 reference: normal insulation life at a 98 °C hot-spot. */
 export const NORMAL_LIFE_YEARS = 30;
 
-// ---------------------------------------------------------------------------
 // Load balancing
-// ---------------------------------------------------------------------------
 
 export type PhaseCurrents = { l1: number; l2: number; l3: number };
 
@@ -122,9 +120,7 @@ export function planBalance(
   };
 }
 
-// ---------------------------------------------------------------------------
 // Capacity — what this transformer can actually carry
-// ---------------------------------------------------------------------------
 
 export type Capacity = {
   ratedPhaseA: number;
@@ -165,9 +161,7 @@ export function assessCapacity(
   };
 }
 
-// ---------------------------------------------------------------------------
 // Prediction — time to failure and loss of life
-// ---------------------------------------------------------------------------
 
 export type LifePrognosis = {
   avgAgeingRate: number;
@@ -247,9 +241,7 @@ export function priceLossOfLife(
   };
 }
 
-// ---------------------------------------------------------------------------
 // What-if
-// ---------------------------------------------------------------------------
 
 export type WhatIfResult = {
   scenario: string;
@@ -325,9 +317,7 @@ export function whatIfUprate(
   };
 }
 
-// ---------------------------------------------------------------------------
 // Voltage-quality scorecard
-// ---------------------------------------------------------------------------
 
 export type VoltageScorecard = {
   score: number;
@@ -392,9 +382,7 @@ export function scoreVoltageQuality(input: {
   return { score, grade, breakdown: b, notes };
 }
 
-// ---------------------------------------------------------------------------
 // Dynamic environment
-// ---------------------------------------------------------------------------
 
 /**
  * Ambient temperature for the thermal model, when the meter does not report it.

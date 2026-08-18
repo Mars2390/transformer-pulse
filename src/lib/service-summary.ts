@@ -61,14 +61,12 @@ export async function computeServiceSummary(input: {
   const { transformer: tx, events, repairs, testsCount, claimsCount } = input;
   const now = new Date();
 
-  // --- Age -------------------------------------------------------------------
   const installedEvent = [...events].reverse().find((e) => e.type === "INSTALLED");
   const installDate = tx.commissionDate ?? installedEvent?.occurredAt ?? null;
   const ageFrom = installDate ?? new Date(tx.yearOfManufacture, 0, 1);
   const age = ageBreakdown(ageFrom, now);
   const ageSource: ServiceSummary["ageSource"] = installDate ? "installation" : "manufacture year";
 
-  // --- Days in service ---------------------------------------------------------
   const daysInService = installDate ? Math.floor((now.getTime() - installDate.getTime()) / DAY) : null;
 
   // --- Days in repair — sum of every workshop visit's span, open ones count to now.
@@ -88,16 +86,13 @@ export async function computeServiceSummary(input: {
     daysAwaitingAction += Math.max(0, (end.getTime() - start.getTime()) / DAY);
   }
 
-  // --- Counts ------------------------------------------------------------------
   const inspectionsCompleted = events.filter((e) => e.type === "INSPECTED").length;
   const faultsReported = events.filter((e) => e.type === "FAULT_REPORTED").length;
   const repairsCompleted = repairs.filter((r) => r.repairCompletedAt != null).length;
 
-  // --- Costs ---------------------------------------------------------------
   const purchaseCostKes = estimateNewUnitCostKes(tx.ratingKva);
   const repairCostKes = repairs.reduce((s, r) => s + (r.repairCostKes ?? 0), 0);
 
-  // --- Loss-of-life cost, from the latest hour of EMDis telemetry, if any ---
   const latestHour = await prisma.emdisHourly.findFirst({
     where: { transformerId: tx.id },
     orderBy: { hourStart: "desc" },

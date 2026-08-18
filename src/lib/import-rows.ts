@@ -117,7 +117,6 @@ export function buildRows(
     const warnings: string[] = [];
     const rowNumber = headerRowIndex + 2 + i; // 1-based, past the header
 
-    // --- Required -----------------------------------------------------------
     const serialNumber = get("serialNumber").toUpperCase();
     if (!serialNumber) errors.push("Missing serial number");
     else if (serialNumber.length < 3) errors.push(`Serial number "${serialNumber}" is too short`);
@@ -137,7 +136,6 @@ export function buildRows(
     else if (!status) errors.push(`Status "${rawStatus}" not recognised`);
     else if (!VALID_STATUSES.includes(status)) errors.push(`Status "${rawStatus}" not supported`);
 
-    // --- Duplicates ---------------------------------------------------------
     let duplicate = false;
     if (serialNumber) {
       if (seenInFile.has(serialNumber)) {
@@ -148,7 +146,6 @@ export function buildRows(
       }
     }
 
-    // --- GPS ----------------------------------------------------------------
     let lat: number | null = null;
     let lng: number | null = null;
     const combined = get("gpsCombined");
@@ -170,7 +167,6 @@ export function buildRows(
       lat = null; lng = null;
     }
 
-    // --- Dates --------------------------------------------------------------
     const install = parseImportDate(get("installationDate"));
     if (get("installationDate") && !install.date) warnings.push(`Could not read installation date "${get("installationDate")}"`);
     if (install.ambiguous) warnings.push("Installation date read as DD/MM/YYYY — check if it was MM/DD/YYYY");
@@ -180,12 +176,10 @@ export function buildRows(
 
     const inspection = parseImportDate(get("lastInspectionDate"));
 
-    // --- Consistency --------------------------------------------------------
     if (status === "IN_FIELD" && (lat == null || lng == null)) {
       warnings.push("Marked In field but has no GPS — it will not appear on the map");
     }
 
-    // --- Store / region -----------------------------------------------------
     const storeName = get("storeName");
     const store = storeName
       ? ctx.stores.find((s) => s.name.toLowerCase().includes(storeName.toLowerCase()) || storeName.toLowerCase().includes(s.name.toLowerCase()))

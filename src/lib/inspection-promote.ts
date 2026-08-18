@@ -155,8 +155,6 @@ export async function loadStagedUnits(): Promise<StagedUnit[]> {
   return units;
 }
 
-// --- Promotion ---------------------------------------------------------------
-
 export type PromoteResult = {
   promoted: number;
   skipped: number;
@@ -209,7 +207,6 @@ export async function promoteUnits(
     }
 
     try {
-      // --- G-Number ---------------------------------------------------------
       // A readable plate number is used as-is. An unreadable one gets an
       // explicitly temporary number: it reads as provisional to a human and
       // stays unique to the database, and the field engineer replaces it with
@@ -232,7 +229,6 @@ export async function promoteUnits(
         }
       }
 
-      // --- Serial -----------------------------------------------------------
       let serialNumber = unit.serial?.toUpperCase().replace(/\s+/g, "") ?? "";
       if (serialNumber) {
         const clash = await prisma.transformer.findUnique({ where: { serialNumber }, select: { gNumber: true } });

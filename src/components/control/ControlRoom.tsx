@@ -87,7 +87,6 @@ export function ControlRoom() {
       .finally(() => setLoading(false));
   }, []);
 
-  // --- Derived engineering values ------------------------------------------
   const avgVoltage = acc.voltageCount ? acc.voltageSum / acc.voltageCount : 0;
   const avgPf = acc.pfCount ? acc.pfSum / acc.pfCount : 0.95;
   const rating = dataset?.ratingKva ?? 200;
@@ -96,7 +95,6 @@ export function ControlRoom() {
   });
   const score = conditionScore(thermal, avgVoltage, acc.minVoltage, avgPf);
 
-  // --- Audio: transformer hum ----------------------------------------------
   // A transformer hums at TWICE line frequency — magnetostriction stretches the
   // core twice per cycle — so 100 Hz on Kenya's 50 Hz system, not 50.
   const startAudio = useCallback(() => {
@@ -142,7 +140,6 @@ export function ControlRoom() {
 
   useEffect(() => () => stopAudio(), [stopAudio]);
 
-  // --- Alerts ---------------------------------------------------------------
   const evaluate = useCallback((a: Accumulated, label: string, t: ThermalResult) => {
     const found: ControlAlert[] = [];
     const add = (severity: ControlAlert["severity"], message: string) =>
@@ -167,7 +164,6 @@ export function ControlRoom() {
     if (found.length) setAlerts((prev) => [...found, ...prev].slice(0, 40));
   }, [rating]);
 
-  // --- The replay loop ------------------------------------------------------
   const run = useCallback(async (fromInterval: number) => {
     if (!dataset) return;
     cancelRef.current = false;
@@ -260,7 +256,6 @@ export function ControlRoom() {
     else void el.requestFullscreen?.();
   }
 
-  // --- Render ---------------------------------------------------------------
   if (loading) {
     return <div className="grid min-h-svh place-items-center bg-[#0d1b2a] text-slate-400">Loading control centre…</div>;
   }

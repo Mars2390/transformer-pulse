@@ -126,8 +126,6 @@ export async function embedPhotos(
   return out;
 }
 
-// --- Building blocks --------------------------------------------------------
-
 export function sectionTitle(text: string): Content {
   return {
     text,
@@ -212,8 +210,6 @@ export function badge(text: string, fill: string, color = KPLC_NAVY): Content {
     layout: "noBorders",
   };
 }
-
-// --- Single-sheet official documents ---------------------------------------
 
 /**
  * A tick box that is actually drawn, not typed.

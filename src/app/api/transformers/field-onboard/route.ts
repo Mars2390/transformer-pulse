@@ -49,7 +49,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // --- Substation ---------------------------------------------------------
     // "Exists" means something in the system has referenced this code before —
     // a sibling transformer, an inspection, an EMDis file. If so the unit joins
     // them; if not, this record is the first mention and the code becomes real
@@ -57,7 +56,6 @@ export async function POST(request: Request) {
     const substation = await lookupSubstation(input.substationCode);
     const substationName = input.substationName || substation.name || null;
 
-    // --- G-Number -----------------------------------------------------------
     // Same allocation as the store route: the field must not invent a different
     // numbering scheme for the same fleet.
     const year = new Date().getFullYear();

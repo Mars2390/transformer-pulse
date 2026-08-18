@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------
 // Transformer DNA — data model
 //
 // The governing rule: a transformer's CURRENT STATE is derived from an
@@ -7,7 +6,6 @@
 //
 // This is what lets every transformer tell its story, and what makes the
 // record hold up when a manufacturer disputes a warranty claim.
-// ---------------------------------------------------------------------------
 
 generator client {
   // Prisma 7: the generator is "prisma-client" (not "prisma-client-js") and
@@ -24,7 +22,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// ============================== Enums ======================================
+// Enums
 
 enum Role {
   /**
@@ -45,7 +43,7 @@ enum Role {
 }
 
 enum TransformerStatus {
-  // --- Maker-checker intake ------------------------------------------------
+  // Maker-checker intake
   // A unit booked in by a receiving officer but not yet accepted as stock. It
   // exists, it is on the premises, and it is deliberately NOT dispatchable or
   // testable: DISPATCHED and TESTED both list only IN_STORE in allowedFrom, so
@@ -60,7 +58,7 @@ enum TransformerStatus {
   IN_FIELD // energised at a site
   FAULTY // failed in service, still on the pole
 
-  // --- The repair loop -----------------------------------------------------
+  // The repair loop
   // AT_WORKSHOP is the live status — distinct from IN_STORE, matching KPLC's
   // actual chain of custody (a workshop is a different physical place with a
   // different custodian than a store). IN_REPAIR is kept, unused, purely so
@@ -124,7 +122,7 @@ enum AllocationStatus {
 enum EventType {
   RECEIVED_AT_STORE // genesis for a unit that enters through a KPLC store
 
-  // --- Maker-checker -------------------------------------------------------
+  // Maker-checker
   // Accepting or refusing a delivery is a custody decision, so it lives on the
   // chain rather than only in the admin audit log. Without these the story page
   // would show a unit sitting in stock whose last event says PENDING_APPROVAL,
@@ -152,7 +150,7 @@ enum EventType {
   FAULT_REPORTED
   RECOVERED // removed from site
 
-  // --- The repair loop -----------------------------------------------------
+  // The repair loop
   RECOVERED_FOR_REPAIR // taken off the pole with the workshop as its destination
   RECEIVED_AT_WORKSHOP
   REPAIR_STARTED
@@ -167,7 +165,7 @@ enum EventType {
   RETURNED_TO_MANUFACTURER
   SCRAPPED
 
-  // --- Movements that had no event of their own -----------------------------
+  // Movements that had no event of their own
   // Deliberately only four. Store-to-site is already DISPATCHED, site-to-
   // workshop is RECOVERED_FOR_REPAIR, manufacturer-to-store is
   // RECEIVED_AT_STORE, store-to-manufacturer is RETURNED_TO_MANUFACTURER.
@@ -313,7 +311,7 @@ enum AlertType {
   // a manager for.
   MOVEMENT_ARRIVED
 
-  // --- From EMDis load telemetry -------------------------------------------
+  // From EMDis load telemetry
   // One phase exceeded its rated current. This is invisible in the kVA figure:
   // a unit can sit at 71% of nameplate while a single phase runs at 121%.
   SINGLE_PHASE_OVERLOAD
@@ -321,16 +319,16 @@ enum AlertType {
   NEUTRAL_CURRENT_HIGH
   THD_HIGH
 
-  // --- From substation inspections -----------------------------------------
+  // From substation inspections
   EARTH_OPEN // tester read OL (over range) — no effective earth
   EARTH_HIGH
   STRUCTURE_DEFECT // pole rotten or leaning
 
-  // --- From field diagnostics ----------------------------------------------
+  // From field diagnostics
   IR_LOW
   WR_DEVIATION
 
-  // --- Repair and replacement ----------------------------------------------
+  // Repair and replacement
   REPAIR_COMPLETED
   REPAIR_FAILED
   AWAITING_REPLACEMENT // a site is off supply with nothing to give it
@@ -345,7 +343,7 @@ enum AlertSeverity {
   CRITICAL
 }
 
-// ============================== People =====================================
+// People
 
 model User {
   id          String  @id @default(cuid())
@@ -366,7 +364,7 @@ model User {
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
 
-  // --- Brute-force protection ---------------------------------------------
+  // Brute-force protection
   // Six digits is a million combinations — trivial for a script without these.
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
@@ -431,7 +429,7 @@ model User {
   @@index([region])
 }
 
-// -------------------------- Admin audit trail -------------------------------
+// Admin audit trail
 // A record of every administrative EDIT/DELETE/RESTORE — users, manufacturers,
 // stores. This is SEPARATE from the LifecycleEvent chain, which no admin action
 // ever writes: the custody chain stays append-only and untouched. This table
@@ -680,12 +678,12 @@ model Manufacturer {
   batches      TransformerBatch[]
 }
 
-// ============================ The asset ====================================
+// The asset
 
 model Transformer {
   id String @id @default(cuid())
 
-  // --- Identity -----------------------------------------------------------
+  // Identity
   // From the manufacturer. Never changes.
   serialNumber String @unique
 
@@ -696,7 +694,7 @@ model Transformer {
   manufacturerId String
   manufacturer   Manufacturer @relation(fields: [manufacturerId], references: [id])
 
-  // --- Nameplate ----------------------------------------------------------
+  // Nameplate
   ratingKva         Int // 50, 100, 200, 315, 500 ...
   primaryKv         Float   @default(11)
   secondaryKv       Float   @default(0.415)
@@ -722,7 +720,7 @@ model Transformer {
   totalWeightKg       Int?
   tapRange            String? // off-circuit tap voltages, free text
 
-  // --- Warranty -----------------------------------------------------------
+  // Warranty
   warrantyMonths Int @default(24)
 
   // The clock starts when KPLC takes delivery, NOT at manufacture. A unit that
@@ -730,7 +728,7 @@ model Transformer {
   // Paper gets this wrong, always in the manufacturer's favour.
   warrantyStart DateTime?
 
-  // --- Documents ------------------------------------------------------------
+  // Documents
   // Just the FAT report for now — one slot, not a general attachments table.
   // Add a proper Document model if/when a second document type is needed.
   fatReportUrl          String?
@@ -738,7 +736,7 @@ model Transformer {
   fatReportUploadedById String?
   fatReportUploadedBy   User?     @relation("FatReportUploadedBy", fields: [fatReportUploadedById], references: [id])
 
-  // --- Current state (a cache of the event chain, for fast queries) --------
+  // Current state (a cache of the event chain, for fast queries)
   status TransformerStatus @default(IN_STORE)
 
   currentStoreId String?
@@ -754,7 +752,7 @@ model Transformer {
 
   commissionDate DateTime? // first energised
 
-  // --- Provenance ---------------------------------------------------------
+  // Provenance
   // Where this record's position came from. Null means it entered through the
   // normal store flow, where the GPS pin was born at installation and is
   // therefore surveyed by definition.
@@ -786,7 +784,7 @@ model Transformer {
    */
   positionSourceText String?
 
-  // --- KPLC's own identifier ----------------------------------------------
+  // KPLC's own identifier
   // How Kenya Power actually refers to these assets in the field: "14537 - LEE
   // PIC ACADEMY". Both the EMDis export and the inspection register carry it,
   // and the EMDis file carries NO G-Number — so this is the only key that lets
@@ -794,7 +792,7 @@ model Transformer {
   substationCode String?
   substationName String?
 
-  // --- Cached condition (a view over inspections and load data) ------------
+  // Cached condition (a view over inspections and load data)
   // Denormalised for the same reason `status` is: the register and the map
   // would otherwise run a subquery per row.
   lastInspectionAt   DateTime?
@@ -826,7 +824,7 @@ model Transformer {
   // Hash of the most recent event. The chain's head — see lib/chain.ts.
   lastEventHash String?
 
-  // --- Maker-checker ---------------------------------------------------------
+  // Maker-checker
   // Who booked this unit in, and who accepted it as stock. They must be two
   // different people; the approval API refuses otherwise. Kept as columns on the
   // transformer rather than derived from the event chain because the approval
@@ -845,7 +843,7 @@ model Transformer {
    */
   rejectionReason String?
 
-  // --- Dispatch assignment ---------------------------------------------------
+  // Dispatch assignment
   // The engineer expected to receive this unit on site. Set at dispatch and
   // cleared when they confirm receipt, so "dispatched to nobody in particular"
   // stops being possible: a unit on a lorry with no name against it is how a
@@ -855,7 +853,7 @@ model Transformer {
   assignedEngineer   User?     @relation("TransformerAssignedEngineer", fields: [assignedEngineerId], references: [id])
   assignedAt         DateTime?
 
-  // --- Sample testing --------------------------------------------------------
+  // Sample testing
   // batchId is what makes sampleTested meaningful. A unit received on its own
   // has batchId null and sampleTested false, and that is NOT an untested
   // release — it went through the ordinary intake test. "Released untested"
@@ -890,7 +888,7 @@ model Transformer {
   @@index([lastInspectionAt])
 }
 
-// ======================= Approval paperwork ================================
+// Approval paperwork
 
 /**
  * The document number counter, one row per calendar year.
@@ -1011,7 +1009,7 @@ model ApprovalDocument {
   @@index([transactionId])
 }
 
-// ========================= The story itself ================================
+// The story itself
 
 model LifecycleEvent {
   repairsOpened RepairRecord[] @relation("RepairOpenedBy")
@@ -1024,47 +1022,47 @@ model LifecycleEvent {
   fromStatus TransformerStatus?
   toStatus   TransformerStatus
 
-  // --- Who ----------------------------------------------------------------
+  // Who
   userId String
   user   User   @relation(fields: [userId], references: [id])
 
-  // --- When ---------------------------------------------------------------
+  // When
   // These are two different facts and must not be collapsed into one column.
   // An engineer records an install at 14:00 with no signal; it reaches us at
   // 19:00. Both are true.
   occurredAt DateTime
   createdAt  DateTime @default(now())
 
-  // --- Where --------------------------------------------------------------
+  // Where
   lat          Float?
   lng          Float?
   accuracyM    Float? // GPS accuracy the phone reported
   locationName String?
 
-  // --- How it moved -------------------------------------------------------
+  // How it moved
   vehiclePlate String?
   driverName   String?
   driverPhone  String?
   destination  String?
 
-  // --- Evidence -----------------------------------------------------------
+  // Evidence
   photoUrls String[] // Vercel Blob URLs
   notes     String?
 
-  // --- Tamper-evident chain ------------------------------------------------
+  // Tamper-evident chain
   // hash = sha256(prevHash + canonical contents). Editing an old row breaks
   // every hash after it, and /api/transformers/[id]/verify says so.
   prevHash String?
   hash     String  @unique
 
-  // --- Offline idempotency --------------------------------------------------
+  // Offline idempotency
   // The phone generates this UUID before the event is queued offline. If it
   // syncs, loses signal before hearing the 200, and retries, this unique index
   // is what stops a duplicate event being written — and a duplicate event
   // corrupts the hash chain, which is the one thing we cannot allow.
   clientEventId String? @unique
 
-  // --- Replacement linking -------------------------------------------------
+  // Replacement linking
   // When a faulty unit is swapped, the old unit's RECOVERED event and the new
   // unit's INSTALLED event point at each other. That is how the manager sees
   // "this replaced that" without a separate table.
@@ -1078,7 +1076,7 @@ model LifecycleEvent {
   @@index([type])
 }
 
-// ============================= Testing =====================================
+// Testing
 
 model TestRecord {
   postRepairFor RepairRecord[] @relation("PostRepairTest")
@@ -1097,7 +1095,7 @@ model TestRecord {
   testedById String
   testedBy   User   @relation(fields: [testedById], references: [id])
 
-  // --- Measurements. All nullable: not every stage runs every test. --------
+  // Measurements. All nullable: not every stage runs every test.
   insulationResistanceHvMohm Float? // HV to earth, megaohms
   insulationResistanceLvMohm Float? // LV to earth, megaohms
   turnsRatio                 Float?
@@ -1109,7 +1107,7 @@ model TestRecord {
   ambientTempC               Float?
   polarityOk                 Boolean?
 
-  // --- What makes an insulation reading comparable -------------------------
+  // What makes an insulation reading comparable
   // Without these, IR is a number that cannot be trended and should not be.
 
   // A 500 V megger and a 5 kV megger do not produce comparable readings on the
@@ -1141,7 +1139,7 @@ model TestRecord {
   @@index([transformerId, testedAt])
 }
 
-// ============================ Warranty =====================================
+// Warranty
 
 model WarrantyClaim {
   id            String      @id @default(cuid())
@@ -1172,7 +1170,7 @@ model WarrantyClaim {
   @@index([status])
 }
 
-// ==================== Smart-meter data (control room) ======================
+// Smart-meter data (control room)
 // A replayable day of interval data from the meters fed by one transformer.
 // Kept separate from the lifecycle chain: this is telemetry, not custody.
 
@@ -1212,7 +1210,7 @@ model MeterReading {
   @@index([datasetId, intervalIndex, batchIndex])
 }
 
-// ============================= Alerts ======================================
+// Alerts
 
 model Alert {
   id            String      @id @default(cuid())
@@ -1237,7 +1235,6 @@ model Alert {
   @@index([region])
 }
 
-// ============================================================================
 // KPLC OPERATIONAL DATA
 //
 // Two real KPLC sources, joined to the register:
@@ -1250,7 +1247,6 @@ model Alert {
 //
 // Neither is sufficient alone. A transformer in perfect condition is destroyed
 // by phase imbalance; a lightly loaded one still falls off a rotten pole.
-// ============================================================================
 
 /**
  * One inspection visit. APPEND-ONLY: a later visit never overwrites an earlier
@@ -1290,7 +1286,7 @@ model SubstationInspection {
   inspectorUserId String?
   inspectorUser   User?   @relation("InspectionInspector", fields: [inspectorUserId], references: [id])
 
-  // --- Identity AS RECORDED ON THE FORM ------------------------------------
+  // Identity AS RECORDED ON THE FORM
   // Never written back to Transformer by the importer. These are what one
   // inspector claimed on one day; Transformer holds what was RESOLVED. Letting
   // the last upload win is exactly the failure mode this replaces.
@@ -1301,13 +1297,13 @@ model SubstationInspection {
   yomAsRecorded       Int?
   voltageKv           Int?
 
-  // --- Protection -----------------------------------------------------------
+  // Protection
   fuseSizeA    Int?
   circuits     Int?
   fuseCarriers FuseCarrierState?
   fuseBarType  FuseBarType?
 
-  // --- Earthing (OHMS — earth resistance, NOT insulation resistance) --------
+  // Earthing (OHMS — earth resistance, NOT insulation resistance)
   // Worth stating plainly because the two are easy to confuse and an engineer
   // will not forgive it: insulation resistance is megohms, winding to earth.
   // This is the resistance of the earth electrode itself, in single ohms.
@@ -1319,11 +1315,11 @@ model SubstationInspection {
   surgeArresterState MeasurementState @default(NOT_MEASURED)
   gapsetMm           Float?
 
-  // --- Conductors -----------------------------------------------------------
+  // Conductors
   lvConductorMm2 Int?
   leadSizeMm2    Int?
 
-  // --- Loading, as judged by eye and experience -----------------------------
+  // Loading, as judged by eye and experience
   // The single most valuable column in the file. On substation 14537 an
   // inspector recorded loadingOk=false, loadAction=RELIEVE on 28 Nov 2025. The
   // EMDis meter data nine days later measured a phase at 121% of rated while
@@ -1331,11 +1327,11 @@ model SubstationInspection {
   loadingOk  Boolean?
   loadAction LoadAction?
 
-  // --- Physical condition ---------------------------------------------------
+  // Physical condition
   structure    StructureCondition?
   locationNote String?
 
-  // --- Provenance -----------------------------------------------------------
+  // Provenance
   sourceFile    String
   importBatchId String?
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
@@ -1443,7 +1439,7 @@ model EmdisReading {
   thdPct Float?
   kwh    Float? // cumulative meter register
 
-  // --- Derived once, at ingest ---------------------------------------------
+  // Derived once, at ingest
   // Computed here rather than at query time, because the alternative is
   // recomputing across millions of rows on every dashboard load.
   maxPhaseC         Float?
@@ -1606,7 +1602,6 @@ model ColumnMappingProfile {
   @@index([headerSignature])
 }
 
-// ============================================================================
 // THE REPAIR AND REPLACEMENT LOOP
 //
 // A transformer that fails does not simply stop. It is recovered, carried to a
@@ -1616,7 +1611,6 @@ model ColumnMappingProfile {
 // what customers actually experience.
 //
 // This half of the model exists to make that waiting visible.
-// ============================================================================
 
 /**
  * One visit to the workshop.
@@ -1756,7 +1750,7 @@ model SupplyRequest {
    */
   reference String @unique
 
-  // --- Where -------------------------------------------------------------
+  // Where
   siteName       String
   substationCode String?
   region         String?
@@ -1765,7 +1759,7 @@ model SupplyRequest {
   lng            Float?
   landmark       String?
 
-  // --- What is needed ----------------------------------------------------
+  // What is needed
   ratingKvaNeeded     Int
   reason              SupplyRequestReason
   /**
@@ -1781,7 +1775,7 @@ model SupplyRequest {
   customersAffected Int?
   urgency           SupplyUrgency @default(NORMAL)
 
-  // --- Who ---------------------------------------------------------------
+  // Who
   raisedById String
   raisedBy   User     @relation("SupplyRaisedBy", fields: [raisedById], references: [id])
   raisedAt   DateTime @default(now())
@@ -1789,7 +1783,7 @@ model SupplyRequest {
 
   status SupplyRequestStatus @default(SUBMITTED)
 
-  // --- Approval ----------------------------------------------------------
+  // Approval
   // A field engineer reports the need; a manager authorises spending an asset
   // on it. Keeping those separate is what stops the store being emptied by
   // whoever shouts loudest.
@@ -1858,9 +1852,7 @@ model Allocation {
   @@index([status, plannedInstallDate])
 }
 
-// ============================================================================
 // MCP (Model Context Protocol) — read-only analytics access for Claude
-// ============================================================================
 // Lets an authorised engineer or manager ask Claude natural-language questions
 // about the fleet — health, load, warranty, defects — over a small set of
 // read-only tools. Three concerns, three tables: who is ALLOWED to connect

@@ -11,9 +11,7 @@
  * number should be able to find where it came from and argue with it.
  */
 
-// ---------------------------------------------------------------------------
 // Standards and limits
-// ---------------------------------------------------------------------------
 
 /**
  * Rated phase current for a three-phase transformer.
@@ -96,9 +94,7 @@ export type Severity = "OK" | "WARNING" | "CRITICAL";
 const worse = (a: Severity, b: Severity): Severity =>
   a === "CRITICAL" || b === "CRITICAL" ? "CRITICAL" : a === "WARNING" || b === "WARNING" ? "WARNING" : "OK";
 
-// ---------------------------------------------------------------------------
 // One reading
-// ---------------------------------------------------------------------------
 
 export type PhaseReading = {
   l1c: number | null;
@@ -212,9 +208,7 @@ export function analyseReading(r: PhaseReading, ratingKva: number, voltLL: numbe
   };
 }
 
-// ---------------------------------------------------------------------------
 // A whole dataset
-// ---------------------------------------------------------------------------
 
 export type Finding = {
   code: string;
@@ -363,7 +357,6 @@ export function analyseDataset(
   const meanUnbalanceLossFactor =
     analyses.length ? analyses.reduce((s, a) => s + a.unbalanceLossFactor, 0) / analyses.length : 1;
 
-  // --- Findings -------------------------------------------------------------
   const findings: Finding[] = [];
   const peakPhaseA = Math.max(...perPhase.map((p) => p.peakA));
   const peakPhasePctRated = (peakPhaseA / iRated) * 100;

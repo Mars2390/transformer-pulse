@@ -68,8 +68,6 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
-// --- Admin: creating users --------------------------------------------------
-
 export const createUserSchema = z.object({
   name: z.string().trim().min(3, "Enter the full name.").max(80),
   email: emailField,
@@ -92,8 +90,6 @@ export const createUserSchema = z.object({
 });
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
-
-// --- Shared field types -----------------------------------------------------
 
 /**
  * Kenyan number plates: three letters, three digits, optional trailing letter
@@ -127,7 +123,6 @@ export const gNumberField = z
     return `G-${digits.slice(0, 4)}-${digits.slice(4).padStart(5, "0")}`;
   });
 
-// --- Full nameplate fields --------------------------------------------------
 // Everything on the plate a KPLC store records, beyond the core electricals.
 // All optional: a rusty plate may not be fully legible, and that is honest.
 const nameplateFields = {
@@ -146,8 +141,6 @@ const nameplateFields = {
   totalWeightKg: optionalNumber({ min: 1, max: 200_000, int: true }),
   tapRange: z.string().trim().max(120).optional().or(z.literal("")),
 };
-
-// --- Receiving a transformer ------------------------------------------------
 
 export const receiveTransformerSchema = z.object({
   serialNumber: z
@@ -398,8 +391,6 @@ export const correctTransformerSchema = z.object({
 
 export type CorrectTransformerInput = z.infer<typeof correctTransformerSchema>;
 
-// --- Test values ------------------------------------------------------------
-
 /**
  * A test reading that was actually taken.
  *
@@ -468,8 +459,6 @@ export const intakeTestSchema = z.object({
   visual: visualChecklistSchema,
 });
 
-// --- Dispatch ---------------------------------------------------------------
-
 export const dispatchSchema = z.object({
   destination: z.string().trim().min(3, "Where is it going?").max(120),
   region: z.string().trim().min(2, "Choose the region.").max(60),
@@ -492,8 +481,6 @@ export const dispatchSchema = z.object({
 });
 
 export type DispatchInput = z.infer<typeof dispatchSchema>;
-
-// --- Assigning a G-Number later ---------------------------------------------
 
 export const assignGNumberSchema = z.object({
   gNumber: gNumberField,
@@ -660,8 +647,6 @@ export const batchDecisionSchema = z
 
 export type BatchDecisionInput = z.infer<typeof batchDecisionSchema>;
 
-// --- Approval documents -----------------------------------------------------
-
 /**
  * Raising a request for approval.
  *
@@ -700,9 +685,6 @@ export const approvalDecideSchema = z
   });
 
 export type ApprovalDecideInput = z.infer<typeof approvalDecideSchema>;
-
-
-// --- Confirming presence at a site -----------------------------------------
 
 /**
  * A field engineer confirming they are standing at the pole.

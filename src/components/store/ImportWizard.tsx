@@ -126,7 +126,6 @@ export function ImportWizard() {
     URL.revokeObjectURL(url);
   }
 
-  // --- Done -----------------------------------------------------------------
   if (result) {
     return (
       <div className="space-y-5">
@@ -173,7 +172,6 @@ export function ImportWizard() {
     );
   }
 
-  // --- Preview --------------------------------------------------------------
   if (preview) {
     const importable = preview.summary.valid + preview.summary.warning;
     const errorRows = preview.rows.filter((r) => r.level === "error");
@@ -305,7 +303,6 @@ export function ImportWizard() {
     );
   }
 
-  // --- Upload ---------------------------------------------------------------
   return (
     <div className="space-y-5">
       {error && <FormError message={error} />}

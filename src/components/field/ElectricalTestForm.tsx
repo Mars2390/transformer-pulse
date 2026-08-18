@@ -35,7 +35,6 @@ export function ElectricalTestForm({
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
   const num = (k: string) => { const n = Number(f[k]); return Number.isFinite(n) && f[k] !== "" ? n : null; };
 
-  // --- Live preview of the derived values ---------------------------------
   const live = useMemo(() => {
     const irs = [num("irHvEarthMohm"), num("irLvEarthMohm"), num("irHvLvMohm")].filter((v): v is number => v != null);
     const lowest = irs.length ? Math.min(...irs) : null;

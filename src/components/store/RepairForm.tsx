@@ -108,7 +108,6 @@ export function RepairForm({
     router.refresh();
   }
 
-  // --- Outcome ------------------------------------------------------------
   if (result) {
     const failed = result.status === "BEYOND_REPAIR";
     return (

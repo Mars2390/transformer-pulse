@@ -28,8 +28,6 @@ import type {
   StructureCondition,
 } from "@/generated/prisma/enums";
 
-// --- Value helpers ----------------------------------------------------------
-
 /**
  * The vocabulary of "nothing here". The register uses at least nine spellings,
  * including a bare "0" and a lone full stop, and every one of them means the
@@ -41,8 +39,6 @@ export const isBlank = (v: string | undefined | null): boolean =>
   v == null || BLANK.test(v.trim());
 
 const clean = (v: string | undefined | null): string => (v ?? "").trim();
-
-// --- Dates ------------------------------------------------------------------
 
 const MONTHS: Record<string, number> = {
   jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
@@ -77,8 +73,6 @@ export function parseInspectionDate(raw: string): Date | null {
 
   return null;
 }
-
-// --- Identity ---------------------------------------------------------------
 
 /**
  * "14537 - LEE PIC ACADEMY" arrives as a single field. The number is the only
@@ -134,8 +128,6 @@ export function normaliseGNumber(raw: string): { value: string | null; rejected:
   return { value: null, rejected: s };
 }
 
-// --- Numbers that might not be numbers --------------------------------------
-
 /**
  * Year of manufacture.
  *
@@ -190,8 +182,6 @@ export function parseIntField(raw: string): number | null {
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }
 
-// --- The measurement columns ------------------------------------------------
-
 export type Measurement = {
   ohms: number | null;
   state: MeasurementState;
@@ -244,8 +234,6 @@ export function parseMeasurement(raw: string): Measurement {
   return { ohms: null, state: "NOT_MEASURED", note: s };
 }
 
-// --- Categorical columns ----------------------------------------------------
-
 export function parseStructure(raw: string): StructureCondition | null {
   const s = clean(raw).toLowerCase();
   if (s.includes("rotten")) return "ROTTEN";
@@ -289,8 +277,6 @@ export function parseYesNo(raw: string): boolean | null {
   if (s === "no" || s === "n") return false;
   return null;
 }
-
-// --- Header mapping ---------------------------------------------------------
 
 /**
  * The register's own column names, plus the spellings a human might use when
@@ -343,8 +329,6 @@ export function mapInspectionHeaders(headerRow: string[]): Record<string, number
   });
   return index;
 }
-
-// --- A whole row ------------------------------------------------------------
 
 export type ParsedInspection = {
   reportId: number;

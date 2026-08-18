@@ -33,7 +33,6 @@ export async function GET() {
       include: { transformer: { select: { gNumber: true, serialNumber: true } } },
     });
 
-    // --- Aggregates ---------------------------------------------------------
     const byStatus = new Map<string, number>();
     for (const r of rows) byStatus.set(r.tx.status, (byStatus.get(r.tx.status) ?? 0) + 1);
 
@@ -49,7 +48,6 @@ export async function GET() {
 
     const content: Content[] = [];
 
-    // --- Executive summary --------------------------------------------------
     content.push(sectionTitle("Executive summary"));
     content.push({
       columns: [
@@ -82,7 +80,6 @@ export async function GET() {
       });
     }
 
-    // --- Status breakdown with a drawn bar chart ---------------------------
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle("Status breakdown"));
 
@@ -114,7 +111,6 @@ export async function GET() {
       ["*", "auto", "auto"],
     ) });
 
-    // --- Region comparison --------------------------------------------------
     const byRegion = new Map<string, { total: number; faulty: number; field: number }>();
     for (const r of rows) {
       const key = r.tx.region ?? "Unassigned";
@@ -136,7 +132,6 @@ export async function GET() {
       ));
     }
 
-    // --- Full list ----------------------------------------------------------
     content.push({ text: "", pageBreak: "before" });
     content.push(sectionTitle(`Transformer register (${total})`));
 

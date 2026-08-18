@@ -192,7 +192,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
   const upper = text.toUpperCase();
   const upperLines = lines.map((l) => l.toUpperCase());
 
-  // --- Serial ---------------------------------------------------------------
   let serialNumber = none<string>();
   const serialRow = textForLabel(
     upperLines,
@@ -201,7 +200,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
   );
   if (serialRow) serialNumber = hit(serialRow.value, "high", serialRow.source);
 
-  // --- Rating ---------------------------------------------------------------
   // Inline first, because "315 kVA" is unambiguous when it exists. Only then
   // label-anchored, because "Rating (KVA)  3500" has no such substring.
   //
@@ -234,7 +232,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
     }
   }
 
-  // --- Voltages -------------------------------------------------------------
   // A ratio like 11/0.433 or 11000/433 is the reliable form. Bare "HV"/"LV"
   // rows are common too. Anything over 1000 is volts and is brought to kV.
   let primaryKv = none<number>();
@@ -254,7 +251,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
     }
   }
 
-  // --- Year -----------------------------------------------------------------
   let yearOfManufacture = none<number>();
   const thisYear = new Date().getFullYear();
   const yearRow = numberForLabel(
@@ -269,7 +265,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
     if (n != null && n <= thisYear) yearOfManufacture = hit(n, "low", bare![0]);
   }
 
-  // --- Frequency ------------------------------------------------------------
   let frequencyHz = none<number>();
   const freqRow = numberForLabel(upperLines, /FREQ\w*/, { min: 45, max: 65, lookahead: 1 });
   if (freqRow && (Math.round(freqRow.value) === 50 || Math.round(freqRow.value) === 60)) {
@@ -279,7 +274,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
     if (inline) frequencyHz = hit(Number(inline[1]), "high", inline[0]);
   }
 
-  // --- Cooling --------------------------------------------------------------
   let coolingType = none<string>();
   const coolRow = textForLabel(upperLines, /COOL\w*/, /\b(ONAN|ONAF|OFAF|OFAN|KNAN|KNAF|ODAF)\b/, 1);
   if (coolRow) coolingType = hit(coolRow.value, "high", coolRow.source);
@@ -288,7 +282,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
     if (bare) coolingType = hit(bare[1], "medium", bare[0]);
   }
 
-  // --- Vector group ---------------------------------------------------------
   let vectorGroup = none<string>();
   const vecRow = textForLabel(
     upperLines,
@@ -305,7 +298,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
     }
   }
 
-  // --- Impedance ------------------------------------------------------------
   // The row that caused the trouble. Confined to its own label, range-checked,
   // and left blank when the plate leaves it blank.
   let impedancePct = none<number>();
@@ -321,7 +313,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
     if (n != null && n >= 1 && n <= 25) impedancePct = hit(n, "low", inline![0]);
   }
 
-  // --- Oil ------------------------------------------------------------------
   // Litres and kilograms are different quantities. A plate giving oil MASS is
   // recorded as a note, not silently divided by a density nobody measured.
   let oilVolumeLitres = none<number>();
@@ -344,7 +335,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
   });
   if (oilWtRow) oilWeightKgNoted = Math.round(oilWtRow.value);
 
-  // --- Total weight ---------------------------------------------------------
   let totalWeightKg = none<number>();
   const wtRow = numberForLabel(upperLines, /TOTAL\s*(?:WEIGHT|MASS)|GROSS\s*(?:WEIGHT|MASS)/, {
     min: 50,
@@ -358,7 +348,6 @@ export function parseNameplate(rawText: string): NameplateExtract {
     if (n != null && n >= 50 && n <= 200000) totalWeightKg = hit(n, "medium", inline![0]);
   }
 
-  // --- Manufacturer ---------------------------------------------------------
   let manufacturerGuess = none<string>();
   for (const maker of MAKERS) {
     const p = maker.patterns.find((r) => r.test(upper));

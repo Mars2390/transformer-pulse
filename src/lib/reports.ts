@@ -34,8 +34,6 @@ export type Column<T> = {
   tone?: (row: T) => CellTone | null;
 };
 
-// --- CSV --------------------------------------------------------------------
-
 /**
  * Escapes a CSV cell.
  *
@@ -64,8 +62,6 @@ export function toCsv<T>(rows: T[], columns: Column<T>[]): string {
   // KPLC desktop is Excel on Windows.
   return "﻿" + lines.join("\r\n");
 }
-
-// --- XLSX -------------------------------------------------------------------
 
 const KPLC_GREEN = "FF006837"; // header per spec
 const KPLC_NAVY = "FF0A1A4F";
@@ -165,8 +161,6 @@ export async function toXlsxWorkbook<T>({
   }
   return finalise(workbook);
 }
-
-// --- internals --------------------------------------------------------------
 
 async function newWorkbook(): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();

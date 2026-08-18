@@ -28,8 +28,6 @@ function secret(): string {
   return s;
 }
 
-// --- Authorization code ------------------------------------------------------
-
 export type AuthCodePayload = {
   typ: "mcp_auth_code";
   sub: string; // userId
@@ -59,8 +57,6 @@ export async function pkceChallengeFromVerifier(verifier: string): Promise<strin
   for (const b of bytes) binary += String.fromCharCode(b);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-
-// --- Access token -------------------------------------------------------------
 
 export type IssuedToken = { token: string; expiresIn: number; tokenId: string };
 
@@ -114,8 +110,6 @@ export async function verifyAccessToken(token: string): Promise<VerifiedToken | 
 
   return { ok: true, tokenId: row.id, user: row.user };
 }
-
-// --- Rate limiting + access log ----------------------------------------------
 
 export async function withinRateLimit(tokenId: string, limitPerHour: number): Promise<boolean> {
   const since = new Date(Date.now() - 60 * 60 * 1000);

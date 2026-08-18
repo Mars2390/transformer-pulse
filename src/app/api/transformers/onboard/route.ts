@@ -36,7 +36,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "That manufacturer no longer exists." }, { status: 422 });
     }
 
-    // --- G-Number -----------------------------------------------------------
     const year = new Date().getFullYear();
     let gNumber = input.gNumber || "";
     if (!gNumber) {
@@ -57,7 +56,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // --- Serial number ------------------------------------------------------
     // The column is required and unique, and must stay that way — it is what
     // stops the same physical unit being registered twice. But a keeper at a
     // roadside pole frequently cannot read it: the plate faces away from the

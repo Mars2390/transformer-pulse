@@ -158,7 +158,6 @@ export async function POST(request: Request) {
             },
           });
 
-          // --- Build the chain -------------------------------------------
           const plan = eventPlan(row.status, row.dataSource);
           let prevHash: string | null = null;
           let fromStatus: TransformerStatus | null = null;

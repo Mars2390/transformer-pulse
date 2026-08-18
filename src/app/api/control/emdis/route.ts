@@ -54,7 +54,6 @@ export async function GET(request: Request) {
     const iRated = ratedPhaseCurrent(ratingKva, dataset.nominalVoltLL);
     const insp = dataset.transformer?.inspections?.[0] ?? null;
 
-    // --- Metadata only ------------------------------------------------------
     if (cursor == null) {
       return NextResponse.json({
         dataset: {
@@ -99,7 +98,6 @@ export async function GET(request: Request) {
       });
     }
 
-    // --- One frame, plus the trailing window the chart draws ----------------
     const at = Math.max(0, Number(cursor) || 0);
     const WINDOW = 90;
 

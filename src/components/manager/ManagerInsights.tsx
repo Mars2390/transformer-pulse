@@ -60,7 +60,6 @@ export async function ManagerInsights({
     }),
   ]);
 
-  // --- Six-month buckets ----------------------------------------------------
   const buckets = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
     return { label: MONTHS[d.getMonth()], key: `${d.getFullYear()}-${d.getMonth()}`, faults: 0, installs: 0 };
@@ -72,7 +71,6 @@ export async function ManagerInsights({
   const faultTrend = buckets[5].faults - buckets[4].faults;
   const faultWord = faultTrend > 0 ? "up" : faultTrend < 0 ? "down" : "steady";
 
-  // --- Today's digest -------------------------------------------------------
   const countToday = (type: string) => todayCounts.find((c) => c.type === type)?._count._all ?? 0;
   const digest = [
     { label: "installations", n: countToday("INSTALLED") },
@@ -81,10 +79,8 @@ export async function ManagerInsights({
     { label: "dispatches", n: countToday("DISPATCHED") },
   ].filter((d) => d.n > 0);
 
-  // --- Recovered money ------------------------------------------------------
   const recovered = settled.reduce((s, c) => s + Number(c.claimValueKes ?? 0), 0);
 
-  // --- Warranty expiring in 90 days, grouped by month -----------------------
   const expSoon = expiring
     .map((tx) => ({ tx, w: computeWarranty(tx.warrantyStart, tx.warrantyMonths) }))
     .filter(({ w }) => w.expiresAt && w.expiresAt <= in90 && (w.daysRemaining ?? 0) > 0);
@@ -97,7 +93,6 @@ export async function ManagerInsights({
     expByMonth.set(key, entry);
   }
 
-  // --- Region comparison ----------------------------------------------------
   const byRegion = new Map<string, { total: number; faulty: number; field: number }>();
   for (const t of regionRows) {
     const r = t.region ?? "Unassigned";

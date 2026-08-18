@@ -259,7 +259,6 @@ function StoreForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
   );
 }
 
-
 /**
  * Editing a store. The CODE is deliberately absent: it is the human key printed
  * on paperwork and referenced by imports, so renaming a store is a label change

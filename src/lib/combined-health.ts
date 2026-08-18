@@ -28,8 +28,6 @@ export type ScoreReason = { points: number; text: string };
 // so callers have one place to look.
 export { correctIrTo20C, wrDeviationPct, bandOf, IR_LIMITS, EARTH_LIMIT_OHM, EARTH_CRITICAL_OHM } from "./insulation";
 
-// ---------------------------------------------------------------------------
-
 export type PriorityRow = {
   id: string;
   gNumber: string | null;
@@ -137,7 +135,6 @@ export async function buildPriorityList(opts?: {
     const ld = load.get(t.id);
     const tst = latestTest.get(t.id);
 
-    // --- Electrical stress ------------------------------------------------
     let electrical: number | null = null;
     const eReasons: string[] = [];
     if (ld) {
@@ -161,7 +158,6 @@ export async function buildPriorityList(opts?: {
       electrical = Math.max(0, electrical);
     }
 
-    // --- Physical condition -----------------------------------------------
     let physical: number | null = null;
     const pReasons: string[] = [];
     let openEarth = false;
@@ -208,7 +204,6 @@ export async function buildPriorityList(opts?: {
       physical = Math.max(0, physical);
     }
 
-    // --- Priority ----------------------------------------------------------
     // min() dominates on purpose: either axis alone must be able to escalate a
     // unit. A sound pole does not excuse a cooking winding.
     const known = [electrical, physical].filter((x): x is number => x != null);

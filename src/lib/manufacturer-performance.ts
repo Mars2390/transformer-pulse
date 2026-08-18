@@ -66,7 +66,6 @@ export async function buildManufacturerPerformance(): Promise<ManufacturerPerfor
   const txById = new Map(transformers.map((t) => [t.id, t]));
   const now = Date.now();
 
-  // --- Per-transformer test sequences, for the decline-rate calc ------------
   const testsByTx = new Map<string, typeof tests>();
   for (const t of tests) {
     const list = testsByTx.get(t.transformerId) ?? [];
@@ -88,7 +87,6 @@ export async function buildManufacturerPerformance(): Promise<ManufacturerPerfor
     return rates.length ? rates.reduce((s, r) => s + r, 0) / rates.length : null;
   }
 
-  // --- Group everything by manufacturer --------------------------------------
   const byManufacturer = new Map<string, string[]>(); // manufacturerId -> transformer ids
   for (const t of transformers) {
     const list = byManufacturer.get(t.manufacturerId) ?? [];
@@ -165,9 +163,7 @@ export function fleetAverage(rows: ManufacturerPerformance[], key: keyof Manufac
   return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
 }
 
-// ---------------------------------------------------------------------------
 // Drill-down — every transformer from one manufacturer.
-// ---------------------------------------------------------------------------
 
 export type ManufacturerTransformerRow = {
   id: string;

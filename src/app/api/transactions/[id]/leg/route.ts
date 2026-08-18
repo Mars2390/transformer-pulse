@@ -42,7 +42,6 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
     const label = record.transformer.gNumber ?? record.transformer.serialNumber;
 
-    // --- Departure -----------------------------------------------------------
     if (input.leg === "DEPART") {
       if (record.status !== "APPROVED") {
         return NextResponse.json(
@@ -56,7 +55,6 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         );
       }
 
-      // --- Somebody has to be at the pole ------------------------------------
       // An approval says the movement MAY happen. It does not say anybody was
       // there when it did. For a movement out of a site those are different
       // claims, and only the engineer standing at the pole can make the second.
@@ -72,7 +70,6 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         );
       }
 
-      // --- The lorry that is actually going -----------------------------------
       // Plate and driver were required when this was raised, but that was the
       // PLANNED lorry and days may have passed. Anything supplied now replaces
       // it, so the register ends up holding the vehicle that went rather than
@@ -124,7 +121,6 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       return NextResponse.json({ status: "IN_TRANSIT", message: `${label} has left ${record.fromName}.` });
     }
 
-    // --- Arrival -------------------------------------------------------------
     if (record.status !== "IN_TRANSIT") {
       return NextResponse.json(
         {
@@ -199,7 +195,6 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       details: `${actor.name} received ${label} at ${record.toName}. Movement ${movement.label} complete; chain event ${result.eventId}.`,
     });
 
-    // --- Tell the manager it landed ------------------------------------------
     // Arrival is the moment custody changes hands, and it is the one moment in
     // a movement a manager genuinely wants pushed at them: they authorised a
     // transformer to travel and now it is somewhere else. Departure gets no

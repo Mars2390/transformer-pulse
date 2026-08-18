@@ -102,7 +102,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const content: Content[] = [];
 
-    // --- The sentence a certificate has to open with -----------------------
     content.push({
       margin: [0, 12, 0, 0],
       text: approved
@@ -127,7 +126,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       fontSize: 9.5,
     });
 
-    // --- The asset ---------------------------------------------------------
     content.push(sheetTitle("Transformer"));
     content.push({
       columns: [
@@ -157,7 +155,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       columnGap: 14,
     });
 
-    // --- The checklist -----------------------------------------------------
     content.push(
       sheetTitle(
         approved
@@ -212,7 +209,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       });
     }
 
-    // --- Requester and signatory, side by side ------------------------------
     content.push({
       margin: [0, 11, 0, 0],
       columns: [
@@ -298,7 +294,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       });
     }
 
-    // --- Signatures ---------------------------------------------------------
     content.push({
       margin: [0, 2, 0, 0],
       columns: [
@@ -313,7 +308,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       columnGap: 24,
     });
 
-    // --- Chain reference ----------------------------------------------------
     content.push({
       margin: [0, 14, 0, 0],
       table: {

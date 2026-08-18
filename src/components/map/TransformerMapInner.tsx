@@ -27,7 +27,6 @@ export type MapPoint = {
   /** Set once a field engineer has physically stood at the asset. */
   verified?: boolean;
 
-  // --- Position provenance -------------------------------------------------
   positionSource?: "SURVEYED" | "GEOCODED" | "UNAVAILABLE" | null;
   positionAccuracyM?: number | null;
   make?: string | null;

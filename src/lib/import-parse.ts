@@ -11,8 +11,6 @@ import { KENYA_BOUNDS } from "./geo";
  * anything it cannot honestly interpret.
  */
 
-// --- File reading -----------------------------------------------------------
-
 /**
  * A CSV parser that respects quotes.
  *
@@ -82,8 +80,6 @@ export async function parseXlsx(buffer: ArrayBuffer): Promise<string[][]> {
   });
   return rows.filter((r) => r.some((c) => c.trim() !== ""));
 }
-
-// --- Header detection -------------------------------------------------------
 
 /** Every field we can import, with the header spellings we accept for it. */
 export const FIELD_ALIASES: Record<string, string[]> = {
@@ -167,8 +163,6 @@ export function detectHeaders(headerRow: string[]): HeaderMap {
 
   return { index, unmapped };
 }
-
-// --- Value normalisation ----------------------------------------------------
 
 /**
  * GPS in any of the shapes a Kenyan utility spreadsheet uses.

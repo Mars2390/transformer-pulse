@@ -3,8 +3,6 @@ import type { Tone } from "@/lib/format";
 
 /** The shared UI kit. Small, boring, and used everywhere. */
 
-// --- Card -------------------------------------------------------------------
-
 export function Card({
   children,
   className = "",
@@ -40,8 +38,6 @@ export function CardHeader({
   );
 }
 
-// --- Badge ------------------------------------------------------------------
-
 const TONE_CLASSES: Record<Tone, string> = {
   neutral: "bg-surface-2 text-ink-soft ring-line",
   info: "bg-kplc/8 text-kplc ring-kplc/20",
@@ -65,8 +61,6 @@ export function Badge({
     </span>
   );
 }
-
-// --- Stat tile --------------------------------------------------------------
 
 export function StatTile({
   label,
@@ -113,15 +107,11 @@ export function StatTile({
   );
 }
 
-// --- Empty state ------------------------------------------------------------
-
 export function EmptyState({ message }: { message: string }) {
   return (
     <p className="px-5 py-10 text-center text-sm text-ink-soft">{message}</p>
   );
 }
-
-// --- Touch targets ----------------------------------------------------------
 
 /**
  * The minimum comfortable tap target: 44 x 44 CSS pixels.
@@ -139,8 +129,6 @@ export const tapTarget = "inline-flex min-h-11 min-w-11 items-center justify-cen
 
 /** A whole row made tappable — for checkboxes and radio labels. */
 export const tapRow = "flex min-h-11 items-center gap-3";
-
-// --- Buttons ----------------------------------------------------------------
 
 export function ActionLink({
   href,

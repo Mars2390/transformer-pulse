@@ -148,7 +148,6 @@ export async function closeRepair(
     (completedAt.getTime() - repair.receivedAtWorkshop.getTime()) / 86_400_000,
   );
 
-  // --- Decision support, not decisions -------------------------------------
   // These are surfaced to a human. The system does not refuse an uneconomic
   // repair — sometimes there is nothing else to give the site — but nobody gets
   // to say afterwards that the numbers were not in front of them.
@@ -197,7 +196,6 @@ export async function closeRepair(
 
   const alerts: { transformerId: string; type: "REPAIR_COMPLETED" | "REPAIR_FAILED" | "AWAITING_REPLACEMENT"; severity: "INFO" | "WARNING" | "CRITICAL"; region: string | null; message: string }[] = [];
 
-  // --- Successful --------------------------------------------------------
   if (input.successful) {
     const repairedEvent = await recordEvent(
       tx.id,
@@ -255,7 +253,6 @@ export async function closeRepair(
     };
   }
 
-  // --- Failed ------------------------------------------------------------
   await recordEvent(
     tx.id,
     {
@@ -320,9 +317,7 @@ export async function closeRepair(
   };
 }
 
-// ---------------------------------------------------------------------------
 // Supply requests and allocation
-// ---------------------------------------------------------------------------
 
 export type SupplyRequestInput = {
   siteName: string;

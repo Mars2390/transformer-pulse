@@ -35,7 +35,6 @@ export default async function LoadAnalysisPage({
 
   const hrs = (m: number) => (m >= 120 ? `${(m / 60).toFixed(1)} h` : `${m.toFixed(0)} min`);
 
-  // --- Phase distribution — customer estimates by phase, KPLC R-Y-B ---------
   const worstCurrents = {
     l1: balance.present.find((p) => p.phase === "L1")?.amps ?? 0,
     l2: balance.present.find((p) => p.phase === "L2")?.amps ?? 0,

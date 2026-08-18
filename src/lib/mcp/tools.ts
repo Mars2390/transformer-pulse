@@ -62,9 +62,7 @@ export type McpTool = {
   handler: (args: unknown) => Promise<McpToolResult>;
 };
 
-// ---------------------------------------------------------------------------
 // 1. analyze_transformer_health
-// ---------------------------------------------------------------------------
 
 const AnalyzeHealthInput = z.object({
   gNumber: z.string().min(1, "gNumber is required").max(20),
@@ -137,9 +135,7 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
   };
 }
 
-// ---------------------------------------------------------------------------
 // 2. find_failing_transformers
-// ---------------------------------------------------------------------------
 
 const FindFailingInput = z.object({
   region: z.string().max(60).optional(),
@@ -197,9 +193,7 @@ async function findFailingTransformers(args: unknown): Promise<McpToolResult> {
   };
 }
 
-// ---------------------------------------------------------------------------
 // 3. compare_manufacturers
-// ---------------------------------------------------------------------------
 
 async function compareManufacturers(): Promise<McpToolResult> {
   const rows = await buildManufacturerPerformance();
@@ -221,9 +215,7 @@ async function compareManufacturers(): Promise<McpToolResult> {
   };
 }
 
-// ---------------------------------------------------------------------------
 // 4. analyze_load_pattern
-// ---------------------------------------------------------------------------
 
 async function analyzeLoadPattern(args: unknown): Promise<McpToolResult> {
   const { gNumber } = AnalyzeHealthInput.parse(args);
@@ -270,9 +262,7 @@ async function analyzeLoadPattern(args: unknown): Promise<McpToolResult> {
   };
 }
 
-// ---------------------------------------------------------------------------
 // 5. list_inspection_defects
-// ---------------------------------------------------------------------------
 
 const DefectInput = z.object({
   region: z.string().max(60).optional(),
@@ -326,9 +316,7 @@ async function listInspectionDefects(args: unknown): Promise<McpToolResult> {
   };
 }
 
-// ---------------------------------------------------------------------------
 // 6. get_fleet_summary
-// ---------------------------------------------------------------------------
 
 const RegionInput = z.object({ region: z.string().max(60).optional() });
 
@@ -367,9 +355,7 @@ async function getFleetSummary(args: unknown): Promise<McpToolResult> {
   };
 }
 
-// ---------------------------------------------------------------------------
 // 7. analyze_warranty_claims
-// ---------------------------------------------------------------------------
 
 const ClaimsInput = z.object({
   manufacturer: z.string().max(60).optional(),
@@ -419,9 +405,7 @@ async function analyzeWarrantyClaims(args: unknown): Promise<McpToolResult> {
   };
 }
 
-// ---------------------------------------------------------------------------
 // 8. search_transformers
-// ---------------------------------------------------------------------------
 
 const SearchInput = z.object({ query: z.string().min(1, "query is required").max(100) });
 
@@ -463,9 +447,7 @@ async function searchTransformers(args: unknown): Promise<McpToolResult> {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Registry
-// ---------------------------------------------------------------------------
 
 export const MCP_TOOLS: McpTool[] = [
   {

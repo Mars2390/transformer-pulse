@@ -65,7 +65,6 @@ export function EmdisControlRoom({ datasetId }: { datasetId?: string }) {
   const audioRef = useRef<{ ctx: AudioContext; gain: GainNode } | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
 
-  // --- Metadata -------------------------------------------------------------
   useEffect(() => {
     (async () => {
       const q = datasetId ? `?dataset=${datasetId}` : "";
@@ -76,7 +75,6 @@ export function EmdisControlRoom({ datasetId }: { datasetId?: string }) {
     })();
   }, [datasetId]);
 
-  // --- Fetch one frame ------------------------------------------------------
   const fetchFrame = useCallback(
     async (at: number) => {
       if (!meta) return null;
@@ -96,7 +94,6 @@ export function EmdisControlRoom({ datasetId }: { datasetId?: string }) {
     })();
   }, [meta, fetchFrame]);
 
-  // --- The replay loop ------------------------------------------------------
   // Async recursion rather than setInterval: a frame that takes longer than the
   // tick would otherwise stack requests until the browser gives up.
   useEffect(() => {
@@ -130,7 +127,6 @@ export function EmdisControlRoom({ datasetId }: { datasetId?: string }) {
     return () => { cancelRef.current = true; };
   }, [playing, meta, fetchFrame]);
 
-  // --- The hum --------------------------------------------------------------
   // 100 Hz, twice the 50 Hz supply: core laminations magnetostrict once per
   // half-cycle, so a transformer hums at double the line frequency.
   useEffect(() => {

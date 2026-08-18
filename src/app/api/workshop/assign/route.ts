@@ -45,7 +45,6 @@ export async function POST(request: Request) {
 
     const label = repair.transformer.gNumber ?? repair.transformer.serialNumber;
 
-    // --- Unassign: back to the queue ----------------------------------------
     if (!input.technicianId) {
       if (repair.status === "IN_REPAIR") {
         return NextResponse.json(
@@ -74,7 +73,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, status: "QUEUED", queued: true });
     }
 
-    // --- Assign -------------------------------------------------------------
     const verdict = await canAssign(repair.id, input.technicianId);
     if (!verdict.ok) {
       // 409, not 422: nothing about the request is malformed. The floor is in a

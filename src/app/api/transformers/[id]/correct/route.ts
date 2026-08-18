@@ -64,7 +64,6 @@ export async function PATCH(
       manufacturerName = m.name;
     }
 
-    // --- Describe every change in words, before applying any of them --------
     const lines: string[] = [];
     const data: Record<string, unknown> = {};
 

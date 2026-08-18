@@ -73,7 +73,6 @@ export async function recordEvent(
   actor: SessionUser,
 ): Promise<RecordEventResult> {
   return prisma.$transaction(async (tx) => {
-    // --- Offline replay guard -----------------------------------------------
     if (input.clientEventId) {
       const existing = await tx.lifecycleEvent.findUnique({
         where: { clientEventId: input.clientEventId },
@@ -96,14 +95,12 @@ export async function recordEvent(
     });
     if (!transformer) throw new LifecycleError("Transformer not found.", 404);
 
-    // --- Is this movement legal? -------------------------------------------
     const transition = checkTransition(input.type, transformer.status);
     if (!transition.ok) throw new LifecycleError(transition.reason, 409);
 
     const rule = LIFECYCLE_RULES[input.type];
     const occurredAt = input.occurredAt ?? new Date();
 
-    // --- Does it carry the evidence the rule demands? ----------------------
     if (rule.requires.gps && (input.lat == null || input.lng == null)) {
       throw new LifecycleError(
         `"${rule.label}" must include GPS coordinates. Turn on location and try again.`,
@@ -121,7 +118,6 @@ export async function recordEvent(
       throw new LifecycleError(`"${rule.label}" must include a photograph.`);
     }
 
-    // --- Business rule: unapproved stock does not move ----------------------
     // checkTransition already refuses these, since DISPATCHED and TESTED allow
     // only IN_STORE. This exists to replace "cannot record Dispatched on a
     // transformer that is booked in and waiting for approval" with a sentence
@@ -138,7 +134,6 @@ export async function recordEvent(
       );
     }
 
-    // --- Business rule: nothing untested leaves the store -------------------
     if (input.type === "DISPATCHED") {
       const intake = await tx.testRecord.findFirst({
         where: { transformerId, stage: "STORE_INTAKE" },
@@ -158,7 +153,6 @@ export async function recordEvent(
       }
     }
 
-    // --- Link into the custody chain ---------------------------------------
     const prevHash = transformer.lastEventHash;
     const hash = computeEventHash(prevHash, {
       transformerId,
@@ -210,7 +204,6 @@ export async function recordEvent(
       });
     }
 
-    // --- Roll the transformer's cached state forward ------------------------
     const update: Prisma.TransformerUpdateInput = {
       status: transition.toStatus,
       lastEventHash: hash,
@@ -279,7 +272,6 @@ export async function recordEvent(
       update.currentSiteName = null;
     }
 
-    // --- Alerts: the part that makes the system speak first ----------------
     const alerts: string[] = [];
 
     // An install is good news, and the manager should see it land on the map.

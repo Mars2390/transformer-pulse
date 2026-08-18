@@ -33,7 +33,6 @@ export type EventRule = {
 };
 
 export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
-  // --- Maker-checker -------------------------------------------------------
   // The only two events that move a unit out of PENDING_APPROVAL, and the only
   // route into stock for a newly delivered unit. A maker cannot fire either:
   // the approvals API refuses when the actor is the person who booked it in.
@@ -51,7 +50,6 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     description: "A checker refused the delivery. The record and its chain are kept; the unit never becomes stock.",
     requires: {},
   },
-  // --- Movements that had no event of their own ----------------------------
   // See src/lib/transactions.ts for why there are only four of these and not
   // one per movement: the other seven already had events.
   TRANSFERRED_TO_STORE: {
@@ -155,7 +153,6 @@ export const LIFECYCLE_RULES: Record<EventType, EventRule> = {
     // not required — an inspection in a signal shadow must still be recordable.
     requires: {},
   },
-  // --- The repair loop ------------------------------------------------------
   // A failed transformer does not simply stop. It comes off the pole, goes to a
   // workshop, is opened, and is either repaired or condemned. Each step is a
   // legal transition and the state machine refuses the rest — you cannot repair
