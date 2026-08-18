@@ -47,10 +47,31 @@ export async function burnTime(): Promise<void> {
 export const MAX_FAILED_ATTEMPTS = 5;
 export const LOCKOUT_MINUTES = 15;
 
-/** Reads the session from cookies. Returns null when not signed in. */
+/**
+ * Reads the session from cookies, and checks it is still alive.
+ *
+ * The signature check alone says the token was issued by us and has not
+ * expired. It cannot say the session was revoked, that the user has been idle
+ * past the timeout, or that they were signed out by the concurrent-session
+ * cap — those are facts about the world after the token was minted, and the
+ * token cannot know them. touchSession() answers all three and slides the
+ * activity clock forward.
+ *
+ * Tokens minted before sessions existed carry no sid claim and are accepted
+ * until they expire, so deploying this does not sign out everybody mid-shift.
+ */
 export async function getSession(): Promise<SessionUser | null> {
   const store = await cookies();
-  return verifySessionToken(store.get(SESSION_COOKIE)?.value);
+  const user = await verifySessionToken(store.get(SESSION_COOKIE)?.value);
+  if (!user) return null;
+
+  if (user.sessionId) {
+    const { touchSession } = await import("./security/sessions");
+    const check = await touchSession(user.sessionId);
+    if (!check.valid) return null;
+  }
+
+  return user;
 }
 
 /** For pages: returns the user, or sends them to the login page. */

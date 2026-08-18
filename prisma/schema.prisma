@@ -400,11 +400,14 @@ model User {
   /**
    * Units dispatched to this engineer and not yet confirmed received.
    */
-  assignedTransformers Transformer[]  @relation("TransformerAssignedEngineer")
+  assignedTransformers Transformer[]   @relation("TransformerAssignedEngineer")
   /**
    * Bench jobs this user is the named technician for.
    */
-  repairsAssigned      RepairRecord[] @relation("RepairTechnician")
+  repairsAssigned      RepairRecord[]  @relation("RepairTechnician")
+  securityEvents       SecurityEvent[] @relation("SecurityEventUser")
+  sessions             UserSession[]   @relation("UserSessions")
+  ipBlocksMade         BlockedIp[]     @relation("IpBlockedBy")
 
   batchesReceived TransformerBatch[] @relation("BatchReceivedBy")
   batchesApproved TransformerBatch[] @relation("BatchApprovedBy")
@@ -1955,4 +1958,220 @@ model McpAccessLog {
 
   @@index([occurredAt])
   @@index([userId])
+}
+
+// Security
+
+/**
+ * Every security-relevant thing that happened, whether or not it succeeded.
+ * Append-only by policy. Nothing in the application ever updates or deletes a
+ * row here; see prisma/security-hardening.sql for the grants that enforce that
+ * at the database, which is the only place it can actually be enforced —
+ * application code that promises immutability is a promise, not a control.
+ * IP and user agent are stored raw rather than hashed. This is a deliberate
+ * privacy trade: KPLC needs to answer "which machine tried this" during an
+ * incident, and a hash cannot answer it. The retention policy is what limits
+ * the exposure, not obfuscation.
+ */
+model SecurityEvent {
+  id String @id @default(cuid())
+
+  eventType SecurityEventType
+  severity  SecuritySeverity  @default(LOW)
+
+  /**
+   * Set when the caller was authenticated. Null for anonymous traffic.
+   */
+  userId String?
+  user   User?   @relation("SecurityEventUser", fields: [userId], references: [id])
+
+  /**
+   * The email as TYPED, not as resolved. A failed login against an address
+   * that does not exist is the most useful field on this row, and resolving it
+   * to a user id would throw that away.
+   */
+  userEmail String?
+
+  ipAddress String
+  userAgent String?
+
+  /**
+   * Filled in later by the geolocation backfill; never blocks a request.
+   */
+  location   String?
+  country    String?
+  city       String?
+  isp        String?
+  deviceType String?
+  browser    String?
+  os         String?
+
+  path           String
+  method         String
+  statusCode     Int
+  responseTimeMs Int?
+
+  details String?
+
+  createdAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([ipAddress])
+  @@index([severity])
+  @@index([createdAt])
+  @@index([ipAddress, eventType, createdAt])
+  @@index([userId, createdAt])
+}
+
+enum SecurityEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  ACCOUNT_LOCKED
+  BRUTE_FORCE_BLOCKED
+  PIN_BRUTE_FORCE
+  SQL_INJECTION_ATTEMPT
+  XSS_ATTEMPT
+  RATE_LIMIT_EXCEEDED
+  TOKEN_INVALID
+  UNAUTHORIZED_ACCESS
+  IP_BLOCKED
+  IP_UNBLOCKED
+  SESSION_REVOKED
+  CONCURRENT_SESSION_LIMIT
+  SESSION_EXPIRED
+  UPLOAD_REJECTED
+  SUSPICIOUS_ACTIVITY
+}
+
+enum SecuritySeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+/**
+ * Addresses refused before any handler runs.
+ * `expiresAt` is not optional decoration. Kenyan mobile carriers put very large
+ * numbers of subscribers behind carrier-grade NAT, so one abusive handset and
+ * an entire county's field engineers can share an address. A permanent block
+ * on that address takes a region off the system, and the people it locks out
+ * are the ones standing next to the transformers. Automatic blocks therefore
+ * always expire; only a human can make one permanent, and doing so is itself
+ * logged.
+ */
+model BlockedIp {
+  id        String @id @default(cuid())
+  ipAddress String @unique
+
+  reason String
+  /**
+   * AUTOMATIC blocks expire. MANUAL blocks are a human's decision.
+   */
+  source String @default("AUTOMATIC")
+
+  blockedById String?
+  blockedBy   User?   @relation("IpBlockedBy", fields: [blockedById], references: [id])
+
+  /**
+   * Null means permanent, which only a human may set.
+   */
+  expiresAt DateTime?
+
+  hitsSinceBlock Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ipAddress, expiresAt])
+  @@index([expiresAt])
+}
+
+/**
+ * A signed-in session, tracked server side.
+ * The JWT alone cannot support any of revocation, an inactivity timeout or a
+ * concurrent-session cap, because a stateless token is valid until it expires
+ * no matter what happens afterwards. This row is what makes a session
+ * something that can be ended.
+ * The token itself is never stored. `id` is carried in the JWT as a claim, so
+ * a leaked database gives an attacker session metadata but no usable token.
+ */
+model UserSession {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
+
+  ipAddress  String?
+  userAgent  String?
+  deviceType String?
+  browser    String?
+  os         String?
+
+  createdAt      DateTime @default(now())
+  lastActivityAt DateTime @default(now())
+  expiresAt      DateTime
+
+  revokedAt     DateTime?
+  revokedReason String?
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@index([lastActivityAt])
+}
+
+/**
+ * One rate-limit window, counted in the database rather than in memory.
+ * In-memory counters are worse than nothing on serverless. Every cold start
+ * gets a fresh Map, and concurrent lambdas do not share one, so a "5 attempts
+ * per 15 minutes" rule silently becomes "5 per instance" — which for an
+ * attacker willing to open connections in parallel is no limit at all, while
+ * still reading as a control on the architecture diagram.
+ * The counter is incremented with an atomic upsert so two concurrent requests
+ * cannot both read 4 and both write 5.
+ */
+model RateLimitBucket {
+  id String @id @default(cuid())
+
+  /**
+   * "login:41.90.x.x" — the rule name and who is being counted.
+   */
+  bucketKey String
+
+  /**
+   * Start of the fixed window this count belongs to.
+   */
+  windowStart DateTime
+  count       Int      @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([bucketKey, windowStart])
+  @@index([windowStart])
+}
+
+/**
+ * Geolocation results, cached.
+ * The lookup is a third-party HTTP call and is therefore never made in the
+ * request path: a slow or unreachable provider must not be able to delay a
+ * field engineer's login, and the sign-in route must not hand every user's IP
+ * to an external service synchronously. Events are written with location null
+ * and filled in afterwards by the backfill.
+ */
+model IpGeoCache {
+  ipAddress  String   @id
+  country    String?
+  city       String?
+  region     String?
+  isp        String?
+  lat        Float?
+  lng        Float?
+  lookedUpAt DateTime @default(now())
+  /**
+   * True when the provider failed, so we do not retry it every minute.
+   */
+  failed     Boolean  @default(false)
+
+  @@index([lookedUpAt])
 }

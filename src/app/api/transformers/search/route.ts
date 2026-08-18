@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/auth";
 import { apiError } from "@/lib/api";
+import { guard } from "@/lib/security/guard";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
 
 /**
  * GET /api/transformers/search?q=…
@@ -13,6 +15,8 @@ import { apiError } from "@/lib/api";
 export async function GET(request: Request) {
   try {
     await requireApiRole("ADMIN", "MANAGER");
+    const perimeter = await guard(request, { rule: RATE_LIMITS.SEARCH });
+    if (!perimeter.ok) return perimeter.response;
     const q = (new URL(request.url).searchParams.get("q") ?? "").trim();
     if (q.length < 2) return NextResponse.json({ results: [] });
 

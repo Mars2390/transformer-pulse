@@ -20,6 +20,15 @@ export type SessionUser = {
   role: Role;
   region: string | null;
   storeId: string | null;
+  /**
+   * The UserSession row backing this token.
+   *
+   * Carried as a claim so the token stays self-describing while revocation,
+   * the idle timeout and the concurrent-session cap remain possible — none of
+   * which a stateless token can express on its own. Absent on tokens issued
+   * before sessions existed, which are treated as valid until they expire.
+   */
+  sessionId?: string | null;
 };
 
 /**
@@ -61,6 +70,7 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
       role: user.role,
       region: user.region,
       storeId: user.storeId,
+      sid: user.sessionId ?? null,
     },
     secret,
     SESSION_SECONDS,
@@ -81,13 +91,33 @@ export async function verifySessionToken(
     role: payload.role as Role,
     region: (payload.region as string | null) ?? null,
     storeId: (payload.storeId as string | null) ?? null,
+    sessionId: (payload.sid as string | null) ?? null,
   };
 }
 
+/**
+ * Cookie flags.
+ *
+ * sameSite is "lax" and NOT "strict", deliberately.
+ *
+ * Lax already withholds the cookie from every cross-site POST, PUT and DELETE,
+ * which is the entire CSRF threat — an attacker's page cannot make a
+ * state-changing request that carries this cookie. What Strict adds on top is
+ * withholding it from top-level GET navigation as well, and that single
+ * difference breaks the MCP OAuth flow: a user arriving at
+ * /api/mcp/oauth/authorize from claude.ai would present no cookie, appear
+ * signed out, and be unable to authorise anything.
+ *
+ * So Strict would cost a working integration and buy protection against an
+ * attack that does not exist here, because this application changes no state
+ * on a GET. CSRF is instead defended where it belongs: assertSameOrigin() in
+ * lib/security/csrf.ts checks the Origin header on state-changing requests,
+ * which is stricter than either cookie setting and does not break navigation.
+ */
 export const SESSION_COOKIE_OPTIONS = {
   httpOnly: true, // JavaScript cannot read it, so XSS cannot steal it
   secure: process.env.NODE_ENV === "production", // HTTPS only in production
-  sameSite: "lax" as const, // blocks CSRF from other origins
+  sameSite: "lax" as const,
   path: "/",
   maxAge: SESSION_SECONDS,
 };

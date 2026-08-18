@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { requireApiUser, AuthError } from "@/lib/auth";
+import { guard } from "@/lib/security/guard";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
 
 /**
  * POST /api/upload — store a field photo, return its URL.
@@ -20,6 +22,8 @@ export async function POST(request: Request) {
     // Any signed-in user may upload — a field engineer must, and roles are
     // enforced on the EVENT that references the photo, not on the bytes.
     await requireApiUser();
+    const perimeter = await guard(request, { rule: RATE_LIMITS.UPLOADS });
+    if (!perimeter.ok) return perimeter.response;
 
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return NextResponse.json(

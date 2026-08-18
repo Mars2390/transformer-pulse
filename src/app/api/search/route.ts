@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, AuthError } from "@/lib/auth";
+import { guard } from "@/lib/security/guard";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
 
 /**
  * GET /api/search?q= — transformer lookup scoped to the caller's patch.
@@ -11,6 +13,8 @@ import { requireApiUser, AuthError } from "@/lib/auth";
 export async function GET(request: Request) {
   try {
     const user = await requireApiUser();
+    const perimeter = await guard(request, { rule: RATE_LIMITS.SEARCH });
+    if (!perimeter.ok) return perimeter.response;
     const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
 
     const scope = user.role === "ADMIN" ? {} : user.region ? { region: user.region } : {};

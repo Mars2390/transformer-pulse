@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiRole, AuthError } from "@/lib/auth";
 import { regionWhere } from "@/lib/region-scope";
+import { guard } from "@/lib/security/guard";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
 
 /**
  * GET /api/field/search?q= — find a transformer to act on, scoped to the
@@ -10,6 +12,8 @@ import { regionWhere } from "@/lib/region-scope";
 export async function GET(request: Request) {
   try {
     const actor = await requireApiRole("FIELD_ENGINEER", "ADMIN");
+    const perimeter = await guard(request, { rule: RATE_LIMITS.SEARCH });
+    if (!perimeter.ok) return perimeter.response;
     const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
 
     const results = await prisma.transformer.findMany({
