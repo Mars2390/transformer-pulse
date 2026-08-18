@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/auth";
+import { requirePinConfirmation } from "@/lib/security/step-up";
 import { apiError } from "@/lib/api";
 import { approvalDecideSchema } from "@/lib/validation";
 import { canApproveForStore } from "@/lib/region-scope";
@@ -32,6 +33,9 @@ export async function POST(request: Request) {
     const actor = await requireApiUser();
     const body = await request.json().catch(() => null);
     const input = approvalDecideSchema.parse(body);
+
+    // Before the loop, so a wrong PIN refuses the whole batch rather than half of it.
+    await requirePinConfirmation(actor.id, input.pin);
     const decision = input.decision === "APPROVE" ? "APPROVED" : "REJECTED";
 
     const docs = await prisma.approvalDocument.findMany({
@@ -94,29 +98,34 @@ export async function POST(request: Request) {
         continue;
       }
 
-      await prisma.approvalDocument.update({
-        where: { id: doc.id },
-        data: {
-          status: decision,
-          decidedById: actor.id,
-          decidedAt: new Date(),
-          decisionNotes: input.notes?.trim() || null,
-        },
-      });
+      // One decision and one audit row, or neither. Two separate writes meant a
+      // signature could exist with nothing recording who made it, and for a
+      // maker-checker control that record IS the control.
+      await prisma.$transaction([
+        prisma.approvalDocument.update({
+          where: { id: doc.id },
+          data: {
+            status: decision,
+            decidedById: actor.id,
+            decidedAt: new Date(),
+            decisionNotes: input.notes?.trim() || null,
+          },
+        }),
 
-      await prisma.auditLog.create({
-        data: {
-          actorId: actor.id,
-          action: "EDIT",
-          targetType: "Transformer",
-          targetId: doc.transformerId,
-          targetLabel: doc.transformer.gNumber ?? doc.transformer.serialNumber,
-          details: `${decision === "APPROVED" ? "Approved" : "Refused"} ${doc.reference} — ${
-            APPROVAL_ACTION_META[doc.action].label
-          }.`,
-          reason: input.notes?.trim() || undefined,
-        },
-      });
+        prisma.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "EDIT",
+            targetType: "Transformer",
+            targetId: doc.transformerId,
+            targetLabel: doc.transformer.gNumber ?? doc.transformer.serialNumber,
+            details: `${decision === "APPROVED" ? "Approved" : "Refused"} ${doc.reference} — ${
+              APPROVAL_ACTION_META[doc.action].label
+            }.`,
+            reason: input.notes?.trim() || undefined,
+          },
+        }),
+      ]);
 
       decided.push({ id, reference: doc.reference, label });
     }
