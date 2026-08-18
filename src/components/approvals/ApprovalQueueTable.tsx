@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Badge, EmptyState } from "@/components/ui";
 import { inputClass, FormError } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
+import { PinConfirm } from "@/components/ui/PinConfirm";
 import { formatRelative } from "@/lib/format";
 import { APPROVAL_ACTION_META, type ApprovalAction } from "@/lib/approvals";
 
@@ -55,6 +56,12 @@ export function ApprovalQueueTable({ approvals }: { approvals: PendingApproval[]
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastDecided, setLastDecided] = useState<string[]>([]);
+  // The decision waiting for a signature. Held rather than acted on, because the
+  // PIN is now part of the request and there is nowhere else to ask for it.
+  const [pending, setPending] = useState<"APPROVE" | "REJECT" | null>(null);
+  // Kept apart from `error`: a refused PIN belongs in the dialog it was typed
+  // into, not on the page behind it that the person is no longer reading.
+  const [pinError, setPinError] = useState<string | null>(null);
 
   const shown = useMemo(
     () => (filter === "ALL" ? approvals : approvals.filter((a) => a.action === filter)),
@@ -78,7 +85,15 @@ export function ApprovalQueueTable({ approvals }: { approvals: PendingApproval[]
     });
   }
 
-  async function decide(decision: "APPROVE" | "REJECT") {
+  /**
+   * Chooses the decision, then asks for the signature.
+   *
+   * The selection and the remarks are checked BEFORE the PIN is requested. The
+   * other order means somebody types six digits and is then told they forgot to
+   * say why they were refusing, which is the kind of small insult that gets a
+   * control worked around rather than used.
+   */
+  function decide(decision: "APPROVE" | "REJECT") {
     setError(null);
     if (selected.size === 0) {
       setError("Select at least one request.");
@@ -88,7 +103,15 @@ export function ApprovalQueueTable({ approvals }: { approvals: PendingApproval[]
       setError("Say why they are being refused. A refusal with no reason cannot be acted on.");
       return;
     }
+    setPinError(null);
+    setPending(decision);
+  }
 
+  async function sign(pin: string) {
+    const decision = pending;
+    if (!decision) return;
+
+    setPinError(null);
     setBusy(true);
     try {
       const res = await fetch("/api/approvals/decision", {
@@ -98,13 +121,25 @@ export function ApprovalQueueTable({ approvals }: { approvals: PendingApproval[]
           approvalIds: [...selected],
           decision,
           notes: notes.trim() || undefined,
+          // Spent again server-side by requirePinConfirmation() before the loop
+          // starts, so a wrong PIN refuses the whole batch rather than half of it.
+          pin,
         }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
+        // A wrong PIN is a 403, a malformed one a 422, and the APPROVAL_PIN
+        // throttle a 429. All three mean "the signature did not happen, try
+        // again here", so they stay in the dialog with the box still open.
+        if (res.status === 403 || res.status === 422 || res.status === 429) {
+          setPinError(data?.error ?? "That PIN was not accepted.");
+          return;
+        }
+        setPending(null);
         setError(data?.error ?? "Could not record the decision.");
         return;
       }
+      setPending(null);
       toast(data.message, data.skipped?.length ? "error" : "success");
       // Held so the schedule PDF covers exactly what was just decided, rather
       // than "everything approved today" — two managers working the same queue
@@ -114,7 +149,7 @@ export function ApprovalQueueTable({ approvals }: { approvals: PendingApproval[]
       setNotes("");
       router.refresh();
     } catch {
-      setError("No connection. Nothing was changed.");
+      setPinError("No connection. Nothing was changed.");
     } finally {
       setBusy(false);
     }
@@ -271,6 +306,21 @@ export function ApprovalQueueTable({ approvals }: { approvals: PendingApproval[]
           </li>
         ))}
       </ul>
+
+      <PinConfirm
+        open={pending !== null}
+        title={pending === "REJECT" ? "Sign the refusal" : "Sign the approval"}
+        summary={
+          pending === "REJECT"
+            ? `Refusing ${selected.size} request${selected.size === 1 ? "" : "s"}. Your PIN records you as the person who refused them.`
+            : `Approving ${selected.size} request${selected.size === 1 ? "" : "s"}. Your PIN is the signature on each certificate.`
+        }
+        confirmLabel={pending === "REJECT" ? "Refuse" : "Approve"}
+        busy={busy}
+        error={pinError}
+        onCancel={() => setPending(null)}
+        onConfirm={sign}
+      />
     </div>
   );
 }
