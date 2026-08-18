@@ -31,7 +31,7 @@ type ClaimRow = {
     currentLat: number | null; currentLng: number | null; currentSiteName: string | null;
     commissionDate: Date | null; warrantyStart: Date | null; warrantyMonths: number;
     lastEventHash: string | null;
-    events: { id: string; hash: string; prevHash: string | null; transformerId: string; type: string; toStatus: string; userId: string; occurredAt: Date; lat: number | null; lng: number | null; vehiclePlate: string | null; driverName: string | null; notes: string | null }[];
+    events: { id: string; hash: string; prevHash: string | null; transformerId: string; type: string; toStatus: string; userId: string; occurredAt: Date; lat: number | null; lng: number | null; vehiclePlate: string | null; driverName: string | null; notes: string | null; fromStatus: string | null; hashVersion: number }[];
   };
   manufacturer: { name: string };
 };
@@ -78,7 +78,7 @@ export async function GET() {
           select: {
             gNumber: true, serialNumber: true, ratingKva: true, currentLat: true, currentLng: true,
             currentSiteName: true, commissionDate: true, warrantyStart: true, warrantyMonths: true, lastEventHash: true,
-            events: { orderBy: { occurredAt: "asc" }, select: { id: true, hash: true, prevHash: true, transformerId: true, type: true, toStatus: true, userId: true, occurredAt: true, lat: true, lng: true, vehiclePlate: true, driverName: true, notes: true } },
+            events: { orderBy: { occurredAt: "asc" }, select: { id: true, hash: true, prevHash: true, transformerId: true, type: true, toStatus: true, userId: true, occurredAt: true, lat: true, lng: true, vehiclePlate: true, driverName: true, notes: true, fromStatus: true, hashVersion: true } },
           },
         },
       },
