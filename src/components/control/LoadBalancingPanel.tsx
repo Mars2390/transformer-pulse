@@ -1,4 +1,4 @@
-import { formatKes } from "@/lib/format";
+import { formatKes, formatGNumber } from "@/lib/format";
 import { PHASE_META, type PhaseKey } from "@/lib/phase-colors";
 import type { BalancePlan, Capacity, LifePrognosis, LossOfLifeMoney, WhatIfResult, VoltageScorecard } from "@/lib/load-balancing";
 
@@ -42,7 +42,7 @@ export function LoadBalancingPanel({
       <div className="overflow-hidden rounded-2xl border border-line bg-white">
         <div className="border-b border-line px-5 py-3">
           <h2 className="text-sm font-bold text-navy">
-            ⚖️ Load balancing plan{gNumber ? ` — G-${gNumber}` : ""}
+            ⚖️ Load balancing plan{gNumber ? ` — ${formatGNumber(gNumber)}` : ""}
           </h2>
           <p className="mt-0.5 text-xs text-ink-soft">
             At the worst recorded minute. Balancing brings every phase to the mean, which is also the

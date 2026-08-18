@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PhaseBars } from "./PhaseBars";
 import { TransformerCutaway } from "./TransformerCutaway";
 import type { ThermalResult } from "@/lib/transformer-thermal";
+import { formatGNumber } from "@/lib/format";
 
 /**
  * The control centre, driven by KPLC's own EMDis telemetry.
@@ -201,7 +202,7 @@ export function EmdisControlRoom({ datasetId }: { datasetId?: string }) {
       <header className="flex flex-wrap items-center gap-3 border-b border-white/10 bg-black/30 px-4 py-2.5">
         <div className="min-w-0">
           <p className="truncate text-sm font-extrabold">
-            {meta.gNumber ? `G-${meta.gNumber}` : `Substation ${meta.substationCode}`}
+            {formatGNumber(meta.gNumber) ?? `Substation ${meta.substationCode}`}
             <span className="ml-2 font-normal text-white/50">{meta.ratingKva} kVA · {meta.make}</span>
           </p>
           <p className="truncate text-[11px] text-white/40">

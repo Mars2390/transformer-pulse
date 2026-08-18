@@ -6,7 +6,7 @@ import type { Map as LeafletMap } from "leaflet";
 import Link from "next/link";
 import "leaflet/dist/leaflet.css";
 import type { TransformerStatus } from "@/generated/prisma/enums";
-import { formatRating, STATUS_META } from "@/lib/format";
+import { formatRating, STATUS_META, formatGNumber } from "@/lib/format";
 import type { PhaseKey } from "@/lib/phase-colors";
 import { NavigationPanel, type NavTarget } from "@/components/map/NavigationPanel";
 import { HEALTH_STATUS_META, type HealthStatusLevel } from "@/lib/health-status";
@@ -157,7 +157,7 @@ export default function TransformerMapInner({
     setNavTarget({
       lat: point.lat,
       lng: point.lng,
-      label: point.gNumber ? `G-${point.gNumber}` : point.serialNumber,
+      label: formatGNumber(point.gNumber) ?? point.serialNumber,
       subtitle: [point.substationName, point.siteName].filter(Boolean).join(", ") || null,
     });
   }
@@ -232,7 +232,7 @@ function PinPopup({
   onSatellite: () => void;
   onNavigate: () => void;
 }) {
-  const label = point.gNumber ? `G-${point.gNumber}` : point.serialNumber;
+  const label = formatGNumber(point.gNumber) ?? point.serialNumber;
   const status = STATUS_META[point.status];
 
   const position =

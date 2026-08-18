@@ -199,3 +199,24 @@ export const ROLE_LABELS: Record<Role, string> = {
   STORE_KEEPER: "Store Keeper",
   FIELD_ENGINEER: "Field Engineer",
 };
+
+/**
+ * A G-Number as people read it.
+ *
+ * Idempotent, which is the whole point. Numbers this system generates already
+ * carry the prefix ("G-2026-00001"), while numbers transcribed from a
+ * nameplate or an inspection sheet often do not ("153457"). Six display sites
+ * were writing `G-${gNumber}` unconditionally and rendering "G-G-2026-00001"
+ * for every unit the system had issued a number to.
+ */
+export function formatGNumber(gNumber: string | null | undefined): string | null {
+  if (!gNumber) return null;
+  const trimmed = gNumber.trim();
+  if (!trimmed) return null;
+  return /^g-/i.test(trimmed) ? trimmed : `G-${trimmed}`;
+}
+
+/** The label to show for a transformer: its G-Number, or its serial when it has none. */
+export function transformerLabel(t: { gNumber?: string | null; serialNumber: string }): string {
+  return formatGNumber(t.gNumber) ?? t.serialNumber;
+}

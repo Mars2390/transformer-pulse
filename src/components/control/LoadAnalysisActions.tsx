@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { formatGNumber } from "@/lib/format";
 
 /**
  * What an engineer does with a finding.
@@ -46,7 +47,7 @@ export function LoadAnalysisActions({
   const [customers, setCustomers] = useState("");
 
   const suggested = NEXT_SIZE[ratingKva] ?? ratingKva;
-  const label = gNumber ? `G-${gNumber}` : (substationCode ?? "this transformer");
+  const label = formatGNumber(gNumber) ?? substationCode ?? "this transformer";
 
   async function raise() {
     setBusy(true);

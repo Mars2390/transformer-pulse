@@ -22,9 +22,11 @@ import {
 } from "@/lib/transactions";
 import { ServiceSummaryCard } from "@/components/transformer/ServiceSummaryCard";
 import { LinkStatusBanner } from "@/components/transformer/LinkStatusBanner";
+import { SmartSummaryCard } from "@/components/transformer/SmartSummaryCard";
+import { buildDataTimeline, buildSmartSummary } from "@/lib/data-timeline";
 import type { WarrantyView } from "@/components/transformer/WarrantyTab";
 import type { StoryData, StoryEvent, StoryTest } from "@/components/transformer/story-types";
-import { STATUS_META, formatRating, formatDateTime } from "@/lib/format";
+import { STATUS_META, formatRating, formatDateTime, formatGNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -248,6 +250,14 @@ export default async function StoryPage({
   };
 
   const healthMeta = HEALTH_BAND_META[health.band];
+
+  // Assembled from every dated source, keyed on the transformer's id rather
+  // than its G-Number — see lib/data-timeline.ts for why that distinction
+  // matters for units whose plate cannot be read.
+  const [dataTimeline, smartSummary] = await Promise.all([
+    buildDataTimeline(tx.id),
+    buildSmartSummary(tx.id, tx.ratingKva),
+  ]);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -532,6 +542,11 @@ export default async function StoryPage({
 
       {/* --- Link status ---------------------------------------------------- */}
       <div className="mt-6">
+        <SmartSummaryCard
+          label={formatGNumber(tx.gNumber) ?? tx.serialNumber}
+          summary={smartSummary}
+        />
+
         <LinkStatusBanner emdisReadingCount={emdisReadingCount} inspectionCount={inspectionCount} />
       </div>
 
@@ -594,6 +609,9 @@ export default async function StoryPage({
           repairs={repairs}
           ratingKva={tx.ratingKva}
           repairCount={tx.repairCount}
+          dataTimeline={dataTimeline}
+          trend={smartSummary.trend}
+          inspectionTrend={smartSummary.inspectionTrend}
         />
       </div>
     </div>

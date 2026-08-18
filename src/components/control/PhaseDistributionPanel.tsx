@@ -1,5 +1,6 @@
 import { PHASE_META, NEUTRAL_META } from "@/lib/phase-colors";
 import type { PhaseDistribution } from "@/lib/phase-distribution";
+import { formatGNumber } from "@/lib/format";
 
 /**
  * "Who is actually on this phase" — customer counts estimated from current
@@ -21,7 +22,7 @@ export function PhaseDistributionPanel({
     <div className="overflow-hidden rounded-2xl border border-line bg-white">
       <div className="border-b border-line px-5 py-3">
         <h2 className="text-sm font-bold text-navy">
-          👥 Phase Distribution{gNumber ? ` — G-${gNumber}` : ""}
+          👥 Phase Distribution{gNumber ? ` — ${formatGNumber(gNumber)}` : ""}
         </h2>
         <p className="mt-0.5 text-xs text-ink-soft">
           Transformer serves approximately <strong className="text-navy">{distribution.estimatedTotalCustomers}</strong> customers

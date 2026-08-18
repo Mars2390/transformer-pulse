@@ -7,6 +7,8 @@ import { PhotosTab } from "./PhotosTab";
 import { WarrantyTab, type WarrantyView } from "./WarrantyTab";
 import { ChainTab } from "./ChainTab";
 import { RepairsTab, type RepairView } from "./RepairsTab";
+import { DataTimelineTab } from "./DataTimelineTab";
+import type { TimelineEntry, EmdisTrend, InspectionTrend } from "@/lib/data-timeline";
 import type { StoryData, StoryTest } from "./story-types";
 
 type Verification = {
@@ -16,7 +18,7 @@ type Verification = {
   reason: string | null;
 };
 
-const TABS = ["Timeline", "Tests", "Repairs", "Photos", "Warranty", "Chain"] as const;
+const TABS = ["Timeline", "Data Timeline", "Tests", "Repairs", "Photos", "Warranty", "Chain"] as const;
 type Tab = (typeof TABS)[number];
 
 export function StoryTabs({
@@ -27,6 +29,9 @@ export function StoryTabs({
   repairs,
   ratingKva,
   repairCount,
+  dataTimeline,
+  trend,
+  inspectionTrend,
 }: {
   story: StoryData;
   tests: StoryTest[];
@@ -35,6 +40,9 @@ export function StoryTabs({
   repairs: RepairView[];
   ratingKva: number;
   repairCount: number;
+  dataTimeline: TimelineEntry[];
+  trend: EmdisTrend;
+  inspectionTrend: InspectionTrend;
 }) {
   const [tab, setTab] = useState<Tab>("Timeline");
   const [year, setYear] = useState<number | "ALL">("ALL");
@@ -43,6 +51,7 @@ export function StoryTabs({
   const photoCount = story.events.reduce((sum, e) => sum + e.photoUrls.length, 0);
   const counts: Record<Tab, number | null> = {
     Timeline: story.events.length,
+    "Data Timeline": dataTimeline.length || null,
     Tests: tests.length,
     Repairs: repairs.length || null,
     Photos: photoCount,
@@ -131,6 +140,10 @@ export function StoryTabs({
       {tab === "Timeline" && (
         <Timeline events={story.events} year={year} compareYear={compare ? compareYear : null} repairs={repairs} />
       )}
+      {tab === "Data Timeline" && (
+        <DataTimelineTab entries={dataTimeline} trend={trend} inspectionTrend={inspectionTrend} />
+      )}
+
       {tab === "Tests" && <TestsTab tests={tests} year={year} compareYear={compare ? compareYear : null} />}
       {tab === "Repairs" && (
         <RepairsTab repairs={repairs} ratingKva={ratingKva} repairCount={repairCount} />
