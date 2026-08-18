@@ -10,11 +10,23 @@ import {
 /**
  * A 315 kVA unit on a 415 V secondary.
  *
- * 315000 / (sqrt(3) x 415) = 438.226... A per phase. Hand-computed, then pinned
- * here: every loading percentage the dashboard shows is this number underneath,
- * so if it drifts, every phase percentage in the app drifts with it silently.
+ *   315000 / (sqrt(3) x 415) = 438.2297224 A per phase
+ *
+ * Hand-computed and pinned here, because every loading percentage the dashboard
+ * shows is this number underneath: if it drifts, every phase percentage in the app
+ * drifts with it silently.
+ *
+ * IT WAS PINNED WRONG. The literal read 438.2264, which works back to a sqrt(3) of
+ * 1.7320639 — right in the fourth decimal place, wrong from the fifth. The
+ * implementation was correct all along and this fixture failed it, which is the
+ * most expensive kind of wrong test: it accuses working arithmetic, and the
+ * temptation is to "fix" the code until the number agrees.
+ *
+ * Nine significant figures, checked against sqrt(3) to full double precision, and
+ * still a literal rather than a re-implementation of the formula — a fixture that
+ * computes the thing it is testing cannot catch the thing it is testing.
  */
-const I_RATED_315 = 438.2264;
+const I_RATED_315 = 438.2297224;
 
 const reading = (over: Partial<PhaseReading> = {}): PhaseReading => ({
   l1c: null,
