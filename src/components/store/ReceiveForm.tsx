@@ -319,8 +319,27 @@ export function ReceiveForm({
             <input id="deliveryNoteRef" name="deliveryNoteRef" placeholder="DN-88214" className={inputClass} />
           </Field>
 
-          <Field label="Vehicle plate" htmlFor="vehiclePlate" error={fields.vehiclePlate}>
-            <input id="vehiclePlate" name="vehiclePlate" placeholder="KDG 456T" className={`${inputClass} uppercase`} />
+          <Field label="Vehicle plate" htmlFor="vehiclePlate" error={fields.vehiclePlate} hint="7 characters, e.g. KDA 123A">
+            <input
+              id="vehiclePlate"
+              name="vehiclePlate"
+              autoCapitalize="characters"
+              maxLength={8}
+              // Seven real characters, plus room for the space people write. The
+              // eighth character is always a mistake, so it is refused here rather
+              // than after a round trip. This box is uncontrolled, so the value is
+              // corrected in place; the rule is the one the server applies.
+              onChange={(e) => {
+                const raw = e.currentTarget.value
+                  .toUpperCase()
+                  .replace(/[^A-Z0-9]/g, "")
+                  .slice(0, 7);
+                e.currentTarget.value =
+                  raw.length > 3 ? `${raw.slice(0, 3)} ${raw.slice(3)}` : raw;
+              }}
+              placeholder="KDA 123A"
+              className={`${inputClass} uppercase`}
+            />
           </Field>
 
           <Field label="Driver name" htmlFor="driverName" error={fields.driverName}>

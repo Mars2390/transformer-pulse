@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: "npm" }
+
+      # npm ci refuses to run when package-lock.json does not already contain
+      # everything in package.json, and vitest was added in the GitHub web
+      # editor, where a lockfile cannot be regenerated. Run `npm install` once
+      # locally and commit the updated package-lock.json, then change this line
+      # back to `npm ci` — which is the right thing in CI because it installs the
+      # locked versions and nothing else.
+      - run: npm install --no-audit --no-fund
+
+      # The Prisma client is generated, not committed, and typecheck cannot
+      # resolve @/generated/prisma without it.
+      - run: npx prisma generate
+
+      - run: npm run typecheck
+      - run: npm test

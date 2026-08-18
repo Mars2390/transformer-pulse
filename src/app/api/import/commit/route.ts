@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/auth";
 import { apiError } from "@/lib/api";
 import { writeAudit } from "@/lib/audit";
-import { computeEventHash } from "@/lib/chain";
+import { computeEventHash, CURRENT_HASH_VERSION } from "@/lib/chain";
 import { DATA_SOURCE_META } from "@/lib/format";
 import type { ImportRowData } from "@/lib/import-rows";
 import type { EventType, TransformerStatus } from "@/generated/prisma/enums";
@@ -180,6 +180,7 @@ export async function POST(request: Request) {
             const hash = computeEventHash(prevHash, {
               transformerId: created.id,
               type: step.type,
+              fromStatus: fromStatus,
               toStatus: step.to,
               userId: actor.id,
               occurredAt,
@@ -209,6 +210,7 @@ export async function POST(request: Request) {
                 notes,
                 prevHash,
                 hash,
+                hashVersion: CURRENT_HASH_VERSION,
               },
             });
 

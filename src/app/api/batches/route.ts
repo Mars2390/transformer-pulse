@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/auth";
 import { apiError } from "@/lib/api";
 import { writeAudit } from "@/lib/audit";
-import { computeEventHash } from "@/lib/chain";
+import { computeEventHash, CURRENT_HASH_VERSION } from "@/lib/chain";
 import { receiveBatchSchema } from "@/lib/validation";
 
 /**
@@ -107,6 +107,7 @@ export async function POST(request: Request) {
         const hash = computeEventHash(null, {
           transformerId: t.id,
           type: "RECEIVED_AT_STORE",
+          fromStatus: null,
           toStatus: "PENDING_APPROVAL",
           userId: actor.id,
           occurredAt: receivedAt,
@@ -129,6 +130,7 @@ export async function POST(request: Request) {
             notes,
             prevHash: null,
             hash,
+            hashVersion: CURRENT_HASH_VERSION,
           },
         });
 

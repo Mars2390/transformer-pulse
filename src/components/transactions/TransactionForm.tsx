@@ -479,11 +479,25 @@ export function TransactionForm({
               <input
                 id="vehiclePlate"
                 value={vehiclePlate}
-                onChange={(e) => setVehiclePlate(e.target.value)}
+                // Seven characters, and the space is presentation. Typing is
+                // capped at seven real characters while the space is re-inserted
+                // for reading, so the box shows KDA 123A and sends KDA123A.
+                onChange={(e) => {
+                  const raw = e.target.value
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, "")
+                    .slice(0, 7);
+                  setVehiclePlate(
+                    raw.length > 3 ? `${raw.slice(0, 3)} ${raw.slice(3)}` : raw,
+                  );
+                }}
                 autoCapitalize="characters"
                 placeholder="KDA 123A"
                 className={`${inputClass} mt-1 text-base`}
               />
+              <p className="mt-1 text-xs text-ink-soft">
+                {vehiclePlate.replace(/\s/g, "").length}/7 characters
+              </p>
               {fieldErrors.vehiclePlate && (
                 <p className="mt-1 text-xs font-semibold text-red-700">{fieldErrors.vehiclePlate}</p>
               )}
@@ -509,11 +523,19 @@ export function TransactionForm({
               <input
                 id="driverPhone"
                 value={driverPhone}
-                onChange={(e) => setDriverPhone(e.target.value)}
-                inputMode="tel"
+                // Ten digits is the whole number, so the eleventh keystroke is
+                // always a mistake, and refusing it at the keyboard is kinder
+                // than refusing it after a round trip. Non-digits are dropped as
+                // they are typed for the same reason.
+                onChange={(e) =>
+                  setDriverPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+                }
+                inputMode="numeric"
+                maxLength={10}
                 placeholder="0722000000"
                 className={`${inputClass} mt-1 text-base`}
               />
+              <p className="mt-1 text-xs text-ink-soft">{driverPhone.length}/10 digits</p>
               {fieldErrors.driverPhone && (
                 <p className="mt-1 text-xs font-semibold text-red-700">{fieldErrors.driverPhone}</p>
               )}

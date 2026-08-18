@@ -954,7 +954,8 @@ model ApprovalDocument {
   action String
 
   transformerId String
-  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: testimony, not a derived row. See LifecycleEvent.
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Restrict)
 
   /**
    * The authoritative record this documents, when there is one. Null for
@@ -1019,7 +1020,13 @@ model LifecycleEvent {
 
   id            String      @id @default(cuid())
   transformerId String
-  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade. Deleting a transformer must not be able to delete the
+  // evidence that it existed — a cascade here turns the tamper-evident chain into
+  // something a single DELETE removes without trace, which is the exact failure
+  // the chain is built to prevent. A transformer with history cannot be deleted;
+  // it is retired. Alert and RecordConflict keep Cascade: they are derived
+  // operational rows, not testimony.
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Restrict)
 
   type       EventType
   fromStatus TransformerStatus?
@@ -1058,6 +1065,13 @@ model LifecycleEvent {
   prevHash String?
   hash     String  @unique
 
+  // Which canonical form produced that hash. v1 is the ten-element array this
+  // chain started with; v2 adds fromStatus. Existing rows keep the 1 they
+  // default to and verify exactly as they always did, new rows record 2, and
+  // verifyChain asks the row instead of assuming. Versioning is the only safe
+  // way to change a hash format over data that has already been signed.
+  hashVersion Int     @default(1)
+
   // Offline idempotency
   // The phone generates this UUID before the event is queued offline. If it
   // syncs, loses signal before hearing the 200, and retries, this unique index
@@ -1086,7 +1100,8 @@ model TestRecord {
 
   id            String      @id @default(cuid())
   transformerId String
-  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: testimony, not a derived row. See LifecycleEvent.
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Restrict)
 
   // A test almost always happens as part of an event (intake, dispatch,
   // commissioning), but may be recorded standalone.
@@ -1147,7 +1162,8 @@ model TestRecord {
 model WarrantyClaim {
   id            String      @id @default(cuid())
   transformerId String
-  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: testimony, not a derived row. See LifecycleEvent.
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Restrict)
 
   manufacturerId String
   manufacturer   Manufacturer @relation(fields: [manufacturerId], references: [id])
@@ -1626,7 +1642,8 @@ model RepairRecord {
   id String @id @default(cuid())
 
   transformerId String
-  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: testimony, not a derived row. See LifecycleEvent.
+  transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Restrict)
 
   /**
    * The RECEIVED_AT_WORKSHOP event that opened this repair.

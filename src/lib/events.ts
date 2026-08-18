@@ -2,7 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import type { EventType, TransformerStatus } from "@/generated/prisma/enums";
 import { prisma } from "./prisma";
-import { computeEventHash } from "./chain";
+import { computeEventHash, CURRENT_HASH_VERSION } from "./chain";
 import { checkTransition, LIFECYCLE_RULES } from "./lifecycle";
 import { computeWarranty, estimateReplacementValueKes } from "./warranty";
 import { distanceKm, GPS_MISMATCH_THRESHOLD_KM } from "./geo";
@@ -157,6 +157,7 @@ export async function recordEvent(
     const hash = computeEventHash(prevHash, {
       transformerId,
       type: input.type,
+      fromStatus: transformer.status,
       toStatus: transition.toStatus,
       userId: actor.id,
       occurredAt,
@@ -187,6 +188,7 @@ export async function recordEvent(
         notes: input.notes ?? null,
         prevHash,
         hash,
+        hashVersion: CURRENT_HASH_VERSION,
         clientEventId: input.clientEventId ?? null,
         linkedEventId: input.linkedEventId ?? null,
       },

@@ -98,3 +98,13 @@ export function looksAutomated(ua: string | null): boolean {
   if (!ua) return true;
   return AUTOMATED.test(ua);
 }
+
+/**
+ * clientIp() reading a Headers bag. Same left-most x-forwarded-for rule, same
+ * reasoning: the perimeter in requireApiUser() holds headers, not a Request.
+ */
+export function clientIpFromHeaders(h: Headers): string {
+  const xff = h.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0].trim();
+  return h.get("x-real-ip") ?? UNKNOWN_IP;
+}
