@@ -57,6 +57,26 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
  * make the next `prisma migrate` believe this database has never been migrated.
  */
 async function clearEverything() {
+  /**
+   * The stop that should have been here from the first line of this function.
+   *
+   * clearEverything() enumerates every table in the public schema and TRUNCATEs
+   * it with CASCADE. Run against production that is not a seed, it is the end of
+   * the asset register — and it has already cost the fleet its geocoded
+   * coordinates once. DATABASE_URL is one copied environment variable away from
+   * pointing at Neon, so the guard cannot be "remember not to".
+   */
+  if (
+    process.env.NODE_ENV === "production" ||
+    process.env.ALLOW_DESTRUCTIVE_SEED !== "yes"
+  ) {
+    throw new Error(
+      "Refusing to wipe the database.\n" +
+        "clearEverything() TRUNCATEs every table. To run it deliberately on a\n" +
+        "development database, set ALLOW_DESTRUCTIVE_SEED=yes for this one command.\n" +
+        `NODE_ENV=${process.env.NODE_ENV ?? "undefined"}`,
+    );
+  }
   console.log("Clearing all data...");
 
   const tables = await prisma.$queryRaw<{ tablename: string }[]>`
