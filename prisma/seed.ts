@@ -25,17 +25,60 @@ if (!connectionString) {
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
-async function main() {
+/**
+ * Empty every table, in one statement, without caring about order.
+ *
+ * The previous version was a hand-written list of eight `deleteMany()` calls
+ * ordered children-before-parents. Two things were wrong with it.
+ *
+ * The immediate bug: it was incomplete and out of date. The schema has thirty
+ * models and sixty foreign keys, only eleven of which cascade. TransactionRecord
+ * references Transformer with Prisma's default RESTRICT and was never deleted,
+ * so `prisma.transformer.deleteMany()` failed with
+ *
+ *   update or delete on table "Transformer" violates RESTRICT setting of
+ *   foreign key constraint "TransactionRecord_transformerId_fkey"
+ *
+ * TransformerBatch, Allocation, ApprovalDocument, RepairRecord and several
+ * others sit in exactly the same position and would have failed next, one at a
+ * time, each looking like a fresh bug.
+ *
+ * The deeper problem: a hand-maintained delete order is a second copy of the
+ * schema's dependency graph that nothing keeps in sync. It was already stale,
+ * and adding TransactionRecord to the list would only have made it stale later
+ * instead of now — the next model somebody adds breaks the seed again.
+ *
+ * TRUNCATE ... CASCADE has no order to get wrong. The table list is read from
+ * the database's own catalog, so it cannot drift from the schema, and RESTART
+ * IDENTITY resets the Int autoincrement on MeterReading and friends so a
+ * re-seed starts from 1 rather than continuing to climb.
+ *
+ * Prisma's own bookkeeping table is excluded: wiping migration history would
+ * make the next `prisma migrate` believe this database has never been migrated.
+ */
+async function clearEverything() {
   console.log("Clearing all data...");
-  // Children before parents — foreign keys will not forgive the wrong order.
-  await prisma.alert.deleteMany();
-  await prisma.warrantyClaim.deleteMany();
-  await prisma.testRecord.deleteMany();
-  await prisma.lifecycleEvent.deleteMany();
-  await prisma.transformer.deleteMany();
-  await prisma.manufacturer.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.store.deleteMany();
+
+  const tables = await prisma.$queryRaw<{ tablename: string }[]>`
+    SELECT tablename FROM pg_tables
+    WHERE schemaname = 'public' AND tablename NOT LIKE '\\_prisma%'
+  `;
+
+  if (tables.length === 0) {
+    console.log("  (no tables yet — run `prisma db push` first)");
+    return;
+  }
+
+  // Quoted because Prisma's table names are PascalCase and Postgres folds
+  // unquoted identifiers to lower case.
+  const list = tables.map((t) => `"public"."${t.tablename}"`).join(", ");
+  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+
+  console.log(`  ${tables.length} tables emptied.`);
+}
+
+async function main() {
+  await clearEverything();
 
   // --- Stores --------------------------------------------------------------
   console.log("Creating stores...");
@@ -67,6 +110,23 @@ async function main() {
       county: "Nakuru",
       lat: -0.2833,
       lng: 36.0667,
+    },
+  });
+
+  // A WORKSHOP, not a store. Four of the eleven movements — STORE_TO_WORKSHOP,
+  // SITE_TO_WORKSHOP, WORKSHOP_TO_STORE, WORKSHOP_TO_SITE — have no valid
+  // destination without one, so the entire repair loop is unreachable on a
+  // fresh database. The transfer form said so honestly, which meant the first
+  // thing anyone did on a clean install was go and create this by hand.
+  const embakasiWorkshop = await prisma.store.create({
+    data: {
+      name: "Embakasi Repair Workshop",
+      code: "NRB-EMB-WS",
+      region: "Nairobi North",
+      county: "Nairobi",
+      kind: "WORKSHOP",
+      lat: -1.3167,
+      lng: 36.9,
     },
   });
 
@@ -119,6 +179,33 @@ async function main() {
       region: "Nairobi North",
     },
   });
+  // A STORE_MANAGER scoped to the Embakasi workshop. The role has its own
+  // approval queue, its own bell and its own store-level scoping rule, and
+  // without an account none of that can be seen — the scoping story is one of
+  // the stronger things in this system and it was invisible on a clean install.
+  //
+  // Scoped by storeId, NOT by region: that foreign key is the whole point of
+  // the role existing separately from MANAGER. A workshop is a Store with
+  // kind: WORKSHOP, so it is a valid scope for this role exactly as a store is.
+  //
+  // Worth knowing when demonstrating: countPendingApprovals() scopes a store
+  // manager with { currentStoreId: user.storeId }, so this account sees
+  // approvals for units currently held AT THE WORKSHOP — the repair loop. It
+  // will NOT see a consignment Daniel receives into Ruaraka. Point it at
+  // `ruaraka.id` instead if the receive-then-approve flow is the one being
+  // shown.
+  await prisma.user.create({
+    data: {
+      name: "Alice Njeri",
+      email: "storemanager@kplc.co.ke",
+      staffNumber: "KP-SMG-052",
+      phone: "0724052118",
+      pinHash: await hash("500500"),
+      role: "STORE_MANAGER",
+      region: "Nairobi North",
+      storeId: embakasiWorkshop.id,
+    },
+  });
 
   // --- Manufacturers -------------------------------------------------------
   // Warranty months differ per supplier on purpose — that is the contract, and
@@ -161,9 +248,10 @@ async function main() {
     ],
   });
 
-  const [users, stores, manufacturers, transformers] = await Promise.all([
+  const [users, stores, workshops, manufacturers, transformers] = await Promise.all([
     prisma.user.count(),
-    prisma.store.count(),
+    prisma.store.count({ where: { kind: "STORE" } }),
+    prisma.store.count({ where: { kind: "WORKSHOP" } }),
     prisma.manufacturer.count(),
     prisma.transformer.count(),
   ]);
@@ -172,14 +260,16 @@ async function main() {
   Reference data ready.
     Staff accounts .. ${users}
     Stores .......... ${stores}
+    Workshops ....... ${workshops}
     Manufacturers ... ${manufacturers}
     Transformers .... ${transformers}   (empty — real data is entered by real users)
 
   Sign in with:
-    admin@kplc.co.ke    PIN 100100   Administrator
-    manager@kplc.co.ke  PIN 200200   Regional Manager (Nairobi North)
-    store@kplc.co.ke    PIN 300300   Store Keeper (Ruaraka)
-    field@kplc.co.ke    PIN 400400   Field Engineer (Nairobi North)
+    admin@kplc.co.ke          PIN 100100   Administrator
+    manager@kplc.co.ke        PIN 200200   Regional Manager (Nairobi North)
+    storemanager@kplc.co.ke   PIN 500500   Store Manager (Embakasi Workshop — approvals)
+    store@kplc.co.ke          PIN 300300   Store Keeper (Ruaraka)
+    field@kplc.co.ke          PIN 400400   Field Engineer (Nairobi North)
   `);
 }
 
