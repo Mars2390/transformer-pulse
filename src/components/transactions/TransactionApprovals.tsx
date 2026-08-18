@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Badge, EmptyState } from "@/components/ui";
 import { inputClass, FormError } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
+import { PinConfirm } from "@/components/ui/PinConfirm";
 import { formatRelative } from "@/lib/format";
 
 export type PendingMovement = {
@@ -43,6 +44,12 @@ export function TransactionApprovals({ movements }: { movements: PendingMovement
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The decision waiting for a signature. Held rather than acted on, because
+  // the PIN is now part of the request and there is nowhere else to ask for it.
+  const [pending, setPending] = useState<"APPROVE" | "REJECT" | null>(null);
+  // Kept apart from `error`: a refused PIN belongs in the dialog it was typed
+  // into, not on the page behind it that the person is no longer reading.
+  const [pinError, setPinError] = useState<string | null>(null);
 
   const selectable = movements.filter((m) => m.canApprove);
   const allSelected = selectable.length > 0 && selectable.every((m) => selected.has(m.id));
@@ -56,7 +63,15 @@ export function TransactionApprovals({ movements }: { movements: PendingMovement
     });
   }
 
-  async function decide(decision: "APPROVE" | "REJECT") {
+  /**
+   * Chooses the decision, then asks for the signature.
+   *
+   * Authorising a lorry to move a transformer is the same class of act as
+   * signing an approval document, so it is re-verified the same way. The
+   * selection and the reason are checked BEFORE the PIN is requested, so nobody
+   * types six digits only to be told they forgot to say why.
+   */
+  function decide(decision: "APPROVE" | "REJECT") {
     setError(null);
     if (selected.size === 0) {
       setError("Select at least one movement.");
@@ -66,25 +81,49 @@ export function TransactionApprovals({ movements }: { movements: PendingMovement
       setError("Say why they are being refused.");
       return;
     }
+    setPinError(null);
+    setPending(decision);
+  }
 
+  async function sign(pin: string) {
+    const decision = pending;
+    if (!decision) return;
+
+    setPinError(null);
     setBusy(true);
     try {
       const res = await fetch("/api/transactions/decision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transactionIds: [...selected], decision, reason: reason.trim() || undefined }),
+        body: JSON.stringify({
+          transactionIds: [...selected],
+          decision,
+          reason: reason.trim() || undefined,
+          // Spent again server-side by requirePinConfirmation() before the loop
+          // starts, so a wrong PIN refuses the whole batch rather than half of it.
+          pin,
+        }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
+        // A wrong PIN is a 403, a malformed one a 422, and the APPROVAL_PIN
+        // throttle a 429. All three mean "the signature did not happen, try
+        // again here", so they stay in the dialog with the box still open.
+        if (res.status === 403 || res.status === 422 || res.status === 429) {
+          setPinError(data?.error ?? "That PIN was not accepted.");
+          return;
+        }
+        setPending(null);
         setError(data?.error ?? "Could not record the decision.");
         return;
       }
+      setPending(null);
       toast(data.message, data.skipped?.length ? "error" : "success");
       setSelected(new Set());
       setReason("");
       router.refresh();
     } catch {
-      setError("No connection. Nothing was changed.");
+      setPinError("No connection. Nothing was changed.");
     } finally {
       setBusy(false);
     }
@@ -177,6 +216,21 @@ export function TransactionApprovals({ movements }: { movements: PendingMovement
           </li>
         ))}
       </ul>
+
+      <PinConfirm
+        open={pending !== null}
+        title={pending === "REJECT" ? "Sign the refusal" : "Sign the authorisation"}
+        summary={
+          pending === "REJECT"
+            ? `Refusing ${selected.size} movement${selected.size === 1 ? "" : "s"}. Your PIN records you as the person who refused them.`
+            : `Authorising ${selected.size} movement${selected.size === 1 ? "" : "s"} to leave. Your PIN is the signature on each one.`
+        }
+        confirmLabel={pending === "REJECT" ? "Refuse" : "Authorise"}
+        busy={busy}
+        error={pinError}
+        onCancel={() => setPending(null)}
+        onConfirm={sign}
+      />
     </div>
   );
 }
