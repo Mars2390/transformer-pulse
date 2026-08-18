@@ -58,8 +58,25 @@ export async function middleware(request: NextRequest) {
       request.cookies.get(SESSION_COOKIE)?.value,
     );
 
-    // Already signed in and heading to /login? Send them where they belong.
+    // Already signed in and heading to /login? Send them where they belong —
+    // UNLESS requireUser() sent them here because their session is dead.
+    //
+    // This branch trusts the token, which is all Edge can check. A token whose
+    // UserSession row has been revoked or timed out still verifies, so without the
+    // ?expired=1 marker this redirect fought requireUser() forever: here to the
+    // dashboard, dashboard back to here, until the browser stopped and rendered a
+    // white page. That was the white screen, and every user met it once the
+    // thirty-minute idle timeout or the three-session cap caught up with them.
+    //
+    // On the marker we do the opposite of redirecting: let the login page render,
+    // and take the dead cookie off them on the way through, so the next request
+    // starts clean instead of walking back into the same trap.
     if (pathname === "/login" && session) {
+      if (request.nextUrl.searchParams.has("expired")) {
+        const response = annotate(request, pathname);
+        response.cookies.delete(SESSION_COOKIE);
+        return response;
+      }
       return NextResponse.redirect(new URL(roleHome(session.role), request.url));
     }
 
