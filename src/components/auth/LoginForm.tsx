@@ -21,6 +21,13 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // requireUser() sets ?expired=1 when a cookie was presented but its session was
+  // already dead — idle past thirty minutes, or closed by the three-session cap
+  // when this person signed in somewhere else. Saying so matters: being returned
+  // to a login form with no explanation is indistinguishable from the app losing
+  // your work, and it is the thing people describe as "it went blank".
+  const expired = params.has("expired");
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -104,6 +111,12 @@ export function LoginForm() {
         />
       </div>
 
+      {expired && !error && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+          Your session ended, so you have been signed out. Nothing you saved was
+          lost. Sign in again to carry on.
+        </p>
+      )}
       {error && (
         // role="alert" so a screen reader announces the failure instead of
         // leaving a blind user staring at a form that silently did nothing.
