@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PhaseBars } from "./PhaseBars";
 import { TransformerCutaway } from "./TransformerCutaway";
 import type { ThermalResult } from "@/lib/transformer-thermal";
+import { IEC_DEFAULTS } from "@/lib/thermal-constants";
 import { formatGNumber } from "@/lib/format";
 
 /**
@@ -194,6 +195,10 @@ export function EmdisControlRoom({ datasetId }: { datasetId?: string }) {
     efficiencyPct: th?.efficiencyPct ?? 0,
     band: (th?.band ?? "NORMAL") as ThermalResult["band"],
     headroomKva: 0, findings: [],
+    constants: { ...IEC_DEFAULTS },
+    constantsProvenance: "IEC 60076-7 defaults: R 5, top-oil rise 55 K, hot-spot gradient 23 K, x 0.8, y 1.6",
+    lossRatioSource: "IEC default",
+    ambientC: AMBIENT,
   };
 
   return (
