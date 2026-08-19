@@ -535,12 +535,18 @@ export async function commitEmdis(
  * rated current is a single finding, and 149 identical alerts is a wall of
  * noise that guarantees the real one is ignored.
  */
-async function raiseLoadAlerts(
+export async function raiseLoadAlerts(
   transformerId: string,
   datasetId: string,
   rows: Prisma.EmdisReadingCreateManyInput[],
   iRated: number,
   ratingKva: number,
+  /**
+   * Restrict which alert types may be created. The recompute backfill replaces
+   * only the two snapshot-derived types, and must not duplicate the overload or
+   * THD alerts already sitting in the table.
+   */
+  only?: readonly Prisma.AlertCreateManyInput["type"][],
 ): Promise<number> {
   const tx = await prisma.transformer.findUnique({
     where: { id: transformerId },
@@ -611,9 +617,10 @@ async function raiseLoadAlerts(
     });
   }
 
-  if (alerts.length) await prisma.alert.createMany({ data: alerts });
+  const toCreate = only ? alerts.filter((a) => only.includes(a.type)) : alerts;
+  if (toCreate.length) await prisma.alert.createMany({ data: toCreate });
   void datasetId;
-  return alerts.length;
+  return toCreate.length;
 }
 
 /** A load check is something that happened to the transformer. It goes on the chain. */
