@@ -282,7 +282,7 @@ describe("thermal constants come from the schema, with IEC as the fallback", () 
     const iec = snapshotOfG38104(null);
     const certified = snapshotOfG38104({
       lossRatioR: 6.8, topOilRiseK: 52, hotSpotGradientK: 20,
-      windingExponentX: 0.8, oilExponentY: 1.6,
+      windingExponentX: 0.75, oilExponentY: 1.5, // differ from IEC on purpose: a stored value equal to the default reports AS a default
     });
     expect(certified.hotSpotC).not.toBeCloseTo(iec.hotSpotC, 1);
     expect(certified.constantsProvenance).toContain("All five");
