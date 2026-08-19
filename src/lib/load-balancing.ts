@@ -13,9 +13,10 @@
 
 import { ratedPhaseCurrent } from "./load-analysis";
 import { computeThermal } from "./transformer-thermal";
+import { NORMAL_LIFE_YEARS, timeToFailureYears } from "./time-to-failure";
 
 /** IEC 60076-7 reference: normal insulation life at a 98 °C hot-spot. */
-export const NORMAL_LIFE_YEARS = 30;
+export { NORMAL_LIFE_YEARS };
 
 // Load balancing
 
@@ -197,7 +198,7 @@ export function prognose(
     avgAgeingRate: avg,
     peakAgeingRate: peak,
     // At an average ageing rate of R, full life is consumed R times faster.
-    yearsToEndOfLife: NORMAL_LIFE_YEARS / Math.max(0.001, avg),
+    yearsToEndOfLife: timeToFailureYears(avg),
     normalLifeYears: NORMAL_LIFE_YEARS,
     equivalentHoursConsumed: avg * windowHours,
     windowHours,

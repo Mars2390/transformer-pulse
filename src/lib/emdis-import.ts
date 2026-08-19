@@ -7,6 +7,7 @@ import { parseEmdisBlocks, normaliseSerialForMatch, type EmdisBlock } from "./em
 import { parseFlatTable, headerSignature } from "./flat-import";
 import { mapColumns, detectFormat, type CanonField, type ColumnMapping, type FormatDetection } from "./universal-columns";
 import { analyseReading, ratedPhaseCurrent, NOMINAL_VLL, LIMITS } from "./load-analysis";
+import { pickSnapshotRow, deriveSnapshotMetrics, EMPTY_SNAPSHOT } from "./snapshot-reading";
 import { computeEventHash, CURRENT_HASH_VERSION } from "./chain";
 import { refreshCachedScores } from "./combined-health";
 import { deriveHealthStatus } from "./health-status";
@@ -549,10 +550,17 @@ async function raiseLoadAlerts(
   const label = tx.gNumber ?? tx.serialNumber;
 
   const over = rows.filter((r) => (r.maxPhasePctRated ?? 0) > 100);
-  const unb = rows.map((r) => r.phaseUnbalancePct ?? 0).sort((a, b) => a - b);
-  const medUnb = unb.length ? unb[Math.floor(unb.length / 2)] : 0;
-  const neutrals = rows.map((r) => r.neutralPctRated ?? 0).sort((a, b) => a - b);
-  const medNeutral = neutrals.length ? neutrals[Math.floor(neutrals.length / 2)] : 0;
+  // The snapshot reading: the same row, and the same NEMA function, that the
+  // API field and the health record use. A median across the window read 136%
+  // where the dashboard read 42.72%. An alert that contradicts the dashboard
+  // is worse than no alert, because it discredits both.
+  const { row: snapRow, pickedBy } = pickSnapshotRow(rows);
+  const snap = snapRow
+    ? deriveSnapshotMetrics(snapRow, ratingKva, NOMINAL_VLL, pickedBy)
+    : EMPTY_SNAPSHOT;
+  const snapUnb = snap.unbalancePct;
+  const snapNeutral = iRated > 0 ? (snap.neutralC / iRated) * 100 : 0;
+  const snapAt = snap.recordedAt ? snap.recordedAt.toISOString().slice(11, 16) : "peak load";
 
   const alerts: Prisma.AlertCreateManyInput[] = [];
 
@@ -571,23 +579,23 @@ async function raiseLoadAlerts(
     });
   }
 
-  if (medUnb >= LIMITS.unbalanceWarn) {
+  if (snapUnb >= LIMITS.unbalanceWarn) {
     alerts.push({
       transformerId,
       type: "PHASE_UNBALANCE",
-      severity: medUnb >= LIMITS.unbalanceCritical ? "CRITICAL" : "WARNING",
+      severity: snapUnb >= LIMITS.unbalanceCritical ? "CRITICAL" : "WARNING",
       region: tx.region,
-      message: `${label}: current unbalance ${medUnb.toFixed(0)}% for half the window. Rebalancing single-phase load is the cheapest fix available.`,
+      message: `${label}: current unbalance ${snapUnb.toFixed(2)}% (NEMA MG-1) at peak load ${snapAt} — phases ${snap.l1c.toFixed(0)}/${snap.l2c.toFixed(0)}/${snap.l3c.toFixed(0)} A against a ${((snap.l1c + snap.l2c + snap.l3c) / 3).toFixed(0)} A mean. Rebalancing single-phase load is the cheapest fix available.`,
     });
   }
 
-  if (medNeutral >= LIMITS.neutralWarn * 100) {
+  if (snapNeutral >= LIMITS.neutralWarn * 100) {
     alerts.push({
       transformerId,
       type: "NEUTRAL_CURRENT_HIGH",
-      severity: medNeutral >= LIMITS.neutralCritical * 100 ? "CRITICAL" : "WARNING",
+      severity: snapNeutral >= LIMITS.neutralCritical * 100 ? "CRITICAL" : "WARNING",
       region: tx.region,
-      message: `${label}: neutral carrying ${medNeutral.toFixed(0)}% of rated phase current. A balanced load returns almost none.`,
+      message: `${label}: neutral carrying ${snapNeutral.toFixed(1)}% of rated phase current at peak load ${snapAt}. A balanced load returns almost none.`,
     });
   }
 

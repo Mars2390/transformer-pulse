@@ -4,7 +4,9 @@ import { prisma } from "../prisma";
 import { buildPriorityList } from "../combined-health";
 import { deriveHealthStatus, HEALTH_STATUS_META, type HealthStatusLevel } from "../health-status";
 import { computeThermal } from "../transformer-thermal";
-import { ambientForMonth, NORMAL_LIFE_YEARS, planBalance } from "../load-balancing";
+import { ambientForMonth, planBalance } from "../load-balancing";
+import { snapshotMetricsFor } from "../snapshot-reading";
+import { lifeFromAgeing, round3 } from "../time-to-failure";
 import { ratedPhaseCurrent } from "../load-analysis";
 import { computePhaseDistribution } from "../phase-distribution";
 import { PHASE_META } from "../phase-colors";
@@ -92,15 +94,40 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
   let ageingRate: number | null = null;
   let estimatedTimeToFailureYears: number | null = null;
   let phaseLoadingPctOfRated: number | null = null;
+  let loadingPctOfRated: number | null = null;
+  let unbalancePct: number | null = null;
+  let snapshotAt: string | null = null;
+  let timeToFailureBasis: string | null = null;
+  let timeToFailureCaveat: string | null = null;
 
-  if (latestHour?.maxPhasePctRated != null) {
-    phaseLoadingPctOfRated = round1(latestHour.maxPhasePctRated);
-    const ambientC = ambientForMonth(latestHour.hourStart.getUTCMonth());
-    const loadKva = (latestHour.maxPhasePctRated / 100) * tx.ratingKva;
-    const t = computeThermal({ loadKva, ratingKva: tx.ratingKva, ambientC, powerFactor: 0.95 });
+  // One reading drives loading, unbalance, hot-spot, ageing and TTF. Driving
+  // the thermal model off the hourly rollup while quoting unbalance from
+  // somewhere else is how five numbers ended up describing five instants.
+  const snap = await snapshotMetricsFor(tx.id, tx.ratingKva);
+
+  if (snap.recordedAt) {
+    snapshotAt = snap.recordedAt.toISOString();
+    loadingPctOfRated = round2(snap.loadingPct);
+    phaseLoadingPctOfRated = round1(snap.maxPhasePctRated);
+    unbalancePct = round2(snap.unbalancePct);
+
+    const ambientC = ambientForMonth(snap.recordedAt.getUTCMonth());
+    const t = computeThermal({
+      loadKva: (snap.loadingPct / 100) * tx.ratingKva,
+      ratingKva: tx.ratingKva,
+      ambientC,
+      powerFactor: 0.95,
+    });
     hotSpotTemperatureC = round1(t.hotspotC);
     ageingRate = round2(t.ageingRate);
-    estimatedTimeToFailureYears = round1(NORMAL_LIFE_YEARS / Math.max(0.001, t.ageingRate));
+
+    // TTF is the exact inverse of the ageing rate above, to three decimals,
+    // and it carries the life basis it was divided by. round1() printed 0.3
+    // for 0.284, which no manual check could reproduce.
+    const life = lifeFromAgeing(t.ageingRate);
+    estimatedTimeToFailureYears = round3(life.yearsToEndOfLife);
+    timeToFailureBasis = life.arithmetic;
+    timeToFailureCaveat = life.caveat;
   }
 
   return {
@@ -117,6 +144,11 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
     hotSpotTemperatureC,
     ageingRate,
     estimatedTimeToFailureYears,
+    loadingPctOfRated,
+    unbalancePct,
+    snapshotAt,
+    timeToFailureBasis,
+    timeToFailureCaveat,
     lastInspection: latestInspection
       ? {
           date: latestInspection.inspectedOn.toISOString().slice(0, 10),
@@ -228,12 +260,13 @@ async function analyzeLoadPattern(args: unknown): Promise<McpToolResult> {
   }
 
   const voltLL = tx.secondaryKv ? tx.secondaryKv * 1000 : 415;
-  const iRated = ratedPhaseCurrent(tx.ratingKva, voltLL);
-  const currents = {
-    l1: latestHour.maxL1c ?? latestHour.avgL1c ?? 0,
-    l2: latestHour.maxL2c ?? latestHour.avgL2c ?? 0,
-    l3: latestHour.maxL3c ?? latestHour.avgL3c ?? 0,
-  };
+  const snap = await snapshotMetricsFor(tx.id, tx.ratingKva);
+  const iRated = snap.iRated > 0 ? snap.iRated : ratedPhaseCurrent(tx.ratingKva, voltLL);
+
+  // maxL1c, maxL2c and maxL3c are three separate peaks from three different
+  // minutes. Treating them as one reading invents imbalance the transformer
+  // never saw - it is where the 63% came from. These three are simultaneous.
+  const currents = { l1: snap.l1c, l2: snap.l2c, l3: snap.l3c };
   const distribution = computePhaseDistribution({ currents, ratedPhaseA: iRated, ratingKva: tx.ratingKva });
   const balance = planBalance(currents, tx.ratingKva, voltLL, 5);
 
@@ -251,8 +284,9 @@ async function analyzeLoadPattern(args: unknown): Promise<McpToolResult> {
       status: p.status.label,
       estimatedCustomers: p.estimatedCustomers,
     })),
-    neutralCurrentA: latestHour.maxNeutralC != null ? round1(latestHour.maxNeutralC) : null,
-    unbalancePct: latestHour.maxUnbalancePct != null ? round1(latestHour.maxUnbalancePct) : null,
+    neutralCurrentA: round1(snap.neutralC),
+    unbalancePct: round2(snap.unbalancePct),
+    snapshotAt: snap.recordedAt ? snap.recordedAt.toISOString() : null,
     minutesOverRatedLastHour: latestHour.minutesOver100Pct,
     overloaded: distribution.heaviest.pctRated >= 100,
     heaviestPhase: distribution.heaviest.phase,

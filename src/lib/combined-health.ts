@@ -2,6 +2,7 @@ import "./server-guard";
 import { prisma } from "./prisma";
 import { LIMITS } from "./load-analysis";
 import { bandOf, correctIrTo20C, wrDeviationPct, IR_LIMITS, EARTH_LIMIT_OHM, EARTH_CRITICAL_OHM } from "./insulation";
+import { snapshotMetricsForMany, EMPTY_SNAPSHOT } from "./snapshot-reading";
 
 /**
  * Two scores, not one.
@@ -115,6 +116,13 @@ export async function buildPriorityList(opts?: {
   });
   const load = new Map(hourly.filter((h) => h.transformerId).map((h) => [h.transformerId!, h]));
 
+  // The rollup maxima above stay - minutesOver100Pct and the worst-ever hour
+  // are real questions. Unbalance is not one of them: it has to be the
+  // snapshot, or the health record contradicts the dashboard and the alert.
+  const snapshots = await snapshotMetricsForMany(
+    transformers.map((t) => ({ id: t.id, ratingKva: t.ratingKva })),
+  );
+
   // Latest field diagnostic per transformer.
   const tests = await prisma.testRecord.findMany({
     where: { transformerId: { in: ids }, stage: "FIELD_DIAGNOSTIC" },
@@ -133,6 +141,7 @@ export async function buildPriorityList(opts?: {
   for (const t of transformers) {
     const insp = latestInspection.get(t.id);
     const ld = load.get(t.id);
+    const snap = snapshots.get(t.id) ?? EMPTY_SNAPSHOT;
     const tst = latestTest.get(t.id);
 
     let electrical: number | null = null;
@@ -140,7 +149,9 @@ export async function buildPriorityList(opts?: {
     if (ld) {
       electrical = 100;
       const peak = ld._max.maxPhasePctRated ?? 0;
-      const unb = ld._max.maxUnbalancePct ?? 0;
+      // NEMA MG-1 on the snapshot reading. Was the max of every hourly
+      // maximum ever recorded, which read 171% where the API read 42.72%.
+      const unb = snap.unbalancePct;
       const thd = ld._max.maxThdPct ?? 0;
       const overMin = ld._sum.minutesOver100Pct ?? 0;
 
@@ -149,8 +160,8 @@ export async function buildPriorityList(opts?: {
 
       if (overMin > 60) { electrical -= 10; eReasons.push(`${(overMin / 60).toFixed(1)} h above rated current`); }
 
-      if (unb >= LIMITS.unbalanceCritical) { electrical -= 25; eReasons.push(`Unbalance ${unb.toFixed(0)}%`); }
-      else if (unb >= LIMITS.unbalanceWarn) { electrical -= 12; eReasons.push(`Unbalance ${unb.toFixed(0)}%`); }
+      if (unb >= LIMITS.unbalanceCritical) { electrical -= 25; eReasons.push(`Unbalance ${unb.toFixed(2)}%`); }
+      else if (unb >= LIMITS.unbalanceWarn) { electrical -= 12; eReasons.push(`Unbalance ${unb.toFixed(2)}%`); }
 
       if (thd > LIMITS.thdVoltageLimit) { electrical -= 12; eReasons.push(`THD ${thd.toFixed(1)}%`); }
       else if (thd > LIMITS.thdCurrentLimit) { electrical -= 6; eReasons.push(`THD ${thd.toFixed(1)}%`); }
@@ -224,7 +235,7 @@ export async function buildPriorityList(opts?: {
       structure: t.structureCondition,
       hasLoadData: Boolean(ld),
       peakPhasePct: ld?._max.maxPhasePctRated ?? null,
-      unbalancePct: ld?._max.maxUnbalancePct ?? null,
+      unbalancePct: snap.recordedAt ? snap.unbalancePct : null,
       openEarth,
       fuseCarriersBad: insp?.fuseCarriers === "NEEDS_REPLACEMENT",
       irLowMohm: irLow,
