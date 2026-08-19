@@ -10,6 +10,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "mcp": "tsx mcp-server.ts",
+    "recompute": "tsx scripts/recompute-analysis.mts",
+    "recompute:apply": "tsx scripts/recompute-analysis.mts --apply",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
