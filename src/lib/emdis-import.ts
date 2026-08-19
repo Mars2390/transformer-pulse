@@ -1,4 +1,4 @@
-import "server-only";
+import "./server-guard";
 import type { Prisma } from "@/generated/prisma/client";
 import type { MatchMethod } from "@/generated/prisma/enums";
 import { prisma } from "./prisma";
