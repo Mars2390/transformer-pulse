@@ -13,6 +13,7 @@
     "recompute": "tsx scripts/recompute-analysis.mts",
     "recompute:apply": "tsx scripts/recompute-analysis.mts --apply",
     "verify:analysis": "tsx scripts/verify-analysis.mts",
+    "verify:snapshot": "tsx scripts/verify-snapshot.mts",
     "duplicates:scan": "tsx scripts/scan-duplicates.mts",
     "duplicates:flag": "tsx scripts/scan-duplicates.mts --apply",
     "emdis:hashes": "tsx scripts/backfill-emdis-hashes.mts --apply",

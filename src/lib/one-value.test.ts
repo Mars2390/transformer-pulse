@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { nemaUnbalancePct, ratedPhaseCurrent } from './load-analysis';
-import { deriveSnapshotMetrics, pickSnapshotRow } from './snapshot-reading';
+import { deriveSnapshot, pickSnapshotRow } from './analysis-snapshot';
 import { computeThermal } from './transformer-thermal';
 import {
   IEEE_NORMAL_LIFE_YEARS,
@@ -32,7 +32,7 @@ describe('one value everywhere: unbalance', () => {
   });
 
   it('gives the API field, the alert and the health record the SAME number', () => {
-    const metrics = deriveSnapshotMetrics(SNAP, RATING_KVA, VOLT_LL);
+    const metrics = deriveSnapshot({ row: SNAP, ratingKva: RATING_KVA, voltLL: VOLT_LL, ambientC: AMBIENT_C });
 
     // The three former call sites, now all reading one derivation.
     const apiField = metrics.unbalancePct;
@@ -47,7 +47,7 @@ describe('one value everywhere: unbalance', () => {
     // And it is the same reading loadingPct came from. That was the whole bug.
     expect(metrics.loadingPct).toBeCloseTo(130.9841, 4);
     expect(metrics.maxPhasePctRated).toBeCloseTo(186.9339, 3);
-    expect(metrics.iRated).toBeCloseTo(ratedPhaseCurrent(RATING_KVA, VOLT_LL), 6);
+    expect(metrics.ratedPhaseA).toBeCloseTo(ratedPhaseCurrent(RATING_KVA, VOLT_LL), 6);
   });
 
   it('refuses to drift when the window contains hotter and calmer minutes', () => {
@@ -61,11 +61,14 @@ describe('one value everywhere: unbalance', () => {
       { l1c: 700, l2c: 300, l3c: 250, kva: 380, maxPhaseC: 700, loadingPct: 120.6, recordedAt: new Date('2026-05-14T20:30:00Z') },
     ];
 
-    const { row, pickedBy } = pickSnapshotRow(window);
-    expect(pickedBy).toBe('peak kVA loading');
-    expect(row?.kva).toBe(412.6);
+    const picked = pickSnapshotRow(window)!;
+    expect(picked.reason).toMatch(/peak measured loading/);
+    expect(picked.row.kva).toBe(412.6);
 
-    const metrics = deriveSnapshotMetrics(row!, RATING_KVA, VOLT_LL, pickedBy);
+    const metrics = deriveSnapshot({
+      row: picked.row, ratingKva: RATING_KVA, voltLL: VOLT_LL, ambientC: AMBIENT_C,
+      selectedBecause: picked.reason,
+    });
     expect(metrics.unbalancePct).toBeCloseTo(42.7178, 4);
 
     // Prove the discarded aggregations really were different numbers, so this

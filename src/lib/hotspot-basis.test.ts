@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computeThermal, ageingRateAt } from "./transformer-thermal";
 import { IEC_DEFAULTS } from "./thermal-constants";
 import { ratedPhaseCurrent } from "./load-analysis";
-import { deriveSnapshotMetrics } from "./snapshot-reading";
+import { deriveSnapshot } from "./analysis-snapshot";
 import { lifeFromAgeing, NORMAL_LIFE_YEARS } from "./time-to-failure";
 
 /**
@@ -132,34 +132,32 @@ describe("the two bases agree when there is nothing to hide", () => {
   });
 });
 
-describe("deriveSnapshotMetrics names the phase the heat is in", () => {
-  const snap = deriveSnapshotMetrics(
-    { recordedAt: new Date("2026-01-13T20:20:55Z"), l1c: L1, l2c: L2, l3c: L3, neutralC: 120, kva: 277.83 },
-    RATING_KVA,
-    VOLT_LL,
-  );
+describe("deriveSnapshot names the phase the heat is in", () => {
+  const snap = deriveSnapshot({
+    row: { recordedAt: new Date("2026-01-13T20:20:55Z"), l1c: L1, l2c: L2, l3c: L3, neutralC: 120, kva: 277.83 },
+    ratingKva: RATING_KVA, voltLL: VOLT_LL, ambientC: AMBIENT_C,
+  });
 
   it("reports the worst phase in amperes and by name", () => {
-    expect(snap.maxPhaseC).toBeCloseTo(L2, 9);
+    expect(snap.maxPhaseA).toBeCloseTo(L2, 9);
     expect(snap.hottestPhase).toBe("L2");
     expect(snap.maxPhasePctRated).toBeCloseTo(121.945, 3);
   });
 
-  it("does not guess a phase label when the phases are not the maximum", () => {
-    // A stored maxPhaseC larger than any phase reading means the row is
-    // incomplete. A letter picked anyway would be a fabricated attribution.
-    const odd = deriveSnapshotMetrics(
-      { recordedAt: new Date(), l1c: 10, l2c: 20, l3c: 30, maxPhaseC: 400, kva: 1 },
-      RATING_KVA, VOLT_LL,
-    );
-    expect(odd.maxPhaseC).toBe(400);
-    expect(odd.hottestPhase).toBeNull();
+  it("carries both thermal bases, so neither can be read by accident", () => {
+    // The hottest winding is the hot-spot; the kVA figure is what a
+    // conventional report would print. Both present, both labelled.
+    expect(snap.hotSpotByPhaseC).toBeCloseTo(129.8239, 3);
+    expect(snap.ageingRateByPhase).toBeCloseTo(39.5054, 3);
+    expect(snap.hotSpotC).toBeLessThan(snap.hotSpotByPhaseC);
+    expect(snap.thermalBandByPhase).toBe("CRITICAL");
   });
 
   it("returns no phase label for an unloaded transformer", () => {
-    const idle = deriveSnapshotMetrics(
-      { recordedAt: new Date(), l1c: 0, l2c: 0, l3c: 0, kva: 0 }, RATING_KVA, VOLT_LL,
-    );
+    const idle = deriveSnapshot({
+      row: { recordedAt: new Date("2026-01-13T00:00:00Z"), l1c: 0, l2c: 0, l3c: 0, kva: 0 },
+      ratingKva: RATING_KVA, voltLL: VOLT_LL, ambientC: AMBIENT_C,
+    });
     expect(idle.hottestPhase).toBeNull();
   });
 });

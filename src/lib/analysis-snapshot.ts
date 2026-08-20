@@ -35,16 +35,21 @@ import {
 /** The columns this needs off an EmdisReading row. Structural on purpose. */
 export type SnapshotSourceRow = {
   recordedAt: Date;
-  l1c: number | null;
-  l2c: number | null;
-  l3c: number | null;
-  neutralC: number | null;
+  l1c?: number | null;
+  l2c?: number | null;
+  l3c?: number | null;
+  neutralC?: number | null;
   l1nV?: number | null;
   l2nV?: number | null;
   l3nV?: number | null;
-  kva: number | null;
+  /**
+   * Every measurement is optional. A flat column table may carry currents and
+   * nothing else, and a required-but-null field would force each caller to
+   * write `neutralC: null` to say what an absent key already says.
+   */
+  kva?: number | null;
   kw?: number | null;
-  pf: number | null;
+  pf?: number | null;
   thdPct?: number | null;
   /** Stored derived values, written at ingest by analyseReading. */
   loadingPct?: number | null;
@@ -93,14 +98,34 @@ export type DerivedSnapshot = {
   constantsProvenance: string;
   lossRatioSource: string;
 
+  // ---------------------------------------------------------------------
+  // Two thermal runs, and it matters enormously which one a caller reads.
+  //
+  // The fields WITHOUT a suffix are the kVA basis: the same instant as a
+  // conventional report would read it, where K comes from measured kVA over
+  // nameplate. On an unbalanced transformer that lands near the MEAN of the
+  // three phases.
+  //
+  // The ...ByPhase fields are the hottest winding, where K is the worst phase
+  // current over rated phase current. That is the physical hot-spot, and it is
+  // what a limit or an ageing rate must be judged on. The kVA figure once
+  // reported 91.5 degC for a unit whose worst winding was at 129.8 degC.
+  //
+  // Both are kept because the GAP between them is the finding — it is exactly
+  // how much heat a kVA report hides. Neither is allowed to stand alone.
+  // ---------------------------------------------------------------------
   topOilRiseK: number;
   topOilC: number;
   hotSpotRiseK: number;
   hotSpotC: number;
   ageingRate: number;
   thermalBand: ThermalBand;
-  /** Hot-spot on the worst-winding basis, for the gap the kVA figure hides. */
+
+  /** The hottest winding. THE hot-spot; judge limits and ageing on these. */
+  topOilByPhaseC: number;
   hotSpotByPhaseC: number;
+  ageingRateByPhase: number;
+  thermalBandByPhase: ThermalBand;
 
   severity: Severity;
 };
@@ -115,7 +140,7 @@ const num = (x: number | null | undefined) => (x == null || !Number.isFinite(x) 
  * time-sorted order so it lines up with analyseDataset.
  */
 export function pickSnapshotRow<T extends SnapshotSourceRow>(
-  rows: T[],
+  rows: readonly T[],
 ): { row: T; index: number; reason: string } | null {
   if (!rows.length) return null;
   const sorted = [...rows].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
@@ -185,7 +210,7 @@ export function deriveSnapshot(input: DeriveInput): DerivedSnapshot {
   const resolved = resolveThermalConstants(input.transformer);
   const pf = row.pf != null && row.pf > 0.1 ? row.pf : (input.fallbackPf ?? 0.95);
 
-  // The thermal run that the report quotes, on the same basis as loadingPct.
+  // The kVA-basis run. Reported so the gap can be shown, never on its own.
   const t = computeThermal({
     loadKva: (a.loadingPct / 100) * ratingKva,
     ratingKva,
@@ -194,8 +219,9 @@ export function deriveSnapshot(input: DeriveInput): DerivedSnapshot {
     powerFactor: pf,
   });
 
-  // The worst-winding view, kept because an unbalanced unit is hotter than its
-  // kVA figure admits. Shown next to the headline, never instead of it.
+  // The worst-winding view: the temperature the paper is actually at. IEC
+  // 60076-7 takes K as the current in the winding being modelled over rated
+  // current, and the hottest winding is the one carrying the most current.
   const tPhase = computeThermal({
     loadKva: (a.maxPhasePctRated / 100) * ratingKva,
     ratingKva,
@@ -251,7 +277,11 @@ export function deriveSnapshot(input: DeriveInput): DerivedSnapshot {
     hotSpotC: t.hotspotC,
     ageingRate: t.ageingRate,
     thermalBand: t.band,
+
+    topOilByPhaseC: tPhase.topOilC,
     hotSpotByPhaseC: tPhase.hotspotC,
+    ageingRateByPhase: tPhase.ageingRate,
+    thermalBandByPhase: tPhase.band,
 
     severity: a.severity,
   };

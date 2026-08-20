@@ -110,72 +110,53 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
   // somewhere else is how five numbers ended up describing five instants.
   const snap = await snapshotMetricsFor(tx.id, tx.ratingKva);
 
-  if (snap.recordedAt) {
+  if (snap) {
     snapshotAt = snap.recordedAt.toISOString();
     loadingPctOfRated = round2(snap.loadingPct);
     phaseLoadingPctOfRated = round1(snap.maxPhasePctRated);
     unbalancePct = round2(snap.unbalancePct);
 
-    const ambientC = ambientForMonth(snap.recordedAt.getUTCMonth());
-
     // ------------------------------------------------------------------
-    // K is the WORST phase, not the kVA figure.
+    // Every figure below is READ off the snapshot. Nothing is recomputed.
     //
-    // The hot-spot is a property of one winding — the one carrying the most
-    // current — and IEC 60076-7 takes K as that winding's current over rated
-    // current. kVA is a three-phase aggregate, so on an unbalanced unit it
-    // reports something close to the MEAN of the phases and the hottest
-    // winding disappears into the average.
+    // The snapshot already ran the thermal model twice — once on the hottest
+    // winding, once on the kVA figure — with this transformer's certificate
+    // constants and the ambient for the month the reading was taken. Running
+    // it a third time here is how a tool ends up quoting a temperature the
+    // load-analysis screen does not recognise.
     //
-    // This is not a rounding difference. On G-153457 the phases read
-    // 281.1 / 534.4 / 408.7 A against a 438.2 A rating. The kVA basis gives
-    // K = 0.8820 and a hot-spot of 91.5 degC — "NORMAL", ageing at 0.47x.
-    // The hottest winding is at K = 1.2195, a hot-spot of 129.8 degC, and
-    // ageing at 39.5x. The tool was reporting a phase at 122% of rated in one
-    // field and, in the next field, a temperature that could only be true if
-    // no phase were above 89%.
-    //
-    // The rest of the system already drives the model off peak phase — the
-    // control room, the load-analysis screen, the loss-of-life costing. This
-    // call site was the one that did not.
+    // The ...ByPhase figures are the answer. The hot-spot is a property of one
+    // winding, the one carrying the most current, and IEC 60076-7 takes K as
+    // that winding's current over rated current. kVA is a three-phase
+    // aggregate, so on an unbalanced unit it lands near the MEAN of the phases
+    // and the hottest winding disappears into the average. On G-153457 that
+    // was the difference between "91.5 degC, NORMAL, ageing 0.47x" and
+    // "129.8 degC, CRITICAL, ageing 39.5x" — for the same instant.
     // ------------------------------------------------------------------
-    const t = computeThermal({
-      loadKva: (snap.maxPhasePctRated / 100) * tx.ratingKva,
-      ratingKva: tx.ratingKva,
-      ambientC,
-      powerFactor: 0.95,
-      // The five constants off this unit's test certificate, where it has one.
-      transformer: tx,
-    });
-    hotSpotTemperatureC = round1(t.hotspotC);
-    ageingRate = round2(t.ageingRate);
-    thermalConstantsSource = t.constantsProvenance;
+    hotSpotTemperatureC = round1(snap.hotSpotByPhaseC);
+    ageingRate = round2(snap.ageingRateByPhase);
+    thermalConstantsSource = snap.constantsProvenance;
     hotSpotBasis =
       `Hottest winding: K = ${(snap.maxPhasePctRated / 100).toFixed(4)} ` +
-      `(${snap.hottestPhase ?? "worst phase"} at ${snap.maxPhaseC.toFixed(1)} A of ${snap.iRated.toFixed(1)} A rated), ` +
-      `ambient ${ambientC} degC.`;
+      `(${snap.hottestPhase ?? "worst phase"} at ${snap.maxPhaseA.toFixed(1)} A of ` +
+      `${snap.ratedPhaseA.toFixed(1)} A rated), ambient ${snap.ambientC} degC.`;
     thermalArithmetic =
-      `top-oil rise ${t.topOilRiseK.toFixed(2)} K + gradient ${t.hotspotRiseK.toFixed(2)} K ` +
-      `+ ambient ${ambientC} = ${t.hotspotC.toFixed(2)} degC; ` +
-      `ageing 2^((${t.hotspotC.toFixed(2)} - 98) / 6) = ${t.ageingRate.toFixed(2)}x normal.`;
+      `top-oil ${snap.topOilByPhaseC.toFixed(2)} degC + gradient ` +
+      `${(snap.hotSpotByPhaseC - snap.topOilByPhaseC).toFixed(2)} K = ` +
+      `${snap.hotSpotByPhaseC.toFixed(2)} degC; ageing ` +
+      `2^((${snap.hotSpotByPhaseC.toFixed(2)} - 98) / 6) = ` +
+      `${snap.ageingRateByPhase.toFixed(2)}x normal.`;
 
     // The kVA view is still reported, because the GAP between the two is the
     // finding: it is exactly how much heat a conventional kVA report hides on
     // an unbalanced transformer. Reported beside the real figure, never as it.
-    const tKva = computeThermal({
-      loadKva: (snap.loadingPct / 100) * tx.ratingKva,
-      ratingKva: tx.ratingKva,
-      ambientC,
-      powerFactor: 0.95,
-      transformer: tx,
-    });
-    hotSpotOnKvaBasisC = round1(tKva.hotspotC);
-    ageingRateOnKvaBasis = round2(tKva.ageingRate);
+    hotSpotOnKvaBasisC = round1(snap.hotSpotC);
+    ageingRateOnKvaBasis = round2(snap.ageingRate);
 
     // TTF is the exact inverse of the ageing rate above, to three decimals,
     // and it carries the life basis it was divided by. round1() printed 0.3
     // for 0.284, which no manual check could reproduce.
-    const life = lifeFromAgeing(t.ageingRate);
+    const life = lifeFromAgeing(snap.ageingRateByPhase);
     estimatedTimeToFailureYears = round3(life.yearsToEndOfLife);
     timeToFailureBasis = life.arithmetic;
     timeToFailureCaveat = life.caveat;
@@ -319,7 +300,17 @@ async function analyzeLoadPattern(args: unknown): Promise<McpToolResult> {
 
   const voltLL = tx.secondaryKv ? tx.secondaryKv * 1000 : 415;
   const snap = await snapshotMetricsFor(tx.id, tx.ratingKva);
-  const iRated = snap.iRated > 0 ? snap.iRated : ratedPhaseCurrent(tx.ratingKva, voltLL);
+  if (!snap) {
+    // The hourly rollup exists but no reading backs it. Say so rather than
+    // reporting three phases at 0 A, which reads as a healthy balanced unit.
+    return {
+      found: true,
+      gNumber: tx.gNumber ? `G-${tx.gNumber}` : null,
+      hasLoadData: false,
+      message: "This transformer has an hourly rollup but no readings behind it.",
+    };
+  }
+  const iRated = snap.ratedPhaseA > 0 ? snap.ratedPhaseA : ratedPhaseCurrent(tx.ratingKva, voltLL);
 
   // maxL1c, maxL2c and maxL3c are three separate peaks from three different
   // minutes. Treating them as one reading invents imbalance the transformer
@@ -342,9 +333,9 @@ async function analyzeLoadPattern(args: unknown): Promise<McpToolResult> {
       status: p.status.label,
       estimatedCustomers: p.estimatedCustomers,
     })),
-    neutralCurrentA: round1(snap.neutralC),
+    neutralCurrentA: snap.neutralC == null ? null : round1(snap.neutralC),
     unbalancePct: round2(snap.unbalancePct),
-    snapshotAt: snap.recordedAt ? snap.recordedAt.toISOString() : null,
+    snapshotAt: snap.recordedAt.toISOString(),
     minutesOverRatedLastHour: latestHour.minutesOver100Pct,
     overloaded: distribution.heaviest.pctRated >= 100,
     heaviestPhase: distribution.heaviest.phase,

@@ -2,7 +2,7 @@ import "./server-guard";
 import { prisma } from "./prisma";
 import { LIMITS } from "./load-analysis";
 import { bandOf, correctIrTo20C, wrDeviationPct, IR_LIMITS, EARTH_LIMIT_OHM, EARTH_CRITICAL_OHM } from "./insulation";
-import { snapshotMetricsForMany, EMPTY_SNAPSHOT } from "./snapshot-reading";
+import { snapshotMetricsForMany } from "./snapshot-reading";
 
 /**
  * Two scores, not one.
@@ -141,7 +141,10 @@ export async function buildPriorityList(opts?: {
   for (const t of transformers) {
     const insp = latestInspection.get(t.id);
     const ld = load.get(t.id);
-    const snap = snapshots.get(t.id) ?? EMPTY_SNAPSHOT;
+    // Absent, not zeroed, when the transformer has never been measured. The
+    // load block below is already gated on `ld`, so a missing snapshot can only
+    // mean the rollup exists without readings behind it.
+    const snap = snapshots.get(t.id) ?? null;
     const tst = latestTest.get(t.id);
 
     let electrical: number | null = null;
@@ -151,7 +154,7 @@ export async function buildPriorityList(opts?: {
       const peak = ld._max.maxPhasePctRated ?? 0;
       // NEMA MG-1 on the snapshot reading. Was the max of every hourly
       // maximum ever recorded, which read 171% where the API read 42.72%.
-      const unb = snap.unbalancePct;
+      const unb = snap?.unbalancePct ?? 0;
       const thd = ld._max.maxThdPct ?? 0;
       const overMin = ld._sum.minutesOver100Pct ?? 0;
 
@@ -235,7 +238,7 @@ export async function buildPriorityList(opts?: {
       structure: t.structureCondition,
       hasLoadData: Boolean(ld),
       peakPhasePct: ld?._max.maxPhasePctRated ?? null,
-      unbalancePct: snap.recordedAt ? snap.unbalancePct : null,
+      unbalancePct: snap?.unbalancePct ?? null,
       openEarth,
       fuseCarriersBad: insp?.fuseCarriers === "NEEDS_REPLACEMENT",
       irLowMohm: irLow,

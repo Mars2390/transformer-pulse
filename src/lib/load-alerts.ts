@@ -89,7 +89,13 @@ export function buildLoadAlerts(args: BuildLoadAlertsArgs): LoadAlertInput[] {
       message:
         label + ": phase " + (s.hottestPhase ?? "?") + " at " + pct0(s.maxPhasePctRated) +
         " of its " + amps(s.ratedPhaseA) + " rating on a " + s.ratingKva + " kVA unit at " + at(s) +
-        ". Loading " + pct2(s.loadingPct) + ", hot-spot " + s.hotSpotC.toFixed(2) + " degC." +
+        // The hot-spot quoted here is the one IN THAT WINDING. Quoting the
+        // kVA-basis figure beside "phase at 122% of rated" would put two
+        // numbers in one sentence that cannot both describe the same
+        // transformer, and the reader would rightly disbelieve both.
+        ". Hot-spot " + s.hotSpotByPhaseC.toFixed(2) + " degC in that winding, ageing " +
+        s.ageingRateByPhase.toFixed(1) + "x normal. Total loading " + pct2(s.loadingPct) +
+        ", which on its own would read " + s.hotSpotC.toFixed(2) + " degC." +
         dur + hidden,
     });
   } else if (s.maxPhasePctRated >= LIMITS.phaseWarn * 100) {

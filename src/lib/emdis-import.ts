@@ -10,7 +10,10 @@ import { blockContentHash, identityKey, type CandidateRange, type ExistingRange 
 import { existingRanges, checkBlock, toReport, type DuplicateReport } from "./emdis-duplicates";
 import { rollupHourly } from "./emdis-rollup";
 import { analyseReading, ratedPhaseCurrent, NOMINAL_VLL, LIMITS } from "./load-analysis";
-import { pickSnapshotRow, deriveSnapshotMetrics, EMPTY_SNAPSHOT } from "./snapshot-reading";
+import { pickSnapshotRow, deriveSnapshot } from "./analysis-snapshot";
+import { buildLoadAlerts } from "./load-alerts";
+import { THERMAL_CONSTANT_SELECT } from "./thermal-constants";
+import { ambientForMonth } from "./load-balancing";
 import { computeEventHash, CURRENT_HASH_VERSION } from "./chain";
 import { refreshCachedScores } from "./combined-health";
 import { deriveHealthStatus } from "./health-status";
@@ -75,7 +78,7 @@ export type EmdisPreview = {
   rejected: number;
 };
 
-function intervalOf(rows: { recordedAt: Date }[]): number {
+function intervalOf(rows: readonly { recordedAt: Date }[]): number {
   const gaps: number[] = [];
   const sorted = [...rows].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
   for (let i = 1; i < sorted.length; i++) {
@@ -642,11 +645,22 @@ export async function commitEmdis(
  * One alert per condition per upload, not one per reading — 149 minutes above
  * rated current is a single finding, and 149 identical alerts is a wall of
  * noise that guarantees the real one is ignored.
+ *
+ * This function no longer decides anything. It gathers: the snapshot reading,
+ * the transformer's certificate constants, and the duration facts that a single
+ * instant cannot carry. buildLoadAlerts() in load-alerts.ts writes the messages,
+ * from the STORED derived snapshot and nothing else.
+ *
+ * That split is the point. The alert generator used to take its own median
+ * across the upload while the API returned the peak-load reading, so an alert
+ * could say 63% while the screen it linked to said 42.72% about the same
+ * transformer on the same minute. There is now one derivation, in one file,
+ * with tests on it.
  */
 export async function raiseLoadAlerts(
   transformerId: string,
   datasetId: string,
-  rows: Prisma.EmdisReadingCreateManyInput[],
+  rows: readonly (Prisma.EmdisReadingCreateManyInput & { recordedAt: Date })[],
   iRated: number,
   ratingKva: number,
   /**
@@ -658,72 +672,63 @@ export async function raiseLoadAlerts(
 ): Promise<number> {
   const tx = await prisma.transformer.findUnique({
     where: { id: transformerId },
-    select: { gNumber: true, serialNumber: true, region: true },
+    select: {
+      gNumber: true, serialNumber: true, region: true, secondaryKv: true,
+      ...THERMAL_CONSTANT_SELECT,
+    },
   });
   if (!tx) return 0;
   const label = tx.gNumber ?? tx.serialNumber;
 
+  // The snapshot reading: the same row, and the same derivation, that the API
+  // field and the health record use.
+  const picked = pickSnapshotRow(rows);
+  if (!picked) return 0;
+
+  const secondaryV = tx.secondaryKv ? tx.secondaryKv * 1000 : null;
+  const voltLL = secondaryV && secondaryV > 100 ? secondaryV : NOMINAL_VLL;
+
+  const snapshot = deriveSnapshot({
+    row: picked.row,
+    index: picked.index,
+    selectedBecause: picked.reason,
+    ratingKva,
+    voltLL,
+    ambientC: ambientForMonth(picked.row.recordedAt.getUTCMonth()),
+    transformer: tx,
+  });
+
+  // Durations. Counts of readings, not levels — deliberately separated, because
+  // "149 minutes above rated" cannot be read off a single instant and must not
+  // look as though it was.
+  const minutesPer = intervalOf(rows) / 60;
   const over = rows.filter((r) => (r.maxPhasePctRated ?? 0) > 100);
-  // The snapshot reading: the same row, and the same NEMA function, that the
-  // API field and the health record use. A median across the window read 136%
-  // where the dashboard read 42.72%. An alert that contradicts the dashboard
-  // is worse than no alert, because it discredits both.
-  const { row: snapRow, pickedBy } = pickSnapshotRow(rows);
-  const snap = snapRow
-    ? deriveSnapshotMetrics(snapRow, ratingKva, NOMINAL_VLL, pickedBy)
-    : EMPTY_SNAPSHOT;
-  const snapUnb = snap.unbalancePct;
-  const snapNeutral = iRated > 0 ? (snap.neutralC / iRated) * 100 : 0;
-  const snapAt = snap.recordedAt ? snap.recordedAt.toISOString().slice(11, 16) : "peak load";
-
-  const alerts: Prisma.AlertCreateManyInput[] = [];
-
-  if (over.length) {
-    const peak = Math.max(...rows.map((r) => r.maxPhasePctRated ?? 0));
-    const hidden = over.filter((r) => (r.loadingPct ?? 0) < 100).length;
-    alerts.push({
-      transformerId,
-      type: "SINGLE_PHASE_OVERLOAD",
-      severity: "CRITICAL",
-      region: tx.region,
-      message:
-        `${label}: a phase reached ${peak.toFixed(0)}% of its ${iRated.toFixed(0)} A rating on a ${ratingKva} kVA unit, ` +
-        `for ${over.length} minute(s).` +
-        (hidden ? ` For ${hidden} of those the total kVA was still under nameplate — invisible to any kVA report.` : ""),
-    });
+  let longestRun = 0;
+  let run = 0;
+  for (const r of rows) {
+    if ((r.maxPhasePctRated ?? 0) > 100) { run++; longestRun = Math.max(longestRun, run); }
+    else run = 0;
   }
 
-  if (snapUnb >= LIMITS.unbalanceWarn) {
-    alerts.push({
-      transformerId,
-      type: "PHASE_UNBALANCE",
-      severity: snapUnb >= LIMITS.unbalanceCritical ? "CRITICAL" : "WARNING",
-      region: tx.region,
-      message: `${label}: current unbalance ${snapUnb.toFixed(2)}% (NEMA MG-1) at peak load ${snapAt} — phases ${snap.l1c.toFixed(0)}/${snap.l2c.toFixed(0)}/${snap.l3c.toFixed(0)} A against a ${((snap.l1c + snap.l2c + snap.l3c) / 3).toFixed(0)} A mean. Rebalancing single-phase load is the cheapest fix available.`,
-    });
-  }
-
-  if (snapNeutral >= LIMITS.neutralWarn * 100) {
-    alerts.push({
-      transformerId,
-      type: "NEUTRAL_CURRENT_HIGH",
-      severity: snapNeutral >= LIMITS.neutralCritical * 100 ? "CRITICAL" : "WARNING",
-      region: tx.region,
-      message: `${label}: neutral carrying ${snapNeutral.toFixed(1)}% of rated phase current at peak load ${snapAt}. A balanced load returns almost none.`,
-    });
-  }
-
-  const thds = rows.map((r) => r.thdPct ?? 0).filter((t) => t > 0).sort((a, b) => a - b);
-  const medThd = thds.length ? thds[Math.floor(thds.length / 2)] : 0;
-  if (medThd > LIMITS.thdCritical) {
-    alerts.push({
-      transformerId,
-      type: "THD_HIGH",
-      severity: "WARNING",
-      region: tx.region,
-      message: `${label}: harmonic distortion ${medThd.toFixed(1)}% median, above the 8% IEEE 519 limit for low voltage.`,
-    });
-  }
+  const alerts = buildLoadAlerts({
+    transformerId,
+    label,
+    region: tx.region,
+    snapshot,
+    window: {
+      minutesAnyPhaseOverRated: Math.round(over.length * minutesPer),
+      hiddenOverloadMinutes: Math.round(
+        over.filter((r) => (r.loadingPct ?? 0) < 100).length * minutesPer,
+      ),
+      longestExcursionMinutes: Math.round(longestRun * minutesPer),
+      minutesUnbalanceOver10: Math.round(
+        rows.filter((r) => (r.phaseUnbalancePct ?? 0) >= LIMITS.unbalanceWarn).length * minutesPer,
+      ),
+      minutesThdOverLimit: Math.round(
+        rows.filter((r) => (r.thdPct ?? 0) > LIMITS.thdCritical).length * minutesPer,
+      ),
+    },
+  });
 
   const toCreate = (only ? alerts.filter((a) => only.includes(a.type)) : alerts)
     // Tied to the readings they were read off. When that dataset is deleted —
@@ -731,6 +736,7 @@ export async function raiseLoadAlerts(
     // of surviving as a warning about evidence that no longer exists.
     .map((a) => ({ ...a, datasetId }));
   if (toCreate.length) await prisma.alert.createMany({ data: toCreate });
+  void iRated;
   return toCreate.length;
 }
 
