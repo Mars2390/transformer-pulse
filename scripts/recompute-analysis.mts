@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
 import { analyseReading, ratedPhaseCurrent, LIMITS, NOMINAL_VLL } from '../src/lib/load-analysis';
-import { deriveSnapshotMetrics } from '../src/lib/snapshot-reading';
+import { deriveSnapshot, snapshotArithmetic } from '../src/lib/analysis-snapshot';
+import { ambientForMonth } from '../src/lib/load-balancing';
 import { raiseLoadAlerts } from '../src/lib/emdis-import';
 import { refreshCachedScores } from '../src/lib/combined-health';
 import { deriveHealthStatus } from '../src/lib/health-status';
@@ -101,7 +102,7 @@ async function main() {
     select: {
       id: true, name: true, nominalVoltLL: true, ratingKvaAsRecorded: true,
       intervalSeconds: true, transformerId: true,
-      transformer: { select: { id: true, gNumber: true, serialNumber: true, ratingKva: true } },
+      transformer: { select: { id: true, gNumber: true, serialNumber: true, ratingKva: true, secondaryKv: true, lossRatioR: true, topOilRiseK: true, hotSpotGradientK: true, windingExponentX: true, oilExponentY: true } },
     },
   });
 
@@ -192,7 +193,10 @@ async function main() {
         skip += page.length;
         readingsSeen += page.length;
 
-        const updates: { id: number; data: Record<string, number> }[] = [];
+        // Nullable: neutralPctRated is null when the export carried no neutral
+        // channel, and null is the honest value. Coercing it to 0 would report
+        // a perfectly balanced neutral on a meter that never measured one.
+        const updates: { id: number; data: Record<string, number | null> }[] = [];
         for (const r of page) {
           const a = analyseReading(r, ratingKva, voltLL);
 
@@ -263,7 +267,16 @@ async function main() {
       continue;
     }
 
-    const snap = deriveSnapshotMetrics(bestRow, bestRating, bestVoltLL, 'peak kVA loading');
+    const snap = deriveSnapshot({
+      row: bestRow,
+      ratingKva: bestRating,
+      voltLL: bestVoltLL,
+      // The same ambient the API and the alert use, so a recomputed alert
+      // cannot quote a different temperature from the one that replaced it.
+      ambientC: ambientForMonth(bestRow.recordedAt.getUTCMonth()),
+      transformer: tx,
+      selectedBecause: 'peak measured loading in this window',
+    });
     touched.push(transformerId);
 
     // Alerts. Only the two snapshot-derived types, and only this transformer.
@@ -281,7 +294,7 @@ async function main() {
       }
       if (APPLY) {
         // The snapshot row is all these two alert types need, by definition.
-        const iRated = snap.iRated;
+        const iRated = snap.ratedPhaseA;
         alertsRaised += await raiseLoadAlerts(
           transformerId,
           list[0].id,
@@ -296,7 +309,7 @@ async function main() {
     console.log(
       `  ${label}: unbalance ${f2(before.unb)}% -> ${f2(snap.unbalancePct)}%, ` +
       `loading ${f2(before.loading)}% -> ${f2(snap.loadingPct)}%, ` +
-      `${snap.arithmetic}, alerts ${replaceable.length} replaced` +
+      `${snapshotArithmetic(snap)}, alerts ${replaceable.length} replaced` +
       (stale.length - replaceable.length ? `, ${stale.length - replaceable.length} acknowledged kept` : ''),
     );
   }
