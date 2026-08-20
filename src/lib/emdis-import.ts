@@ -6,6 +6,9 @@ import { parseCsv, parseXlsx } from "./import-parse";
 import { parseEmdisBlocks, normaliseSerialForMatch, type EmdisBlock } from "./emdis-parse";
 import { parseFlatTable, headerSignature } from "./flat-import";
 import { mapColumns, detectFormat, type CanonField, type ColumnMapping, type FormatDetection } from "./universal-columns";
+import { blockContentHash, identityKey, type CandidateRange, type ExistingRange } from "./emdis-fingerprint";
+import { existingRanges, checkBlock, toReport, type DuplicateReport } from "./emdis-duplicates";
+import { rollupHourly } from "./emdis-rollup";
 import { analyseReading, ratedPhaseCurrent, NOMINAL_VLL, LIMITS } from "./load-analysis";
 import { pickSnapshotRow, deriveSnapshotMetrics, EMPTY_SNAPSHOT } from "./snapshot-reading";
 import { computeEventHash, CURRENT_HASH_VERSION } from "./chain";
@@ -62,6 +65,11 @@ export type EmdisPreview = {
       registerRatingKva: number | null;
       ratingMismatch: boolean;
     };
+    /** What this block would do to data already in the register. */
+    duplicate: DuplicateReport;
+    /** Held back rather than imported, and why. Unmatched blocks are staged. */
+    willStage: boolean;
+    stagingReason: string | null;
   }[];
   totalReadings: number;
   rejected: number;
@@ -236,6 +244,49 @@ async function readUniversal(
   };
 }
 
+/**
+ * The comparison key for a block, ready for the duplicate check.
+ *
+ * `sorted` is passed in rather than re-sorted, because both callers have
+ * already paid for that sort and a file of half a million rows should not be
+ * sorted three times to answer one question about its first and last row.
+ */
+function candidateOf(
+  block: EmdisBlock,
+  sorted: readonly { recordedAt: Date }[],
+  transformerId: string | null,
+): CandidateRange {
+  return {
+    contentHash: blockContentHash(block.header.substationCode, block.header.serial, block.rows),
+    transformerId,
+    identity: identityKey(block.header.substationCode, block.header.serial),
+    firstReadingAt: sorted[0].recordedAt,
+    lastReadingAt: sorted[sorted.length - 1].recordedAt,
+    readingCount: sorted.length,
+  };
+}
+
+/**
+ * Why this block is being held back from the analysis, or null to import it.
+ *
+ * Only one reason today: nothing on the register matches it. Written as a
+ * function returning the sentence rather than a boolean, because the sentence
+ * is what the manager reviewing the staging queue actually needs — "unmatched"
+ * on its own tells them nothing about what to search for.
+ */
+function stagingReasonFor(block: EmdisBlock, transformerId: string | null): string | null {
+  if (transformerId) return null;
+  const bits: string[] = [];
+  if (block.header.serial) bits.push(`serial ${block.header.serial}`);
+  if (block.header.substationCode) bits.push(`substation ${block.header.substationCode}`);
+  return (
+    "No transformer on the register matches this data" +
+    (bits.length ? ` (${bits.join(", ")})` : "") +
+    ". Held in staging rather than imported unattached, so its readings cannot " +
+    "be counted toward any transformer until someone says which one."
+  );
+}
+
 export async function previewEmdis(
   buffer: ArrayBuffer,
   fileName: string,
@@ -245,10 +296,19 @@ export async function previewEmdis(
     buffer, fileName, mappingOverride,
   );
 
+  // Fetched once for the whole file rather than per block. An EMDis export can
+  // carry dozens of transformer blocks, and re-reading every stored range for
+  // each of them would turn one query into dozens for no new information.
+  const known = await existingRanges();
+
   const out: EmdisPreview["blocks"] = [];
   for (const b of blocks) {
     const sorted = [...b.rows].sort((x, y) => x.recordedAt.getTime() - y.recordedAt.getTime());
     const m = await matchBlock(b);
+    const candidate = candidateOf(b, sorted, m.transformerId);
+    const check = checkBlock(candidate, known);
+    const stage = stagingReasonFor(b, m.transformerId);
+
     out.push({
       substationCode: b.header.substationCode,
       serial: b.header.serial,
@@ -270,7 +330,15 @@ export async function previewEmdis(
           b.header.ratingKva != null &&
           m.registerRatingKva !== b.header.ratingKva,
       },
+      duplicate: toReport(check),
+      willStage: stage != null,
+      stagingReason: stage,
     });
+
+    // A block is compared against the ones before it in the SAME file too. A
+    // single export that repeats one transformer twice is a duplicate that no
+    // amount of checking against the database would ever catch.
+    known.push({ ...candidate, id: `pending:${known.length}`, name: fileName, createdAt: new Date() });
   }
 
   const matchedProfile = await findMatchingProfile(headerRow);
@@ -314,6 +382,22 @@ export type EmdisCommitResult = {
     readings: number;
     matched: boolean;
     alertsRaised: number;
+    /** Stored but held out of the analysis until a human names its transformer. */
+    staged: boolean;
+  }[];
+  /**
+   * Blocks that were refused, and why. Present in the result rather than thrown,
+   * because a five-block export with one duplicate block should import the other
+   * four — failing the whole file would teach people to force everything.
+   */
+  skipped: {
+    label: string | null;
+    substationCode: string | null;
+    readings: number;
+    verdict: string;
+    reason: string;
+    /** Whether the uploader could have imported it anyway by confirming. */
+    overridable: boolean;
   }[];
   totalReadings: number;
   /** Auto-status: for every transformer this upload touched, its health after rescoring. */
@@ -334,6 +418,15 @@ export type CommitOptions = {
   mappingOverride?: Record<string, CanonField>;
   /** If set, save the resolved mapping under this name for next time. */
   saveProfileName?: string | null;
+  /**
+   * The uploader saw the overlap warning and chose to import anyway.
+   *
+   * Unlocks SAME_RANGE and OVERLAP only. It does not unlock IDENTICAL, and no
+   * option does: re-importing byte-identical readings cannot make the register
+   * more accurate, and every path that could do it is a path by which the
+   * time-over-rated totals silently double.
+   */
+  force?: boolean;
 };
 
 export async function commitEmdis(
@@ -364,10 +457,16 @@ export async function commitEmdis(
   });
 
   const datasets: EmdisCommitResult["datasets"] = [];
+  const skipped: EmdisCommitResult["skipped"] = [];
   let imported = 0;
   // Auto-status: every transformer this file actually touched, and how many
   // alerts each one raised — rescored once after the loop, not per block.
   const alertsByTransformer = new Map<string, { label: string; alerts: number }>();
+
+  // The duplicate comparison set, read once and then kept current in memory as
+  // blocks are written. Re-querying per block would be slower AND wrong: the
+  // block just written in this same loop has to be visible to the next one.
+  const known: ExistingRange[] = await existingRanges();
 
   for (const block of blocks) {
     let m = await matchBlock(block);
@@ -378,6 +477,30 @@ export async function commitEmdis(
       m = await matchChosen(options.transformerId);
     }
     const sorted = [...block.rows].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
+
+    // Duplicate check before anything is written. Nothing about this block
+    // reaches the database until it has been established that the register does
+    // not already hold it.
+    const candidate = candidateOf(block, sorted, m.transformerId);
+    const check = checkBlock(candidate, known);
+    const refuse = check.blocked && !(check.overridable && options.force === true);
+    if (refuse) {
+      skipped.push({
+        label: m.label,
+        substationCode: block.header.substationCode,
+        readings: sorted.length,
+        verdict: check.verdict,
+        reason: check.findings[0]?.reason ?? "Already present in the register.",
+        overridable: check.overridable,
+      });
+      continue;
+    }
+
+    // Unmatched data is staged, not imported. It is stored in full — nothing is
+    // lost — but it stays out of every query that produces a number until a
+    // human names its transformer. See stagingReasonFor().
+    const stagingReason = stagingReasonFor(block, m.transformerId);
+    const staged = stagingReason != null;
 
     // The register's rating wins when we have one. It is the value a human has
     // taken responsibility for; the file header is whatever the meter was told.
@@ -402,10 +525,19 @@ export async function commitEmdis(
         uploadedById: actor.id,
         uploadedByName: actor.name,
         importBatchId: batch.id,
+        contentHash: candidate.contentHash,
+        staged,
+        stagingReason,
       },
     });
 
-    const rows: Prisma.EmdisReadingCreateManyInput[] = sorted.map((r) => {
+    known.push({ ...candidate, id: dataset.id, name: fileName, createdAt: dataset.createdAt });
+
+    // `recordedAt` is narrowed to Date — Prisma's input type also allows an ISO
+    // string, and the rollup needs to do date arithmetic on it. Narrowing here
+    // costs nothing; mapping half a million rows into a second shape later to
+    // satisfy the same constraint would cost a copy of the whole file.
+    const rows: (Prisma.EmdisReadingCreateManyInput & { recordedAt: Date })[] = sorted.map((r) => {
       const a = analyseReading(r, ratingKva, voltLL);
       return {
         datasetId: dataset.id,
@@ -430,46 +562,14 @@ export async function commitEmdis(
     }
     imported += rows.length;
 
-    const buckets = new Map<number, typeof rows>();
-    for (const row of rows) {
-      const h = Math.floor(row.recordedAt instanceof Date ? row.recordedAt.getTime() / 3.6e6 : 0);
-      const list = buckets.get(h) ?? [];
-      list.push(row);
-      buckets.set(h, list);
-    }
-
-    const minutesPer = intervalOf(sorted) / 60;
-    const hourly: Prisma.EmdisHourlyCreateManyInput[] = [...buckets.entries()].map(([h, list]) => {
-      const pick = (f: (r: (typeof rows)[0]) => number | null | undefined) =>
-        list.map(f).filter((v): v is number => v != null && Number.isFinite(v));
-      const avg = (v: number[]) => (v.length ? v.reduce((s, x) => s + x, 0) / v.length : null);
-      const max = (v: number[]) => (v.length ? Math.max(...v) : null);
-      const min = (v: number[]) => (v.length ? Math.min(...v) : null);
-      const p95 = (v: number[]) => {
-        if (!v.length) return null;
-        const s = [...v].sort((a, b) => a - b);
-        return s[Math.floor(0.95 * (s.length - 1))];
-      };
-      const volts = list.flatMap((r) => [r.l1nV, r.l2nV, r.l3nV]).filter((v): v is number => v != null && v > 50);
-
-      return {
-        datasetId: dataset.id,
-        transformerId: m.transformerId,
-        hourStart: new Date(h * 3.6e6),
-        samples: list.length,
-        avgKva: avg(pick((r) => r.kva)), maxKva: max(pick((r) => r.kva)), p95Kva: p95(pick((r) => r.kva)),
-        avgKw: avg(pick((r) => r.kw)), avgPf: avg(pick((r) => r.pf)),
-        avgL1c: avg(pick((r) => r.l1c)), avgL2c: avg(pick((r) => r.l2c)), avgL3c: avg(pick((r) => r.l3c)),
-        maxL1c: max(pick((r) => r.l1c)), maxL2c: max(pick((r) => r.l2c)), maxL3c: max(pick((r) => r.l3c)),
-        avgNeutralC: avg(pick((r) => r.neutralC)), maxNeutralC: max(pick((r) => r.neutralC)),
-        avgVoltage: avg(volts), minVoltage: min(volts), maxVoltage: max(volts),
-        avgThdPct: avg(pick((r) => r.thdPct)), maxThdPct: max(pick((r) => r.thdPct)),
-        avgUnbalancePct: avg(pick((r) => r.phaseUnbalancePct)), maxUnbalancePct: max(pick((r) => r.phaseUnbalancePct)),
-        maxLoadingPct: max(pick((r) => r.loadingPct)),
-        maxPhasePctRated: max(pick((r) => r.maxPhasePctRated)),
-        minutesOver80Pct: Math.round(list.filter((r) => (r.maxPhaseC ?? 0) > iRated * LIMITS.phaseWarn).length * minutesPer),
-        minutesOver100Pct: Math.round(list.filter((r) => (r.maxPhaseC ?? 0) > iRated).length * minutesPer),
-      };
+    // Hourly rollup, from the shared builder. Not an optimisation — a thousand
+    // transformers at one-minute resolution is 525 million rows a year, and the
+    // rollup is the only shape in which most of the questions can be answered.
+    const hourly = rollupHourly(rows, {
+      datasetId: dataset.id,
+      transformerId: m.transformerId,
+      intervalSeconds: intervalOf(sorted),
+      iRated,
     });
 
     for (let i = 0; i < hourly.length; i += 500) {
@@ -477,7 +577,10 @@ export async function commitEmdis(
     }
 
     let alertsRaised = 0;
-    const matchedTransformerId = m.transformerId;
+    // Staged data raises nothing and writes nothing to the chain. An alert
+    // names a transformer, and a staged block is precisely the case where we do
+    // not know which transformer to name. Both happen on approval instead.
+    const matchedTransformerId = staged ? null : m.transformerId;
     if (matchedTransformerId) {
       alertsRaised = await raiseLoadAlerts(matchedTransformerId, dataset.id, rows, iRated, ratingKva);
       await writeLoadCheckEvent(matchedTransformerId, actor.id, {
@@ -500,6 +603,7 @@ export async function commitEmdis(
       readings: rows.length,
       matched: Boolean(m.transformerId),
       alertsRaised,
+      staged,
     });
   }
 
@@ -507,8 +611,12 @@ export async function commitEmdis(
     where: { id: batch.id },
     data: {
       rowsImported: imported,
-      rowsStaged: datasets.filter((d) => !d.matched).reduce((s, d) => s + d.readings, 0),
-      notes: `${datasets.length} transformer block(s); ${datasets.filter((d) => d.matched).length} matched.`,
+      rowsStaged: datasets.filter((d) => d.staged).reduce((s, d) => s + d.readings, 0),
+      rowsRejected: skipped.reduce((s, d) => s + d.readings, 0),
+      notes:
+        `${datasets.length} transformer block(s); ${datasets.filter((d) => d.matched).length} matched, ` +
+        `${datasets.filter((d) => d.staged).length} staged` +
+        (skipped.length ? `, ${skipped.length} refused as duplicate.` : "."),
     },
   });
 
@@ -525,7 +633,7 @@ export async function commitEmdis(
     }
   }
 
-  return { batchId: batch.id, datasets, totalReadings: imported, healthUpdates };
+  return { batchId: batch.id, datasets, skipped, totalReadings: imported, healthUpdates };
 }
 
 /**
@@ -617,9 +725,12 @@ export async function raiseLoadAlerts(
     });
   }
 
-  const toCreate = only ? alerts.filter((a) => only.includes(a.type)) : alerts;
+  const toCreate = (only ? alerts.filter((a) => only.includes(a.type)) : alerts)
+    // Tied to the readings they were read off. When that dataset is deleted —
+    // as a duplicate, or because it was wrong — the alert goes with it, instead
+    // of surviving as a warning about evidence that no longer exists.
+    .map((a) => ({ ...a, datasetId }));
   if (toCreate.length) await prisma.alert.createMany({ data: toCreate });
-  void datasetId;
   return toCreate.length;
 }
 

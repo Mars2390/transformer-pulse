@@ -18,7 +18,11 @@ export async function writeAudit(
   entry: {
     actorId: string;
     action: "CREATE" | "EDIT" | "DISABLE" | "ENABLE" | "UNLOCK" | "RESET_PIN" | "DELETE";
-    targetType: "User" | "Manufacturer" | "Store" | "Transformer" | "McpSettings" | "McpToken";
+    targetType:
+      | "User" | "Manufacturer" | "Store" | "Transformer" | "McpSettings" | "McpToken"
+      // Deleting load data changes what every analysis of a transformer is
+      // computed from, which is exactly the kind of act this trail exists for.
+      | "EmdisDataset";
     targetId: string;
     targetLabel: string;
     details?: string;

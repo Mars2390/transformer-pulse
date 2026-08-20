@@ -236,9 +236,17 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
 
 void ASSUMED_AMBIENT_C;
 
-/** Datasets available, newest first. */
+/**
+ * Datasets available, newest first.
+ *
+ * Staged datasets are excluded. They are stored but held out of the analysis,
+ * and a helper called "the datasets available" that returned data no screen is
+ * allowed to draw conclusions from would be a trap for the next caller.
+ * The staging queue is listed by listStagedDatasets() in emdis-datasets.ts.
+ */
 export async function listDatasets() {
   return prisma.emdisDataset.findMany({
+    where: { staged: false },
     orderBy: { createdAt: "desc" },
     include: {
       transformer: { select: { id: true, gNumber: true, serialNumber: true, ratingKva: true } },

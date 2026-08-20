@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
-import { listDatasets } from "@/lib/emdis-read";
+import { prisma } from "@/lib/prisma";
 import { EmdisUploader } from "@/components/manager/EmdisUploader";
-import { formatRelative } from "@/lib/format";
+import { EmdisDatasetList } from "@/components/manager/EmdisDatasetList";
 
 export const metadata: Metadata = { title: "Load data" };
 export const dynamic = "force-dynamic";
 
 export default async function EmdisPage() {
-  await requireRole("ADMIN", "MANAGER");
-  const datasets = await listDatasets();
+  const user = await requireRole("ADMIN", "MANAGER");
+
+  // Counted on the server so the banner is right on first paint. A staging
+  // queue that appears a second after the page does is a queue people miss.
+  const stagedCount = await prisma.emdisDataset.count({ where: { staged: true } });
 
   return (
     <div className="space-y-6">
@@ -23,58 +26,30 @@ export default async function EmdisPage() {
           Load telemetry from any source — KPLC&apos;s EMDis reports and plain column tables are both
           understood, the format detected automatically. Each upload is analysed on ingest — per-phase
           loading against rated current, unbalance, neutral, harmonics and thermal ageing — and any
-          defect raises an alert without anyone asking.
+          defect raises an alert without anyone asking. Data that already exists is refused, and data
+          whose transformer cannot be identified is held for review rather than counted toward the
+          wrong unit.
         </p>
       </div>
 
+      {stagedCount > 0 && (
+        <Link
+          href="/manager/staging"
+          className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 text-sm hover:border-amber-400"
+        >
+          <span className="font-bold text-amber-900">
+            {stagedCount} load dataset{stagedCount === 1 ? "" : "s"} waiting to be matched
+          </span>
+          <span className="text-xs text-amber-900">
+            Held out of every analysis until someone says which transformer they belong to.
+          </span>
+          <span className="ml-auto text-xs font-bold text-amber-900">Review →</span>
+        </Link>
+      )}
+
       <EmdisUploader />
 
-      {datasets.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-line bg-white">
-          <div className="border-b border-line px-5 py-3">
-            <h2 className="text-sm font-bold text-navy">Datasets</h2>
-          </div>
-          <ul className="divide-y divide-line">
-            {datasets.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-navy">
-                    {d.transformer?.gNumber ? `G-${d.transformer.gNumber}` : d.substationCode ?? d.name}
-                    {d.transformer?.ratingKva ? (
-                      <span className="ml-2 font-normal text-ink-soft">{d.transformer.ratingKva} kVA</span>
-                    ) : null}
-                  </p>
-                  <p className="truncate text-xs text-ink-soft">
-                    {d.readingCount.toLocaleString()} readings at {d.intervalSeconds}s ·{" "}
-                    {d.firstReadingAt.toISOString().slice(0, 10)} to{" "}
-                    {d.lastReadingAt.toISOString().slice(0, 10)} · {d.uploadedByName},{" "}
-                    {formatRelative(d.createdAt)}
-                  </p>
-                  {!d.transformerId && (
-                    <p className="mt-0.5 text-[11px] font-bold text-amber-700">
-                      Not matched to a transformer — analysis uses the file&apos;s own rating
-                    </p>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Link
-                    href={`/manager/load-analysis/${d.id}`}
-                    className="rounded-lg bg-kplc px-4 py-2 text-xs font-bold text-white hover:bg-kplc-dark"
-                  >
-                    Load analysis
-                  </Link>
-                  <Link
-                    href={`/kplc-control?dataset=${d.id}`}
-                    className="rounded-lg border border-line bg-white px-4 py-2 text-xs font-bold text-navy hover:border-kplc"
-                  >
-                    Control centre
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <EmdisDatasetList isAdmin={user.role === "ADMIN"} />
     </div>
   );
 }

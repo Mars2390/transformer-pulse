@@ -140,6 +140,64 @@ describe("verifyChain", () => {
     expect(result.brokenAtEventId).not.toBe("e3");
   });
 
+  it("verifies a chain handed to it in the wrong order", () => {
+    // The order events are said to have HAPPENED is not the order they were
+    // LINKED. A backdated load check — March telemetry uploaded in June — sorts
+    // to the front under `occurredAt` and used to report an intact history as
+    // broken. On the real register that misread 32 transformers.
+    const events = chainOf(2, 2, 2);
+    const shuffled = [events[2], events[0], events[1]];
+    const result = verifyChain(shuffled);
+    expect(result.valid).toBe(true);
+    expect(result.checked).toBe(3);
+  });
+
+  it("still catches an edit when the order is scrambled", () => {
+    // Reordering must not become a way to smuggle a rewritten event past the
+    // check. The hash is what decides, in any order.
+    const events = chainOf(2, 2, 2);
+    events[1] = { ...events[1], notes: "quietly rewritten" };
+    const result = verifyChain([events[2], events[0], events[1]]);
+    expect(result.valid).toBe(false);
+    expect(result.brokenAtEventId).toBe("e2");
+  });
+
+  it("notices a forked history", () => {
+    // Two events claiming the same predecessor. The old walk compared each
+    // event only against the one before it in the array, so a fork presented in
+    // the right order slipped straight through.
+    const events = chainOf(2, 2);
+    const rival = signed(events[0].hash, "e2-rival", 2, { notes: "a second version of step 2" });
+    const result = verifyChain([...events, rival]);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toMatch(/fork/i);
+  });
+
+  it("notices two events carrying the same hash", () => {
+    const events = chainOf(2, 2);
+    const result = verifyChain([...events, { ...events[1], id: "e2-copy" }]);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toMatch(/same hash/i);
+  });
+
+  it("notices an event stranded off the end of the chain", () => {
+    // Present in the table, but hanging off a predecessor that is not.
+    const events = chainOf(2, 2);
+    const orphan = signed("0".repeat(64), "e-orphan", 2, { notes: "hangs off nothing" });
+    const result = verifyChain([...events, orphan]);
+    expect(result.valid).toBe(false);
+    expect(result.brokenAtEventId).toBe("e-orphan");
+    expect(result.reason).toMatch(/missing|link/i);
+  });
+
+  it("refuses a history with two starting points", () => {
+    const a = chainOf(2, 2);
+    const b = signed(null, "other-genesis", 2, { notes: "a second beginning" });
+    const result = verifyChain([...a, b]);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toMatch(/more than one starting point/i);
+  });
+
   it("notices a deleted event by the broken link", () => {
     const events = chainOf(2, 2, 2);
     const result = verifyChain(events.slice(1));

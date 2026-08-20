@@ -1236,6 +1236,17 @@ model Alert {
   transformerId String
   transformer   Transformer @relation(fields: [transformerId], references: [id], onDelete: Cascade)
 
+  /**
+   * The load data this alert was read off, when it came from one.
+   *
+   * An alert is a claim about evidence. Delete the evidence and the claim has
+   * nothing left to stand on - so the cascade takes it with the dataset, and a
+   * manager clearing a duplicated upload does not leave its duplicated warnings
+   * behind to be counted twice. Alerts from any other source keep this null.
+   */
+  datasetId String?
+  dataset   EmdisDataset? @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
   type     AlertType
   severity AlertSeverity @default(WARNING)
   message  String
@@ -1252,6 +1263,7 @@ model Alert {
 
   @@index([acknowledged, severity])
   @@index([region])
+  @@index([datasetId])
 }
 
 // KPLC OPERATIONAL DATA
@@ -1410,13 +1422,50 @@ model EmdisDataset {
   importBatchId String?
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
 
+  /**
+   * Fingerprint of the readings themselves - identity plus every timestamp and
+   * measurement, hashed. Not the file: the same export saved twice under two
+   * names is the same data, and a name is the one thing about an upload that
+   * carries no information. Two datasets sharing this hash are the same
+   * readings ingested twice, and the second one silently doubles every SUM the
+   * analysis takes over the hourly rollup.
+   */
+  contentHash String @default("")
+
+  /**
+   * Held back from the analysis rather than imported into it.
+   *
+   * A block whose transformer could not be identified is not a failure and not
+   * a finding - it is data with no owner. Attaching it to the wrong unit would
+   * corrupt that unit's history, and discarding it loses a real measurement, so
+   * it is parsed, stored, and kept out of every query that feeds a number until
+   * a named human says which transformer it belongs to.
+   */
+  staged        Boolean @default(false)
+  stagingReason String?
+
+  /**
+   * Set by the duplicate scan, never by the importer - the importer's job is to
+   * refuse duplicates at the door, and this is for the ones that got in before
+   * it could. EXACT means the same readings; OVERLAP means the same transformer
+   * over intersecting time, which may be a genuine re-export or may be a real
+   * second measurement, and only a human can tell the two apart.
+   */
+  duplicateOfId String?
+  duplicateOf   EmdisDataset?  @relation("EmdisDuplicate", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates    EmdisDataset[] @relation("EmdisDuplicate")
+  duplicateKind String?
+
   createdAt DateTime @default(now())
 
   readings EmdisReading[]
   hourly   EmdisHourly[]
+  alerts   Alert[]
 
   @@index([transformerId])
   @@index([substationCode])
+  @@index([contentHash])
+  @@index([staged])
 }
 
 /**

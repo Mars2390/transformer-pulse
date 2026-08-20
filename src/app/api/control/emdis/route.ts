@@ -37,6 +37,10 @@ export async function GET(request: Request) {
           },
         })
       : await prisma.emdisDataset.findFirst({
+          // Never opens on staged data. The control room presents a dataset as
+          // this transformer's load profile, and staged data is precisely the
+          // case where nobody has established whose profile it is.
+          where: { staged: false },
           orderBy: { createdAt: "desc" },
           include: {
             transformer: {

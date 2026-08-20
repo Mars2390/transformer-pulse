@@ -54,10 +54,14 @@ export async function POST(request: Request) {
       return NextResponse.json(await previewEmdis(buffer, file.name, mappingOverride ?? undefined));
     }
 
+    // The uploader saw the overlap warning on the confirm screen and chose to
+    // go ahead. It never unlocks an exact duplicate — see CommitOptions.force.
+    const force = form.get("force") === "true";
+
     const result = await commitEmdis(
       buffer, file.name,
       { id: actor.id, name: actor.name },
-      { transformerId, mappingOverride: mappingOverride ?? undefined, saveProfileName },
+      { transformerId, mappingOverride: mappingOverride ?? undefined, saveProfileName, force },
     );
 
     await writeAudit({
@@ -69,11 +73,16 @@ export async function POST(request: Request) {
       details:
         `EMDis load data ingested: ${result.totalReadings} readings across ` +
         `${result.datasets.length} transformer block(s), ` +
-        `${result.datasets.filter((d) => d.matched).length} matched to the register, ` +
+        `${result.datasets.filter((d) => d.matched && !d.staged).length} matched to the register, ` +
+        `${result.datasets.filter((d) => d.staged).length} staged for review, ` +
+        `${result.skipped.length} refused as duplicate, ` +
         `${result.datasets.reduce((s, d) => s + d.alertsRaised, 0)} alert(s) raised.`,
     });
 
-    return NextResponse.json(result, { status: 201 });
+    // 201 only when something was actually created. A file whose every block
+    // was refused as a duplicate created nothing, and reporting that as
+    // "created" is how a client ends up telling a manager it worked.
+    return NextResponse.json(result, { status: result.datasets.length ? 201 : 200 });
   } catch (error) {
     if (error instanceof Error && /EMDis blocks/i.test(error.message)) {
       return NextResponse.json({ error: error.message }, { status: 422 });
@@ -82,20 +91,24 @@ export async function POST(request: Request) {
   }
 }
 
-/** DELETE — remove a dataset and everything derived from it. */
+/**
+ * DELETE — moved to /api/emdis/datasets.
+ *
+ * Kept as an explicit redirect rather than removed, because the old handler
+ * deleted the dataset and stopped there: the transformer's cached health score
+ * went on quoting readings that no longer existed. Anything still calling this
+ * URL is calling the version with that bug, and should be told so rather than
+ * silently succeeding.
+ */
 export async function DELETE(request: Request) {
-  try {
-    await requireApiRole("ADMIN", "MANAGER");
-    const id = new URL(request.url).searchParams.get("id");
-    if (!id) return NextResponse.json({ error: "No dataset given." }, { status: 400 });
-
-    const { prisma } = await import("@/lib/prisma");
-    // Readings and rollups cascade. The LOAD_CHECK_RECORDED event on the chain
-    // does NOT: it records that a check happened, and that remains true even
-    // after the underlying readings are cleared.
-    await prisma.emdisDataset.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    return apiError(error);
-  }
+  const id = new URL(request.url).searchParams.get("id");
+  return NextResponse.json(
+    {
+      error:
+        "Dataset deletion moved to /api/emdis/datasets, which also withdraws the alerts " +
+        "raised from the data and rescores the transformer.",
+      use: `/api/emdis/datasets?id=${id ?? "<dataset-id>"}`,
+    },
+    { status: 308, headers: { Location: `/api/emdis/datasets?id=${id ?? ""}` } },
+  );
 }

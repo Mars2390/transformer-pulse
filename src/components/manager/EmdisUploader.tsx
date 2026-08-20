@@ -8,10 +8,20 @@ import { CANON_LABEL, type CanonField } from "@/lib/universal-columns";
 /**
  * The load-data upload and confirm screen.
  *
- * One file input feeds a preview that says plainly what kind of file arrived,
- * which columns were recognised and which were not, and — for a flat table with
- * no identity of its own — lets the engineer attach it to a transformer before a
- * single row is written. Nothing imports until the engineer confirms.
+ * Two shapes, because one file and twenty files are different jobs:
+ *
+ *   One file   the full confirm screen — how the file was read, which columns
+ *              were recognised, which transformer it attached to, and any
+ *              duplicate finding — with the mapping editable before anything is
+ *              written.
+ *
+ *   Many files each read independently and shown as a row with its own verdict.
+ *              A per-file column-mapping editor across twenty files is not a
+ *              review, it is a wall, and a wall gets clicked through.
+ *
+ * Nothing imports until the engineer confirms, in either shape. Failure is per
+ * file: one unreadable export in a folder of twenty does not stop the other
+ * nineteen, because the alternative teaches people to upload one at a time.
  */
 
 type Detection = {
@@ -19,6 +29,21 @@ type Detection = {
   phases: 0 | 1 | 3;
   hasCurrent: boolean; hasVoltage: boolean; hasPower: boolean; hasTimestamp: boolean;
   summary: string;
+};
+
+type DuplicateReport = {
+  verdict: "IDENTICAL" | "SAME_RANGE" | "OVERLAP" | "CLEAR";
+  blocked: boolean;
+  overridable: boolean;
+  findings: {
+    verdict: string;
+    overlapPct: number;
+    reason: string;
+    against: {
+      id: string; name: string; readingCount: number;
+      firstReadingAt: string; lastReadingAt: string; createdAt: string;
+    };
+  }[];
 };
 
 type Block = {
@@ -39,6 +64,9 @@ type Block = {
     registerRatingKva: number | null;
     ratingMismatch: boolean;
   };
+  duplicate: DuplicateReport;
+  willStage: boolean;
+  stagingReason: string | null;
 };
 
 type Preview = {
@@ -57,10 +85,35 @@ type Preview = {
   rejected: number;
 };
 
+type CommitResult = {
+  datasets: { matched: boolean; staged: boolean; alertsRaised: number; readings: number }[];
+  skipped: { verdict: string; reason: string; readings: number; overridable: boolean }[];
+  totalReadings: number;
+  healthUpdates: HealthUpdate[];
+};
+
 type HealthUpdate = { transformerId: string; label: string; level: string; explanation: string; alertsRaised: number };
+
+/** One file's journey, start to finish. */
+type FileState = {
+  id: string;
+  file: File;
+  status: "queued" | "reading" | "ready" | "importing" | "done" | "failed";
+  preview: Preview | null;
+  result: CommitResult | null;
+  error: string | null;
+  /** The engineer ticked "import anyway" for an overlap on this file. */
+  force: boolean;
+};
 
 const LEVEL_EMOJI: Record<string, string> = {
   HEALTHY: "🔵", BREATHING: "🟢", SURVIVING: "🟡", CRITICAL: "🔴", DECEASED: "⚫", UNVERIFIED: "⚪",
+};
+
+const VERDICT_LABEL: Record<string, string> = {
+  IDENTICAL: "Exact duplicate — refused",
+  SAME_RANGE: "Same transformer, same window",
+  OVERLAP: "Overlaps data already held",
 };
 
 /** "✅ G-153457 analyzed. Health: CRITICAL. 3 new alerts. Phase L3 at 121%..." */
@@ -84,17 +137,22 @@ type Hit = { id: string; label: string; detail: string };
 
 const FIELD_OPTIONS = Object.entries(CANON_LABEL) as [CanonField, string][];
 
+const ACCEPTED = /\.(csv|xlsx|xls)$/i;
+
+let seq = 0;
+const nextId = () => `f${++seq}`;
+
 export function EmdisUploader() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [files, setFiles] = useState<FileState[]>([]);
   const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
   const [healthMsg, setHealthMsg] = useState<string | null>(null);
 
-  // Confirm-screen decisions.
+  // Confirm-screen decisions. Single-file only: a mapping correction and a
+  // hand-picked transformer are both statements about one particular file.
   const [override, setOverride] = useState<Record<string, CanonField>>({});
   const [editingMap, setEditingMap] = useState(false);
   const [chosen, setChosen] = useState<Hit | null>(null);
@@ -104,35 +162,87 @@ export function EmdisUploader() {
   const [profileName, setProfileName] = useState("");
 
   function reset() {
-    setPreview(null); setFile(null); setDone(null); setHealthMsg(null); setError(null);
+    setFiles([]); setError(null); setHealthMsg(null);
     setOverride({}); setEditingMap(false); setChosen(null);
     setQuery(""); setHits([]); setSaveProfile(false); setProfileName("");
   }
 
-  async function run(mode: "preview" | "commit", f: File, ov: Record<string, CanonField>) {
-    setBusy(true); setError(null);
+  function patch(id: string, changes: Partial<FileState>) {
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...changes } : f)));
+  }
+
+  async function call(
+    mode: "preview" | "commit",
+    f: File,
+    ov: Record<string, CanonField>,
+    opts: { force?: boolean; withChoices?: boolean } = {},
+  ): Promise<{ ok: true; data: Preview & CommitResult } | { ok: false; error: string }> {
     const fd = new FormData();
     fd.append("file", f);
     if (Object.keys(ov).length) fd.append("mapping", JSON.stringify(ov));
     if (mode === "commit") {
-      if (chosen) fd.append("transformerId", chosen.id);
-      if (saveProfile && profileName.trim()) fd.append("saveProfileName", profileName.trim());
+      if (opts.force) fd.append("force", "true");
+      if (opts.withChoices) {
+        if (chosen) fd.append("transformerId", chosen.id);
+        if (saveProfile && profileName.trim()) fd.append("saveProfileName", profileName.trim());
+      }
     }
-    const res = await fetch(`/api/emdis/upload?mode=${mode}`, { method: "POST", body: fd });
-    const data = await res.json().catch(() => ({}));
+    try {
+      const res = await fetch(`/api/emdis/upload?mode=${mode}`, { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: data.error ?? "That file could not be read." };
+      return { ok: true, data };
+    } catch {
+      return { ok: false, error: "The upload did not reach the server. Check the connection and try again." };
+    }
+  }
+
+  /**
+   * Read every dropped file.
+   *
+   * Sequential on purpose. These are 40 MB spreadsheets parsed server-side, and
+   * firing twenty at once would queue them behind each other anyway while
+   * making the failure of any one of them harder to attribute.
+   */
+  async function accept(list: FileList | File[]) {
+    const incoming = Array.from(list);
+    const usable = incoming.filter((f) => ACCEPTED.test(f.name));
+    const rejected = incoming.filter((f) => !ACCEPTED.test(f.name));
+
+    setError(
+      rejected.length
+        ? `Skipped ${rejected.length} file${rejected.length === 1 ? "" : "s"} that ${rejected.length === 1 ? "is" : "are"} not .csv, .xlsx or .xls: ${rejected.map((f) => f.name).join(", ")}.`
+        : null,
+    );
+    if (!usable.length) return;
+
+    const staged: FileState[] = usable.map((file) => ({
+      id: nextId(), file, status: "queued", preview: null, result: null, error: null, force: false,
+    }));
+    setFiles(staged);
+    setHealthMsg(null);
+    setBusy(true);
+
+    for (const s of staged) {
+      patch(s.id, { status: "reading" });
+      const r = await call("preview", s.file, {});
+      if (r.ok) patch(s.id, { status: "ready", preview: r.data });
+      else patch(s.id, { status: "failed", error: r.error });
+    }
     setBusy(false);
-    if (!res.ok) { setError(data.error ?? "That file could not be read."); return null; }
-    return data;
   }
 
   async function reassign(header: string, field: CanonField | "") {
-    if (!file) return;
+    const only = files[0];
+    if (!only) return;
     const next = { ...override };
     if (field === "") delete next[header];
     else next[header] = field;
     setOverride(next);
-    const d = await run("preview", file, next);
-    if (d) setPreview(d);
+    setBusy(true);
+    const r = await call("preview", only.file, next);
+    setBusy(false);
+    if (r.ok) patch(only.id, { preview: r.data });
   }
 
   async function search(q: string) {
@@ -143,54 +253,197 @@ export function EmdisUploader() {
     setHits(data.results ?? []);
   }
 
-  if (!preview && !done) {
+  /** Import everything that is ready and not refused. One file at a time. */
+  async function importAll() {
+    setBusy(true); setError(null);
+    const single = files.length === 1;
+    const health: HealthUpdate[] = [];
+
+    for (const f of files) {
+      if (f.status !== "ready" || !f.preview) continue;
+      if (!importableBlocks(f)) continue;
+
+      patch(f.id, { status: "importing" });
+      const r = await call("commit", f.file, override, { force: f.force, withChoices: single });
+      if (r.ok) {
+        patch(f.id, { status: "done", result: r.data });
+        health.push(...(r.data.healthUpdates ?? []));
+      } else {
+        patch(f.id, { status: "failed", error: r.error });
+      }
+    }
+
+    setBusy(false);
+    setHealthMsg(healthToast(health));
+    router.refresh();
+  }
+
+  const ready = files.filter((f) => f.status === "ready");
+  const done = files.filter((f) => f.status === "done");
+  const failed = files.filter((f) => f.status === "failed");
+  const anythingToImport = ready.some(importableBlocks);
+  const allSettled = files.length > 0 && files.every((f) => f.status === "done" || f.status === "failed");
+
+  // ---------------------------------------------------------------- dropzone
+  if (!files.length) {
     return (
       <div className="space-y-4">
         <div className="rounded-2xl border border-line bg-white p-6">
           <input
-            ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
+            ref={fileRef} type="file" accept=".csv,.xlsx,.xls" multiple className="hidden"
             onChange={async (e) => {
-              const f = e.target.files?.[0];
-              if (!f) return;
-              reset(); setFile(f);
-              const d = await run("preview", f, {});
-              if (d) setPreview(d);
+              if (e.target.files?.length) await accept(e.target.files);
+              e.target.value = "";
             }}
           />
-          <button
-            onClick={() => fileRef.current?.click()} disabled={busy}
-            className="w-full rounded-xl border-2 border-dashed border-line px-6 py-12 text-center transition hover:border-kplc hover:bg-kplc/5 disabled:opacity-50"
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={async (e) => {
+              e.preventDefault();
+              setDragging(false);
+              if (e.dataTransfer.files?.length) await accept(e.dataTransfer.files);
+            }}
           >
-            <span className="block text-3xl">⚡</span>
-            <span className="mt-3 block text-sm font-bold text-navy">
-              {busy ? "Reading the file…" : "Upload load data"}
-            </span>
-            <span className="mt-1 block text-xs text-ink-soft">
-              CSV or Excel, up to 40 MB. EMDis reports and plain column tables are both understood —
-              the format is detected automatically.
-            </span>
-          </button>
+            <button
+              onClick={() => fileRef.current?.click()} disabled={busy}
+              className={`w-full rounded-xl border-2 border-dashed px-6 py-12 text-center transition disabled:opacity-50 ${
+                dragging ? "border-kplc bg-kplc/10" : "border-line hover:border-kplc hover:bg-kplc/5"
+              }`}
+            >
+              <span className="block text-3xl">⚡</span>
+              <span className="mt-3 block text-sm font-bold text-navy">
+                {busy ? "Reading…" : dragging ? "Drop the files" : "Drag files here, or click to choose"}
+              </span>
+              <span className="mt-1 block text-xs text-ink-soft">
+                CSV or Excel, up to 40 MB each. Several at once is fine — each is read on its own.
+                EMDis reports and plain column tables are both understood, the format detected
+                automatically.
+              </span>
+            </button>
+          </div>
         </div>
         {error && <ErrorBox>{error}</ErrorBox>}
       </div>
     );
   }
 
-  if (done) {
+  // ---------------------------------------------------------------- results
+  if (allSettled) {
+    const matched = done.reduce((s, f) => s + (f.result?.datasets.filter((d) => d.matched && !d.staged).length ?? 0), 0);
+    const stagedCount = done.reduce((s, f) => s + (f.result?.datasets.filter((d) => d.staged).length ?? 0), 0);
+    const refused = done.reduce((s, f) => s + (f.result?.skipped.length ?? 0), 0);
+    const readings = done.reduce((s, f) => s + (f.result?.totalReadings ?? 0), 0);
+    const alerts = done.reduce(
+      (s, f) => s + (f.result?.datasets.reduce((a, d) => a + d.alertsRaised, 0) ?? 0), 0,
+    );
+
     return (
-      <div className="rounded-2xl border border-kplc/30 bg-kplc/5 p-6">
-        <p className="text-sm font-bold text-navy">✅ {done}</p>
-        {healthMsg && (
-          <p className="mt-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-navy">{healthMsg}</p>
-        )}
-        <button onClick={reset} className="mt-3 rounded-lg border border-line bg-white px-4 py-2 text-xs font-bold text-navy">
-          Upload another
-        </button>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-kplc/30 bg-kplc/5 p-6">
+          <p className="text-sm font-bold text-navy">
+            {files.length} file{files.length === 1 ? "" : "s"}. {matched} matched. {stagedCount} unmatched
+            {refused > 0 && `. ${refused} refused as duplicate`}
+            {failed.length > 0 && `. ${failed.length} unreadable`}.
+          </p>
+          <p className="mt-1 text-xs text-ink-soft">
+            {readings.toLocaleString()} readings ingested · {alerts} alert{alerts === 1 ? "" : "s"} raised
+            {stagedCount > 0 && " · unmatched data is held in staging and counts toward nothing until approved"}
+          </p>
+
+          {healthMsg && (
+            <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-navy">{healthMsg}</p>
+          )}
+
+          <ul className="mt-3 space-y-1.5">
+            {files.map((f) => (
+              <li key={f.id} className="text-xs">
+                {f.status === "failed" ? (
+                  <span className="text-red-700">❌ {f.file.name} — {f.error}</span>
+                ) : (
+                  <span className="text-navy">
+                    ✅ {f.file.name} — {f.result?.totalReadings.toLocaleString() ?? 0} readings
+                    {(f.result?.datasets.filter((d) => d.staged).length ?? 0) > 0 &&
+                      `, ${f.result!.datasets.filter((d) => d.staged).length} staged`}
+                    {(f.result?.skipped.length ?? 0) > 0 &&
+                      `, ${f.result!.skipped.length} block(s) refused as duplicate`}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button onClick={reset} className="rounded-lg border border-line bg-white px-4 py-2 text-xs font-bold text-navy">
+              Upload more
+            </button>
+            {stagedCount > 0 && (
+              <Link
+                href="/manager/staging"
+                className="rounded-lg bg-kplc px-4 py-2 text-xs font-bold text-white hover:bg-kplc-dark"
+              >
+                Review {stagedCount} staged dataset{stagedCount === 1 ? "" : "s"}
+              </Link>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
 
-  const p = preview!;
+  // ------------------------------------------------------- many-file confirm
+  if (files.length > 1) {
+    return (
+      <div className="space-y-4">
+        {error && <ErrorBox>{error}</ErrorBox>}
+
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white px-5 py-3">
+          <span className="text-lg">📂</span>
+          <span className="text-sm font-bold text-navy">{files.length} files</span>
+          <span className="text-xs text-ink-soft">
+            {ready.reduce((s, f) => s + (f.preview?.totalReadings ?? 0), 0).toLocaleString()} readings ·{" "}
+            {ready.filter((f) => f.preview?.blocks.some((b) => b.match.transformerId)).length} matched ·{" "}
+            {ready.filter((f) => f.preview?.blocks.every((b) => !b.match.transformerId)).length} unmatched
+          </span>
+        </div>
+
+        <ul className="space-y-2">
+          {files.map((f) => <FileRow key={f.id} f={f} onForce={(v) => patch(f.id, { force: v })} />)}
+        </ul>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={importAll}
+            disabled={busy || !anythingToImport}
+            className="rounded-xl bg-kplc px-6 py-3 text-sm font-bold text-white hover:bg-kplc-dark disabled:opacity-50"
+          >
+            {busy ? "Working…" : `✓ Import ${ready.filter(importableBlocks).length} file(s)`}
+          </button>
+          <button onClick={reset} disabled={busy} className="rounded-xl border border-line bg-white px-6 py-3 text-sm font-bold text-navy">
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------ single-file confirm
+  const only = files[0];
+  if (only.status === "failed") {
+    return (
+      <div className="space-y-4">
+        <ErrorBox>{only.error}</ErrorBox>
+        <button onClick={reset} className="rounded-xl border border-line bg-white px-6 py-3 text-sm font-bold text-navy">
+          Try another file
+        </button>
+      </div>
+    );
+  }
+  if (!only.preview) {
+    return <p className="rounded-2xl border border-line bg-white px-5 py-8 text-sm text-ink-soft">Reading {only.file.name}…</p>;
+  }
+
+  const p = only.preview;
   const mappedFields = new Set(p.columnMapping.columns.map((c) => c.mappedTo).filter(Boolean) as CanonField[]);
   const measures = [
     (mappedFields.has("l1c") || mappedFields.has("l2c") || mappedFields.has("l3c")) && "Current",
@@ -207,6 +460,8 @@ export function EmdisUploader() {
   const identityMatched = p.blocks.some((b) => b.match.transformerId);
   const needsIdentity = !isEmdis && p.blocks.length === 1 && !identityMatched && !chosen;
   const interval = single ? fmtInterval(single.intervalSeconds) : "—";
+  const willStage = p.blocks.filter((b) => b.willStage).length;
+  const importable = importableBlocks(only);
 
   return (
     <div className="space-y-4">
@@ -215,13 +470,17 @@ export function EmdisUploader() {
       {/* Header */}
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white px-5 py-3">
         <span className="text-lg">📂</span>
-        <span className="text-sm font-bold text-navy">{file?.name}</span>
+        <span className="text-sm font-bold text-navy">{only.file.name}</span>
         {p.matchedProfile && (
           <span className="ml-auto rounded-full bg-kplc/10 px-3 py-1 text-[11px] font-bold text-kplc">
             Recognised as “{p.matchedProfile.name}”
           </span>
         )}
       </div>
+
+      {/* Duplicate findings, before anything else — this is the one thing that
+          can make the whole confirm screen moot. */}
+      <DuplicatePanel blocks={p.blocks} force={only.force} onForce={(v) => patch(only.id, { force: v })} />
 
       {/* Detection */}
       <div className="rounded-2xl border border-line bg-white p-5">
@@ -331,7 +590,7 @@ export function EmdisUploader() {
               <li key={i} className={b.match.transformerId ? "text-kplc" : "text-amber-700"}>
                 {b.match.transformerId
                   ? `✅ Substation ${b.substationCode ?? "—"} → G-${b.match.label} (via ${b.match.method.replace(/_/g, " ").toLowerCase()})`
-                  : `⚠️ Substation ${b.substationCode ?? "—"} · serial ${b.serial ?? "—"} — no register match; will import unattached`}
+                  : `⚠️ Substation ${b.substationCode ?? "—"} · serial ${b.serial ?? "—"} — no register match; will be held in staging`}
               </li>
             ))}
           </ul>
@@ -351,7 +610,7 @@ export function EmdisUploader() {
             {single?.serial && (
               <p className="text-xs text-amber-700">
                 The file names serial <strong>{single.serial}</strong> but no transformer on the register
-                matches it. Attach it below, or import unattached.
+                matches it. Attach it below, or let it go to staging for someone to match later.
               </p>
             )}
             <input
@@ -378,9 +637,18 @@ export function EmdisUploader() {
             <p className="text-[11px] text-ink-soft">
               Not on the register yet?{" "}
               <Link href="/store-onboard" className="font-semibold text-kplc underline">Onboard it first</Link>,
-              then re-upload — or import unattached and attach later.
+              then re-upload — or let it stage and approve it once the asset exists.
             </p>
           </div>
+        )}
+
+        {willStage > 0 && !chosen && (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-900">
+            <strong>{willStage} block{willStage === 1 ? "" : "s"} will be staged, not imported.</strong> The
+            readings are stored in full, but they count toward no transformer&apos;s analysis until someone
+            names the unit on <Link href="/manager/staging" className="underline">the staging queue</Link>.
+            Attaching load data to the wrong transformer is harder to undo than leaving it unattached.
+          </p>
         )}
       </div>
 
@@ -411,33 +679,137 @@ export function EmdisUploader() {
       {/* Actions */}
       <div className="flex flex-wrap gap-3">
         <button
-          onClick={async () => {
-            if (!file) return;
-            const d = await run("commit", file, override);
-            if (d) {
-              setDone(
-                `${d.totalReadings.toLocaleString()} readings ingested · ` +
-                `${d.datasets.filter((x: { matched: boolean }) => x.matched).length} matched · ` +
-                `${d.datasets.reduce((s: number, x: { alertsRaised: number }) => s + x.alertsRaised, 0)} alerts raised`,
-              );
-              setHealthMsg(healthToast((d.healthUpdates ?? []) as HealthUpdate[]));
-              setPreview(null);
-              router.refresh();
-            }
-          }}
-          disabled={busy}
+          onClick={importAll}
+          disabled={busy || !importable}
           className="rounded-xl bg-kplc px-6 py-3 text-sm font-bold text-white hover:bg-kplc-dark disabled:opacity-50"
         >
           {busy
             ? "Working…"
-            : needsIdentity
-              ? `✓ Confirm & import unattached (${p.totalReadings.toLocaleString()} readings)`
-              : `✓ Confirm & import ${p.totalReadings.toLocaleString()} readings`}
+            : !importable
+              ? "Nothing to import — every block is already in the register"
+              : needsIdentity
+                ? `✓ Confirm & stage for review (${p.totalReadings.toLocaleString()} readings)`
+                : `✓ Confirm & import ${p.totalReadings.toLocaleString()} readings`}
         </button>
-        <button onClick={reset} className="rounded-xl border border-line bg-white px-6 py-3 text-sm font-bold text-navy">
+        <button onClick={reset} disabled={busy} className="rounded-xl border border-line bg-white px-6 py-3 text-sm font-bold text-navy">
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Is there anything left in this file worth importing?
+ *
+ * A file whose every block is an exact duplicate has nothing to contribute, and
+ * the button should say so rather than run and report "0 readings ingested".
+ * A block that is merely overlapping counts as importable, because the engineer
+ * is allowed to decide that one.
+ */
+function importableBlocks(f: FileState): boolean {
+  if (!f.preview) return false;
+  return f.preview.blocks.some((b) => {
+    if (!b.duplicate.blocked) return true;
+    return b.duplicate.overridable && f.force;
+  });
+}
+
+/** One row in the many-file list. */
+function FileRow({ f, onForce }: { f: FileState; onForce: (v: boolean) => void }) {
+  const p = f.preview;
+  const worst = p?.blocks.find((b) => b.duplicate.verdict !== "CLEAR")?.duplicate ?? null;
+  const staged = p?.blocks.filter((b) => b.willStage).length ?? 0;
+  const matched = p?.blocks.filter((b) => b.match.transformerId).length ?? 0;
+
+  return (
+    <li className="rounded-2xl border border-line bg-white px-5 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm">
+          {f.status === "failed" ? "❌" : f.status === "done" ? "✅" : f.status === "ready" ? "📄" : "⏳"}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-bold text-navy">{f.file.name}</span>
+        {p && (
+          <span className="text-xs text-ink-soft">
+            {p.totalReadings.toLocaleString()} readings · {matched} matched
+            {staged > 0 && ` · ${staged} unmatched`}
+          </span>
+        )}
+        {f.status === "reading" && <span className="text-xs text-ink-soft">reading…</span>}
+        {f.status === "importing" && <span className="text-xs text-ink-soft">importing…</span>}
+      </div>
+
+      {f.error && <p className="mt-1.5 text-xs font-semibold text-red-700">{f.error}</p>}
+
+      {worst && worst.verdict !== "CLEAR" && (
+        <div
+          className={`mt-2 rounded-lg border px-3 py-2 text-xs ${
+            worst.overridable ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-800"
+          }`}
+        >
+          <strong>{VERDICT_LABEL[worst.verdict] ?? worst.verdict}.</strong>{" "}
+          {worst.findings[0]?.reason}
+          {worst.overridable && (
+            <label className="mt-1.5 flex items-center gap-2 font-semibold">
+              <input type="checkbox" checked={f.force} onChange={(e) => onForce(e.target.checked)} />
+              Import anyway
+            </label>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** The duplicate verdict for a single-file confirm screen, block by block. */
+function DuplicatePanel({
+  blocks, force, onForce,
+}: {
+  blocks: Block[];
+  force: boolean;
+  onForce: (v: boolean) => void;
+}) {
+  const flagged = blocks.filter((b) => b.duplicate.verdict !== "CLEAR");
+  if (!flagged.length) return null;
+
+  const hard = flagged.some((b) => b.duplicate.blocked && !b.duplicate.overridable);
+  const overridable = flagged.some((b) => b.duplicate.overridable);
+
+  return (
+    <div
+      className={`rounded-2xl border p-5 ${
+        hard ? "border-red-300 bg-red-50" : "border-amber-300 bg-amber-50"
+      }`}
+    >
+      <h3 className={`text-sm font-bold ${hard ? "text-red-900" : "text-amber-900"}`}>
+        {hard ? "Already in the register" : "Overlaps data already held"}
+      </h3>
+      <ul className={`mt-2 space-y-2 text-xs ${hard ? "text-red-800" : "text-amber-900"}`}>
+        {flagged.map((b, i) => (
+          <li key={i}>
+            <strong>
+              {b.match.label ? `G-${b.match.label}` : b.substationCode ?? "This block"} —{" "}
+              {VERDICT_LABEL[b.duplicate.verdict] ?? b.duplicate.verdict}.
+            </strong>{" "}
+            {b.duplicate.findings[0]?.reason}
+          </li>
+        ))}
+      </ul>
+
+      {hard && (
+        <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-red-800">
+          An exact duplicate is refused and cannot be forced. Importing identical readings a second
+          time cannot make the register more accurate — it can only double the totals that are built
+          by adding up, such as minutes spent over rated current.
+        </p>
+      )}
+
+      {overridable && (
+        <label className="mt-3 flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-bold text-navy">
+          <input type="checkbox" checked={force} onChange={(e) => onForce(e.target.checked)} />
+          Import anyway — I know this overlaps and want both copies kept
+        </label>
+      )}
     </div>
   );
 }
