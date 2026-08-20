@@ -91,7 +91,10 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
   });
 
   let hotSpotTemperatureC: number | null = null;
+  let hotSpotBasis: string | null = null;
+  let hotSpotOnKvaBasisC: number | null = null;
   let ageingRate: number | null = null;
+  let ageingRateOnKvaBasis: number | null = null;
   let estimatedTimeToFailureYears: number | null = null;
   let phaseLoadingPctOfRated: number | null = null;
   let loadingPctOfRated: number | null = null;
@@ -99,6 +102,7 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
   let snapshotAt: string | null = null;
   let timeToFailureBasis: string | null = null;
   let timeToFailureCaveat: string | null = null;
+  let thermalArithmetic: string | null = null;
 
   // One reading drives loading, unbalance, hot-spot, ageing and TTF. Driving
   // the thermal model off the hourly rollup while quoting unbalance from
@@ -112,14 +116,56 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
     unbalancePct = round2(snap.unbalancePct);
 
     const ambientC = ambientForMonth(snap.recordedAt.getUTCMonth());
+
+    // ------------------------------------------------------------------
+    // K is the WORST phase, not the kVA figure.
+    //
+    // The hot-spot is a property of one winding — the one carrying the most
+    // current — and IEC 60076-7 takes K as that winding's current over rated
+    // current. kVA is a three-phase aggregate, so on an unbalanced unit it
+    // reports something close to the MEAN of the phases and the hottest
+    // winding disappears into the average.
+    //
+    // This is not a rounding difference. On G-153457 the phases read
+    // 281.1 / 534.4 / 408.7 A against a 438.2 A rating. The kVA basis gives
+    // K = 0.8820 and a hot-spot of 91.5 degC — "NORMAL", ageing at 0.47x.
+    // The hottest winding is at K = 1.2195, a hot-spot of 129.8 degC, and
+    // ageing at 39.5x. The tool was reporting a phase at 122% of rated in one
+    // field and, in the next field, a temperature that could only be true if
+    // no phase were above 89%.
+    //
+    // The rest of the system already drives the model off peak phase — the
+    // control room, the load-analysis screen, the loss-of-life costing. This
+    // call site was the one that did not.
+    // ------------------------------------------------------------------
     const t = computeThermal({
-      loadKva: (snap.loadingPct / 100) * tx.ratingKva,
+      loadKva: (snap.maxPhasePctRated / 100) * tx.ratingKva,
       ratingKva: tx.ratingKva,
       ambientC,
       powerFactor: 0.95,
     });
     hotSpotTemperatureC = round1(t.hotspotC);
     ageingRate = round2(t.ageingRate);
+    hotSpotBasis =
+      `Hottest winding: K = ${(snap.maxPhasePctRated / 100).toFixed(4)} ` +
+      `(${snap.hottestPhase ?? "worst phase"} at ${snap.maxPhaseC.toFixed(1)} A of ${snap.iRated.toFixed(1)} A rated), ` +
+      `ambient ${ambientC} degC.`;
+    thermalArithmetic =
+      `top-oil rise ${t.topOilRiseK.toFixed(2)} K + gradient ${t.hotspotRiseK.toFixed(2)} K ` +
+      `+ ambient ${ambientC} = ${t.hotspotC.toFixed(2)} degC; ` +
+      `ageing 2^((${t.hotspotC.toFixed(2)} - 98) / 6) = ${t.ageingRate.toFixed(2)}x normal.`;
+
+    // The kVA view is still reported, because the GAP between the two is the
+    // finding: it is exactly how much heat a conventional kVA report hides on
+    // an unbalanced transformer. Reported beside the real figure, never as it.
+    const tKva = computeThermal({
+      loadKva: (snap.loadingPct / 100) * tx.ratingKva,
+      ratingKva: tx.ratingKva,
+      ambientC,
+      powerFactor: 0.95,
+    });
+    hotSpotOnKvaBasisC = round1(tKva.hotspotC);
+    ageingRateOnKvaBasis = round2(tKva.ageingRate);
 
     // TTF is the exact inverse of the ageing rate above, to three decimals,
     // and it carries the life basis it was divided by. round1() printed 0.3
@@ -142,7 +188,12 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
     physicalConditionScore: row?.physical ?? null,
     phaseLoadingPctOfRated,
     hotSpotTemperatureC,
+    hotSpotBasis,
+    thermalArithmetic,
+    /** The same instant read as a conventional kVA report would read it. */
+    hotSpotOnKvaBasisC,
     ageingRate,
+    ageingRateOnKvaBasis,
     estimatedTimeToFailureYears,
     loadingPctOfRated,
     unbalancePct,

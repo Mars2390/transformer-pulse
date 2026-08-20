@@ -154,15 +154,27 @@ export function buildLoadAlerts(args: BuildLoadAlertsArgs): LoadAlertInput[] {
 
   // --- Thermal. Reuses the phase-overload channel rather than inventing an
   // AlertType the enum does not have; the hot-spot is the reason, and it is in
-  // the text where a reader will look for it. ---
-  if (s.hotSpotC > LIMITS.hotspotC && !out.some((o) => o.type === "SINGLE_PHASE_OVERLOAD")) {
+  // the text where a reader will look for it.
+  //
+  // Judged on hotSpotByPhaseC, the HOTTEST WINDING, not on hotSpotC. The
+  // hot-spot lives in the winding carrying the most current, and the kVA-basis
+  // figure is close to the mean of the three phases — so on an unbalanced unit
+  // it sits well below the temperature the paper is actually at. Testing the
+  // kVA figure meant a transformer whose worst winding was at 129.8 degC, well
+  // past the limit and ageing 39x normal, raised nothing at all because its
+  // kVA-basis figure read 91.5 degC. Both numbers are in the message, because
+  // the gap between them is the finding. ---
+  if (s.hotSpotByPhaseC > LIMITS.hotspotC && !out.some((o) => o.type === "SINGLE_PHASE_OVERLOAD")) {
     out.push({
       ...base,
       type: "SINGLE_PHASE_OVERLOAD",
       severity: "CRITICAL",
       message:
-        label + ": hot-spot " + s.hotSpotC.toFixed(2) + " degC at " + at(s) + ", above the " +
-        LIMITS.hotspotC + " degC IEC 60076-7 limit for normal cyclic loading. Loading " +
+        label + ": hot-spot " + s.hotSpotByPhaseC.toFixed(2) + " degC in the hottest winding (" +
+        (s.hottestPhase ?? "worst phase") + " at " + pct2(s.maxPhasePctRated) + " of rated) at " +
+        at(s) + ", above the " + LIMITS.hotspotC +
+        " degC IEC 60076-7 limit for normal cyclic loading. On the kVA figure alone it reads " +
+        s.hotSpotC.toFixed(2) + " degC, which is what a conventional report would show. Loading " +
         pct2(s.loadingPct) + ", unbalance " + pct2(s.unbalancePct) + ", ageing " +
         s.ageingRate.toFixed(1) + "x normal. Constants: " + s.constantsProvenance,
     });

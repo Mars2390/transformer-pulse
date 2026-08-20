@@ -48,6 +48,15 @@ export type SnapshotMetrics = {
   unbalancePct: number;
   /** Worst phase against rated current. The figure the kVA number hides. */
   maxPhasePctRated: number;
+  /**
+   * The worst phase in amperes, and which phase it was.
+   *
+   * Exposed because the thermal model's K is this current over rated current,
+   * and anyone checking a hot-spot by hand needs the two numbers that produced
+   * it — not a percentage they have to work backwards from.
+   */
+  maxPhaseC: number;
+  hottestPhase: 'L1' | 'L2' | 'L3' | null;
   neutralPctRated: number;
   pickedBy: 'peak kVA loading' | 'peak phase current' | 'no readings';
   /** The arithmetic, spelled out, for manual-versus-system comparison. */
@@ -60,7 +69,8 @@ const num = (x: number | null | undefined): number =>
 export const EMPTY_SNAPSHOT: SnapshotMetrics = {
   recordedAt: null, ratingKva: 0, voltLL: NOMINAL_VLL, iRated: 0,
   l1c: 0, l2c: 0, l3c: 0, neutralC: 0, kva: 0,
-  loadingPct: 0, unbalancePct: 0, maxPhasePctRated: 0, neutralPctRated: 0,
+  loadingPct: 0, unbalancePct: 0, maxPhasePctRated: 0,
+  maxPhaseC: 0, hottestPhase: null, neutralPctRated: 0,
   pickedBy: 'no readings', arithmetic: 'no readings',
 };
 
@@ -94,6 +104,14 @@ export function deriveSnapshotMetrics(
     loadingPct: ratingKva > 0 ? (kva / ratingKva) * 100 : 0,
     unbalancePct,
     maxPhasePctRated: iRated > 0 ? (maxPhase / iRated) * 100 : 0,
+    maxPhaseC: maxPhase,
+    // Named from the three phase readings, not from the stored maxPhaseC — a
+    // stored maximum has no phase label, and reporting the wrong letter beside
+    // a correct number is worse than reporting no letter at all.
+    hottestPhase:
+      maxPhase <= 0 || maxPhase !== Math.max(l1, l2, l3)
+        ? null
+        : (['L1', 'L2', 'L3'] as const)[[l1, l2, l3].indexOf(maxPhase)],
     neutralPctRated: iRated > 0 ? (neutral / iRated) * 100 : 0,
     pickedBy,
     arithmetic:
