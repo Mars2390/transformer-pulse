@@ -103,6 +103,7 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
   let timeToFailureBasis: string | null = null;
   let timeToFailureCaveat: string | null = null;
   let thermalArithmetic: string | null = null;
+  let thermalConstantsSource: string | null = null;
 
   // One reading drives loading, unbalance, hot-spot, ageing and TTF. Driving
   // the thermal model off the hourly rollup while quoting unbalance from
@@ -143,9 +144,12 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
       ratingKva: tx.ratingKva,
       ambientC,
       powerFactor: 0.95,
+      // The five constants off this unit's test certificate, where it has one.
+      transformer: tx,
     });
     hotSpotTemperatureC = round1(t.hotspotC);
     ageingRate = round2(t.ageingRate);
+    thermalConstantsSource = t.constantsProvenance;
     hotSpotBasis =
       `Hottest winding: K = ${(snap.maxPhasePctRated / 100).toFixed(4)} ` +
       `(${snap.hottestPhase ?? "worst phase"} at ${snap.maxPhaseC.toFixed(1)} A of ${snap.iRated.toFixed(1)} A rated), ` +
@@ -163,6 +167,7 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
       ratingKva: tx.ratingKva,
       ambientC,
       powerFactor: 0.95,
+      transformer: tx,
     });
     hotSpotOnKvaBasisC = round1(tKva.hotspotC);
     ageingRateOnKvaBasis = round2(tKva.ageingRate);
@@ -190,6 +195,8 @@ async function analyzeTransformerHealth(args: unknown): Promise<McpToolResult> {
     hotSpotTemperatureC,
     hotSpotBasis,
     thermalArithmetic,
+    /** Whether the five constants came off a test certificate or from IEC. */
+    thermalConstantsSource,
     /** The same instant read as a conventional kVA report would read it. */
     hotSpotOnKvaBasisC,
     ageingRate,

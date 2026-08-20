@@ -708,6 +708,28 @@ model Transformer {
   oilVolumeLitres   Int?
   yearOfManufacture Int
 
+  // IEC 60076-7 thermal constants, off the manufacturer's TEST CERTIFICATE.
+  //
+  // Null means "never keyed in", NOT zero, and the engine falls back to the
+  // IEC 60076-7 Table 4 values for an ONAN distribution unit. A zero oil rise
+  // or a zero loss ratio would model a transformer that stays cold under any
+  // load, which is the most dangerous thing this table could say.
+  //
+  // A 315 kVA ABB unit and a 315 kVA Iljin unit are not thermally identical and
+  // their certificates say so. R in particular sits inside the top-oil equation,
+  // so getting it from the certificate rather than from a default moves the
+  // hot-spot by tens of kelvin.
+  //
+  // NAMING: windingExponentX carries IEC's x (the OIL exponent) and
+  // oilExponentY carries IEC's y (the WINDING exponent). The names pair each
+  // letter with the wrong word; the VALUES follow the standard. See the naming
+  // note in src/lib/thermal-constants.ts before renaming either of them.
+  lossRatioR       Float? // R, load loss / no-load loss at rated. IEC default 5
+  topOilRiseK      Float? // dOil,r, top-oil rise at rated load, K. IEC default 55
+  hotSpotGradientK Float? // H x g_r, full hot-spot gradient at rated load, K. IEC default 23
+  windingExponentX Float? // IEC x, exponent on the oil-rise ratio. IEC default 0.8
+  oilExponentY     Float? // IEC y, exponent on K in the winding gradient. IEC default 1.6
+
   // --- Full nameplate (all optional — added after the first units were
   // registered, so existing records stay valid and are backfilled by edit) ---
   frequencyHz         Int?    @default(50)

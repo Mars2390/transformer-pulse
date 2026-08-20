@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 import { computeThermal } from "./transformer-thermal";
+import type { ThermalConstantsRecord } from "./thermal-constants";
 import { ambientForMonth, priceLossOfLife } from "./load-balancing";
 import { estimateNewUnitCostKes } from "./repair-economics";
 
@@ -46,13 +47,19 @@ function ageBreakdown(from: Date, to: Date): { years: number; months: number; da
 }
 
 export async function computeServiceSummary(input: {
+  /**
+   * Intersected with ThermalConstantsRecord so a caller that has the test
+   * certificate columns in scope can hand them over and get this unit's own
+   * loss-of-life figure. All five are optional; without them the thermal model
+   * falls back to IEC 60076-7 Table 4 exactly as before.
+   */
   transformer: {
     id: string;
     ratingKva: number;
     secondaryKv: number | null;
     yearOfManufacture: number;
     commissionDate: Date | null;
-  };
+  } & ThermalConstantsRecord;
   events: { type: string; toStatus: string; occurredAt: Date }[];
   repairs: { receivedAtWorkshop: Date; repairCompletedAt: Date | null; repairCostKes: number | null }[];
   testsCount: number;
@@ -103,7 +110,13 @@ export async function computeServiceSummary(input: {
   if (latestHour?.maxPhasePctRated != null) {
     const ambientC = ambientForMonth(latestHour.hourStart.getUTCMonth());
     const loadKva = (latestHour.maxPhasePctRated / 100) * tx.ratingKva;
-    const thermal = computeThermal({ loadKva, ratingKva: tx.ratingKva, ambientC, powerFactor: 0.95 });
+    const thermal = computeThermal({
+      loadKva, ratingKva: tx.ratingKva, ambientC, powerFactor: 0.95,
+      // Money. If any figure here deserves this unit's own certificate
+      // constants rather than a fleet-wide default, it is the one with a
+      // shilling sign in front of it.
+      transformer: tx,
+    });
     const money = priceLossOfLife(thermal.ageingRate, purchaseCostKes, 1);
     lossOfLifeCostKesPerHour = money.currentPerHourKes;
   }

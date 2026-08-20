@@ -140,6 +140,8 @@ export default async function StoryPage({
     transformer: {
       id: tx.id, ratingKva: tx.ratingKva, secondaryKv: tx.secondaryKv,
       yearOfManufacture: tx.yearOfManufacture, commissionDate: tx.commissionDate,
+      lossRatioR: tx.lossRatioR, topOilRiseK: tx.topOilRiseK, hotSpotGradientK: tx.hotSpotGradientK,
+      windingExponentX: tx.windingExponentX, oilExponentY: tx.oilExponentY,
     },
     events: tx.events.map((e) => ({ type: e.type, toStatus: e.toStatus, occurredAt: e.occurredAt })),
     repairs: tx.repairs.map((r) => ({

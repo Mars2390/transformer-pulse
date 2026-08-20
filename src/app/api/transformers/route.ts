@@ -74,6 +74,14 @@ export async function POST(request: Request) {
           totalWeightKg: input.totalWeightKg ?? null,
           tapRange: input.tapRange || null,
 
+          // Test-certificate thermal constants. Null where the box was left
+          // blank, which the thermal engine reads as "use the IEC default".
+          lossRatioR: input.lossRatioR ?? null,
+          topOilRiseK: input.topOilRiseK ?? null,
+          hotSpotGradientK: input.hotSpotGradientK ?? null,
+          windingExponentX: input.windingExponentX ?? null,
+          oilExponentY: input.oilExponentY ?? null,
+
           // Copied from the manufacturer, not referenced. Renegotiating a
           // contract next year must not silently rewrite the warranty of units
           // already sitting in the field.

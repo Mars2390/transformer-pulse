@@ -124,6 +124,7 @@ export async function GET(request: Request) {
       ratingKva,
       ambientC: ASSUMED_AMBIENT_C,
       powerFactor: pf,
+      transformer: dataset.transformer,
     });
 
     const flags: { code: string; severity: "WARNING" | "CRITICAL"; text: string }[] = [];

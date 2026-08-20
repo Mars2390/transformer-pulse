@@ -54,7 +54,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const [priorityRows, serviceSummary, inspections, emdisAgg, latestHour, manufacturerRows] = await Promise.all([
       buildPriorityList({ transformerIds: [id], allStatuses: true }),
       computeServiceSummary({
-        transformer: { id: tx.id, ratingKva: tx.ratingKva, secondaryKv: tx.secondaryKv, yearOfManufacture: tx.yearOfManufacture, commissionDate: tx.commissionDate },
+        transformer: {
+          id: tx.id, ratingKva: tx.ratingKva, secondaryKv: tx.secondaryKv,
+          yearOfManufacture: tx.yearOfManufacture, commissionDate: tx.commissionDate,
+      lossRatioR: tx.lossRatioR, topOilRiseK: tx.topOilRiseK, hotSpotGradientK: tx.hotSpotGradientK,
+      windingExponentX: tx.windingExponentX, oilExponentY: tx.oilExponentY,
+        },
         events: tx.events.map((e) => ({ type: e.type, toStatus: e.toStatus, occurredAt: e.occurredAt })),
         repairs: tx.repairs.map((r) => ({ receivedAtWorkshop: r.receivedAtWorkshop, repairCompletedAt: r.repairCompletedAt, repairCostKes: r.repairCostKes })),
         testsCount: tx.tests.length,

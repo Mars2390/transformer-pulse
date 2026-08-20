@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "./prisma";
 import { analyseDataset, ratedPhaseCurrent, NOMINAL_VLN, LIMITS, type DatasetAnalysis } from "./load-analysis";
 import { computeThermal, type ThermalResult } from "./transformer-thermal";
+import { resolveThermalConstants } from "./thermal-constants";
 import {
   planBalance, assessCapacity, prognose, priceLossOfLife,
   whatIfMove, whatIfUprate, scoreVoltageQuality, ambientForMonth,
@@ -145,10 +146,16 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
   const balance = planBalance(worstCurrents, ratingKva, voltLL, ASSUMED_CUSTOMER_AMPS);
   const capacity = assessCapacity(worstCurrents, ratingKva, voltLL, ASSUMED_CUSTOMER_AMPS);
 
+  // Resolved ONCE for the dataset and handed to every run below. Resolving per
+  // reading would be the same answer half a million times, and — worse — it
+  // would let the baseline and the what-if drift onto different constants.
+  const thermalConstants = resolveThermalConstants(ds.transformer).constants;
+
   const perReadingHotspot = rows.map((r) => {
     const t = computeThermal({
       loadKva: ((r.maxPhasePctRated ?? 0) / 100) * ratingKva,
       ratingKva, ambientC, powerFactor: r.pf && r.pf > 0.1 ? r.pf : pf,
+      constants: thermalConstants,
     });
     return t.hotspotC;
   });
@@ -157,14 +164,15 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
 
   const baseThermal = computeThermal({
     loadKva: (analysis.peakPhasePctRated / 100) * ratingKva, ratingKva, ambientC, powerFactor: pf,
+    constants: thermalConstants,
   });
   const baselineForWhatIf = { hotspotC: baseThermal.hotspotC, ageingRate: baseThermal.ageingRate };
   const whatIfBalance = balance.moves.length
-    ? whatIfMove(worstCurrents, ratingKva, voltLL, ambientC, pf, balance.moves[0], baselineForWhatIf)
+    ? whatIfMove(worstCurrents, ratingKva, voltLL, ambientC, pf, balance.moves[0], baselineForWhatIf, thermalConstants)
     : null;
   const nextSize: Record<number, number> = { 50: 100, 100: 200, 200: 315, 315: 500, 500: 630, 630: 1000 };
   const whatIfUp = nextSize[ratingKva]
-    ? whatIfUprate(worstCurrents, nextSize[ratingKva], voltLL, ambientC, pf, baselineForWhatIf)
+    ? whatIfUprate(worstCurrents, nextSize[ratingKva], voltLL, ambientC, pf, baselineForWhatIf, thermalConstants)
     : null;
 
   const scorecard = scoreVoltageQuality({
@@ -214,6 +222,7 @@ export async function analyseDatasetById(datasetId: string): Promise<FullAnalysi
     // The kVA view: what a conventional report would conclude.
     thermalByKva: computeThermal({
       loadKva: analysis.peakKva, ratingKva, ambientC, powerFactor: pf,
+      constants: thermalConstants,
     }),
     // The truth: the hot-spot sits in the winding carrying the most current.
     thermalByPhase: baseThermal,

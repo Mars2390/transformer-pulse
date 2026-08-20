@@ -50,6 +50,12 @@ export async function PATCH(
       oilWeightKg: input.oilWeightKg ?? null,
       totalWeightKg: input.totalWeightKg ?? null,
       tapRange: input.tapRange || null,
+
+      lossRatioR: input.lossRatioR ?? null,
+      topOilRiseK: input.topOilRiseK ?? null,
+      hotSpotGradientK: input.hotSpotGradientK ?? null,
+      windingExponentX: input.windingExponentX ?? null,
+      oilExponentY: input.oilExponentY ?? null,
     };
 
     // Summarise which fields actually changed, for the audit line.
@@ -58,6 +64,11 @@ export async function PATCH(
       vectorGroup: "vector group", impedancePct: "impedance", frequencyHz: "frequency",
       standardRef: "standard", hvInsulationLevelKv: "BIL", tempClass: "temp class",
       insulationOilType: "oil type", oilWeightKg: "oil weight", totalWeightKg: "total weight",
+      // Named in full on the audit line. Changing a thermal constant changes
+      // every hot-spot this transformer will ever report, so "edited nameplate"
+      // would not be an honest description of what happened.
+      lossRatioR: "loss ratio R", topOilRiseK: "top-oil rise", hotSpotGradientK: "hot-spot gradient",
+      windingExponentX: "oil exponent x", oilExponentY: "winding exponent y",
     };
     const changed = Object.keys(LABELS)
       .filter((k) => String((before as Record<string, unknown>)[k] ?? "") !== String((data as Record<string, unknown>)[k] ?? ""))

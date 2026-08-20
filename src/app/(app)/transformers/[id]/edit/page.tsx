@@ -37,6 +37,15 @@ export default async function EditTransformerPage({ params }: { params: Promise<
     oilWeightKg: tx.oilWeightKg,
     totalWeightKg: tx.totalWeightKg,
     tapRange: tx.tapRange,
+
+    // Test-certificate thermal constants. Blank in the form means the IEC
+    // default will be used, and the form says so — so an empty box here is a
+    // statement, not a gap.
+    lossRatioR: tx.lossRatioR,
+    topOilRiseK: tx.topOilRiseK,
+    hotSpotGradientK: tx.hotSpotGradientK,
+    windingExponentX: tx.windingExponentX,
+    oilExponentY: tx.oilExponentY,
   };
 
   return (

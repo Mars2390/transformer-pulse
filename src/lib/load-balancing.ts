@@ -13,6 +13,7 @@
 
 import { ratedPhaseCurrent } from "./load-analysis";
 import { computeThermal } from "./transformer-thermal";
+import type { ThermalConstants } from "./thermal-constants";
 import { NORMAL_LIFE_YEARS, timeToFailureYears } from "./time-to-failure";
 
 /** IEC 60076-7 reference: normal insulation life at a 98 °C hot-spot. */
@@ -271,6 +272,15 @@ export function whatIfMove(
   pf: number,
   move: { from: "L1" | "L2" | "L3"; to: "L1" | "L2" | "L3"; amps: number },
   baseline: { hotspotC: number; ageingRate: number },
+  /**
+   * The constants the BASELINE was computed with.
+   *
+   * A what-if is a subtraction: "this move buys you N degrees". If the baseline
+   * ran on a transformer's test certificate and the scenario ran on the IEC
+   * defaults, the difference between them would include the difference between
+   * two thermal models, and the saving would be partly fictional.
+   */
+  constants?: ThermalConstants | null,
 ): WhatIfResult {
   const p = { ...currents };
   const key = (n: string) => n.toLowerCase() as "l1" | "l2" | "l3";
@@ -279,7 +289,10 @@ export function whatIfMove(
 
   const iRated = ratedPhaseCurrent(ratingKva, voltLL);
   const newMax = Math.max(p.l1, p.l2, p.l3);
-  const t = computeThermal({ loadKva: (newMax / iRated) * ratingKva, ratingKva, ambientC, powerFactor: pf });
+  const t = computeThermal({
+    loadKva: (newMax / iRated) * ratingKva, ratingKva, ambientC, powerFactor: pf,
+    constants: constants ?? null,
+  });
 
   return {
     scenario: `Move ${move.amps} A from ${move.from} to ${move.to}`,
@@ -300,11 +313,16 @@ export function whatIfUprate(
   ambientC: number,
   pf: number,
   baseline: { hotspotC: number; ageingRate: number },
+  /** The constants the baseline used. See whatIfMove. */
+  constants?: ThermalConstants | null,
 ): WhatIfResult {
   const p = [currents.l1, currents.l2, currents.l3];
   const maxP = Math.max(...p);
   const iRated = ratedPhaseCurrent(newRatingKva, voltLL);
-  const t = computeThermal({ loadKva: (maxP / iRated) * newRatingKva, ratingKva: newRatingKva, ambientC, powerFactor: pf });
+  const t = computeThermal({
+    loadKva: (maxP / iRated) * newRatingKva, ratingKva: newRatingKva, ambientC, powerFactor: pf,
+    constants: constants ?? null,
+  });
 
   return {
     scenario: `Uprate to ${newRatingKva} kVA`,

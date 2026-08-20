@@ -165,6 +165,21 @@ const nameplateFields = {
   oilWeightKg: optionalNumber({ min: 1, max: 100_000, int: true }),
   totalWeightKg: optionalNumber({ min: 1, max: 200_000, int: true }),
   tapRange: z.string().trim().max(120).optional().or(z.literal("")),
+
+  // IEC 60076-7 thermal constants, from the test certificate. Optional, and
+  // blank genuinely means blank — the engine falls back to the IEC Table 4
+  // value and says so on the report.
+  //
+  // The bounds are CONSTANT_RANGES from thermal-constants.ts, restated rather
+  // than imported because this file is the boundary and must not depend on the
+  // physics. They are plausibility windows, not precision: a value outside them
+  // is a unit mix-up or a typing slip, and the resolver rejects it in favour of
+  // the default rather than letting it poison a hot-spot silently.
+  lossRatioR: optionalNumber({ min: 0.5, max: 25 }),
+  topOilRiseK: optionalNumber({ min: 20, max: 90 }),
+  hotSpotGradientK: optionalNumber({ min: 5, max: 60 }),
+  windingExponentX: optionalNumber({ min: 0.2, max: 1.5 }),
+  oilExponentY: optionalNumber({ min: 0.5, max: 2.5 }),
 };
 
 export const receiveTransformerSchema = z.object({
